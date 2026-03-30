@@ -19,6 +19,8 @@ export default function Dashboard() {
   const [mobileShowChat, setMobileShowChat] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const prevMessageCount = useRef(0);
+  const messagesLoadedFor = useRef<string | null>(null);
 
   // Fetch conversations
   const fetchConversations = useCallback(async () => {
@@ -35,15 +37,25 @@ export default function Dashboard() {
 
   // Fetch messages for selected contact
   const fetchMessages = useCallback(async (contactId: string) => {
-    setLoadingMessages(true);
+    const isInitial = messagesLoadedFor.current !== contactId;
+    if (isInitial) setLoadingMessages(true);
     try {
       const res = await fetch(`/api/messages?contactId=${contactId}`);
       const data = await res.json();
       setMessages(data);
+      messagesLoadedFor.current = contactId;
+      await fetch("/api/messages/read", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contactId }),
+      });
+      setConversations((prev) =>
+        prev.map((c) => c.contact_id === contactId ? { ...c, unread_count: 0 } : c)
+      );
     } catch (err) {
       console.error("Error fetching messages:", err);
     } finally {
-      setLoadingMessages(false);
+      if (isInitial) setLoadingMessages(false);
     }
   }, []);
 
@@ -57,15 +69,20 @@ export default function Dashboard() {
   // Reload messages when selected contact changes
   useEffect(() => {
     if (selectedContact) {
+      prevMessageCount.current = 0;
+      messagesLoadedFor.current = null;
       fetchMessages(selectedContact);
       const interval = setInterval(() => fetchMessages(selectedContact), 5000);
       return () => clearInterval(interval);
     }
   }, [selectedContact, fetchMessages]);
 
-  // Scroll to bottom on new messages
+  // Scroll to bottom only when new messages arrive
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (messages.length > prevMessageCount.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+    prevMessageCount.current = messages.length;
   }, [messages]);
 
   // Select a conversation
@@ -78,6 +95,9 @@ export default function Dashboard() {
       setContactNotes(conv.notes || "");
     }
     setEditingContact(false);
+    setConversations((prev) =>
+      prev.map((c) => c.contact_id === contactId ? { ...c, unread_count: 0 } : c)
+    );
   };
 
   // Send message
@@ -372,7 +392,7 @@ export default function Dashboard() {
                   messages.map((msg) => (
                     <div
                       key={msg.id}
-                      className={`flex animate-slide-in ${
+                      className={`flex ${
                         msg.direction === "outbound" ? "justify-end" : "justify-start"
                       }`}
                     >

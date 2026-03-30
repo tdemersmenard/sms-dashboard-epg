@@ -23,14 +23,6 @@ export async function GET(request: NextRequest) {
 
     if (error) throw error;
 
-    // Mark inbound messages as read
-    await supabaseAdmin
-      .from("messages")
-      .update({ is_read: true })
-      .eq("contact_id", contactId)
-      .eq("direction", "inbound")
-      .eq("is_read", false);
-
     return NextResponse.json(messages || []);
   } catch (err: any) {
     console.error("Error fetching messages:", err);
