@@ -24,6 +24,8 @@ export default function Dashboard() {
   const prevMessageCount = useRef(0);
   const messagesLoadedFor = useRef<string | null>(null);
   const selectedContactRef = useRef<string | null>(null);
+  // Tracks when we last marked each conversation as read (ms timestamp)
+  const lastReadAt = useRef<Record<string, number>>({});
 
   // Keep selectedContactRef in sync
   useEffect(() => {
@@ -35,12 +37,14 @@ export default function Dashboard() {
     try {
       const res = await fetch("/api/conversations");
       const data: Conversation[] = await res.json();
-      // Preserve unread_count: 0 for the currently open conversation
-      setConversations(data.map((c) =>
-        c.contact_id === selectedContactRef.current
-          ? { ...c, unread_count: 0 }
-          : c
-      ));
+      // Preserve unread_count: 0 for the open conversation and recently-read ones
+      setConversations(data.map((c) => {
+        if (c.contact_id === selectedContactRef.current) return { ...c, unread_count: 0 };
+        const readAt = lastReadAt.current[c.contact_id] ?? 0;
+        const lastMsgAt = new Date(c.last_message_at).getTime();
+        if (readAt >= lastMsgAt) return { ...c, unread_count: 0 };
+        return c;
+      }));
     } catch (err) {
       console.error("Error fetching conversations:", err);
     } finally {
@@ -57,6 +61,8 @@ export default function Dashboard() {
       const data = await res.json();
       setMessages(data);
       messagesLoadedFor.current = contactId;
+      // Record read timestamp before the async call
+      lastReadAt.current[contactId] = Date.now();
       // Fire-and-forget mark as read
       fetch("/api/messages/read", {
         method: "POST",
@@ -126,11 +132,14 @@ export default function Dashboard() {
             setConversations((prev) => {
               const contact = prev.find((c) => c.contact_id === msg.contact_id);
               if (!contact) {
-                // Nouveau contact inconnu — refetch complet
                 fetchConversations();
                 return prev;
               }
               const isOpen = msg.contact_id === selectedContactRef.current;
+              // Événement "tardif" = message créé avant qu'on ait lu la conversation
+              const readAt = lastReadAt.current[msg.contact_id] ?? 0;
+              const msgTime = new Date(msg.created_at).getTime();
+              const isStale = msgTime <= readAt;
               const updated = prev.map((c) =>
                 c.contact_id !== msg.contact_id
                   ? c
@@ -140,7 +149,7 @@ export default function Dashboard() {
                       last_direction: msg.direction,
                       last_message_at: msg.created_at,
                       unread_count:
-                        msg.direction === "outbound" || isOpen
+                        msg.direction === "outbound" || isOpen || isStale
                           ? c.unread_count
                           : c.unread_count + 1,
                     }
@@ -186,6 +195,7 @@ export default function Dashboard() {
       setContactNotes(conv.notes || "");
     }
     setEditingContact(false);
+    lastReadAt.current[contactId] = Date.now();
     setConversations((prev) =>
       prev.map((c) => c.contact_id === contactId ? { ...c, unread_count: 0 } : c)
     );
