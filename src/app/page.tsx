@@ -18,7 +18,6 @@ export default function Dashboard() {
   const [contactName, setContactName] = useState("");
   const [contactNotes, setContactNotes] = useState("");
   const [mobileShowChat, setMobileShowChat] = useState(false);
-  const [syncing, setSyncing] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const prevMessageCount = useRef(0);
@@ -250,19 +249,33 @@ export default function Dashboard() {
     }
   };
 
-  // Sync Twilio history (messages sent via Make / API)
-  const syncMessages = async () => {
-    setSyncing(true);
+  // Silent background sync — catches outbound Make messages not in DB yet
+  const autoSync = useCallback(async (since?: string) => {
     try {
-      await fetch("/api/sync", { method: "POST" });
+      await fetch("/api/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(since ? { since } : {}),
+      });
       await fetchConversations();
-      if (selectedContact) await fetchMessages(selectedContact);
+      if (selectedContactRef.current) {
+        await fetchMessages(selectedContactRef.current);
+      }
     } catch (err) {
-      console.error("Sync error:", err);
-    } finally {
-      setSyncing(false);
+      console.error("Auto-sync error:", err);
     }
-  };
+  }, [fetchConversations, fetchMessages]);
+
+  // On load: sync last 24h. Every 2 min: sync last 5 min.
+  useEffect(() => {
+    const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    autoSync(since24h);
+    const interval = setInterval(() => {
+      const since5min = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+      autoSync(since5min);
+    }, 2 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [autoSync]);
 
   // Update contact info
   const saveContact = async () => {
@@ -332,38 +345,14 @@ export default function Dashboard() {
             <p className="text-[11px] text-pool-light/60">SMS Dashboard</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          {totalUnread > 0 && (
-            <div className="flex items-center gap-2 bg-pool/10 border border-pool/20 rounded-full px-3 py-1">
-              <span className="w-2 h-2 rounded-full bg-pool pulse-dot" />
-              <span className="text-xs font-medium text-pool-light">
-                {totalUnread} non lu{totalUnread > 1 ? "s" : ""}
-              </span>
-            </div>
-          )}
-          <button
-            onClick={syncMessages}
-            disabled={syncing}
-            title="Synchroniser l'historique Twilio"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-navy-400 hover:text-white hover:bg-navy-800/60 disabled:opacity-40 disabled:cursor-not-allowed transition"
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              className={syncing ? "animate-spin" : ""}
-            >
-              <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-              <path d="M3 3v5h5" />
-              <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
-              <path d="M16 16h5v5" />
-            </svg>
-            {syncing ? "Sync..." : "Sync"}
-          </button>
-        </div>
+        {totalUnread > 0 && (
+          <div className="flex items-center gap-2 bg-pool/10 border border-pool/20 rounded-full px-3 py-1">
+            <span className="w-2 h-2 rounded-full bg-pool pulse-dot" />
+            <span className="text-xs font-medium text-pool-light">
+              {totalUnread} non lu{totalUnread > 1 ? "s" : ""}
+            </span>
+          </div>
+        )}
       </header>
 
       {/* Main content */}

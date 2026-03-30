@@ -2,20 +2,23 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { twilioClient, twilioPhoneNumber } from "@/lib/twilio";
 
-// POST /api/sync - Pull all Twilio messages and sync to Supabase
-export async function POST() {
+// POST /api/sync - Pull Twilio messages and sync to Supabase
+// Body: { since?: ISO string } — if provided, only fetches messages after that date (faster)
+export async function POST(request: NextRequest) {
   try {
+    const body = await request.json().catch(() => ({}));
+    const since: Date | undefined = body.since ? new Date(body.since) : undefined;
+
     let synced = 0;
     let skipped = 0;
     let contactsCreated = 0;
 
-    // Fetch all messages from Twilio (both sent and received)
     const twilioMessages = await twilioClient.messages.list({
-      limit: 1000, // Adjust if you have more
+      limit: since ? 100 : 1000,
+      ...(since ? { dateSentAfter: since } : {}),
     });
 
     for (const msg of twilioMessages) {
-      // Only process messages related to our Twilio number
       const isOutbound = msg.from === twilioPhoneNumber;
       const isInbound = msg.to === twilioPhoneNumber;
 
@@ -24,7 +27,7 @@ export async function POST() {
       const direction = isOutbound ? "outbound" : "inbound";
       const otherPhone = isOutbound ? msg.to : msg.from;
 
-      // Check if message already exists (by twilio_sid)
+      // Skip if already in DB
       const { data: existing } = await supabaseAdmin
         .from("messages")
         .select("id")
@@ -58,7 +61,6 @@ export async function POST() {
         contactsCreated++;
       }
 
-      // Insert message
       const { error: msgError } = await supabaseAdmin.from("messages").insert({
         contact_id: contact!.id,
         twilio_sid: msg.sid,
@@ -77,18 +79,9 @@ export async function POST() {
       synced++;
     }
 
-    return NextResponse.json({
-      success: true,
-      total_twilio_messages: twilioMessages.length,
-      synced,
-      skipped,
-      contacts_created: contactsCreated,
-    });
+    return NextResponse.json({ success: true, synced, skipped, contacts_created: contactsCreated });
   } catch (err: any) {
     console.error("Sync error:", err);
-    return NextResponse.json(
-      { error: err.message || "Sync failed" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: err.message || "Sync failed" }, { status: 500 });
   }
 }
