@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Conversation, Message } from "@/lib/types";
+import { supabaseBrowser } from "@/lib/supabase-browser";
 import { formatPhone, formatMessageTime, formatFullTime, getInitials } from "@/lib/utils";
 
 export default function Dashboard() {
@@ -72,10 +73,10 @@ export default function Dashboard() {
     }
   }, []);
 
-  // Initial load + polling
+  // Initial load + polling (fallback si Realtime déconnecté)
   useEffect(() => {
     fetchConversations();
-    const interval = setInterval(fetchConversations, 3000);
+    const interval = setInterval(fetchConversations, 10000);
     return () => clearInterval(interval);
   }, [fetchConversations]);
 
@@ -85,10 +86,87 @@ export default function Dashboard() {
       prevMessageCount.current = 0;
       messagesLoadedFor.current = null;
       fetchMessages(selectedContact);
-      const interval = setInterval(() => fetchMessages(selectedContact), 2000);
+      const interval = setInterval(() => fetchMessages(selectedContact), 10000);
       return () => clearInterval(interval);
     }
   }, [selectedContact, fetchMessages]);
+
+  // Supabase Realtime — mises à jour instantanées
+  useEffect(() => {
+    let channel: ReturnType<typeof supabaseBrowser.channel> | null = null;
+
+    try {
+      channel = supabaseBrowser
+        .channel("db-messages")
+        .on(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          "postgres_changes" as any,
+          { event: "INSERT", schema: "public", table: "messages" },
+          (payload: { new: Message }) => {
+            const msg = payload.new;
+
+            // Nouveau message dans la conversation ouverte (inbound uniquement — outbound = optimistic)
+            if (
+              msg.contact_id === selectedContactRef.current &&
+              msg.direction === "inbound"
+            ) {
+              setMessages((prev) => {
+                if (prev.some((m) => m.id === msg.id)) return prev;
+                return [...prev, msg];
+              });
+              // Marquer comme lu immédiatement
+              fetch("/api/messages/read", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ contactId: msg.contact_id }),
+              });
+            }
+
+            // Mettre à jour la sidebar instantanément
+            setConversations((prev) => {
+              const contact = prev.find((c) => c.contact_id === msg.contact_id);
+              if (!contact) {
+                // Nouveau contact inconnu — refetch complet
+                fetchConversations();
+                return prev;
+              }
+              const isOpen = msg.contact_id === selectedContactRef.current;
+              const updated = prev.map((c) =>
+                c.contact_id !== msg.contact_id
+                  ? c
+                  : {
+                      ...c,
+                      last_message: msg.body,
+                      last_direction: msg.direction,
+                      last_message_at: msg.created_at,
+                      unread_count:
+                        msg.direction === "outbound" || isOpen
+                          ? c.unread_count
+                          : c.unread_count + 1,
+                    }
+              );
+              return [...updated].sort(
+                (a, b) =>
+                  new Date(b.last_message_at).getTime() -
+                  new Date(a.last_message_at).getTime()
+              );
+            });
+          }
+        )
+        .subscribe((status) => {
+          if (status === "CHANNEL_ERROR") {
+            // Realtime indisponible — le polling de 10s prend le relais
+            console.warn("Supabase Realtime unavailable, falling back to polling");
+          }
+        });
+    } catch (err) {
+      console.warn("Realtime init error:", err);
+    }
+
+    return () => {
+      if (channel) supabaseBrowser.removeChannel(channel);
+    };
+  }, [fetchConversations]);
 
   // Scroll to bottom only when new messages arrive
   useEffect(() => {
