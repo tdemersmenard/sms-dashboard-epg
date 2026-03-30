@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Conversation, Message } from "@/lib/types";
+import { supabase } from "@/lib/supabase";
 import { formatPhone, formatMessageTime, formatFullTime, getInitials } from "@/lib/utils";
 
 export default function Dashboard() {
@@ -17,6 +18,7 @@ export default function Dashboard() {
   const [contactName, setContactName] = useState("");
   const [contactNotes, setContactNotes] = useState("");
   const [mobileShowChat, setMobileShowChat] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const prevMessageCount = useRef(0);
@@ -71,10 +73,10 @@ export default function Dashboard() {
     }
   }, []);
 
-  // Initial load + polling
+  // Initial load + polling (fallback only — Realtime handles live updates)
   useEffect(() => {
     fetchConversations();
-    const interval = setInterval(fetchConversations, 3000);
+    const interval = setInterval(fetchConversations, 15000);
     return () => clearInterval(interval);
   }, [fetchConversations]);
 
@@ -84,10 +86,69 @@ export default function Dashboard() {
       prevMessageCount.current = 0;
       messagesLoadedFor.current = null;
       fetchMessages(selectedContact);
-      const interval = setInterval(() => fetchMessages(selectedContact), 2000);
+      const interval = setInterval(() => fetchMessages(selectedContact), 15000);
       return () => clearInterval(interval);
     }
   }, [selectedContact, fetchMessages]);
+
+  // Supabase Realtime — instant updates for new messages
+  useEffect(() => {
+    const channel = supabase
+      .channel("messages-realtime")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "messages" },
+        (payload) => {
+          const newMsg = payload.new as Message;
+
+          // Add to current conversation instantly (inbound only — outbound are optimistic)
+          if (
+            newMsg.contact_id === selectedContactRef.current &&
+            newMsg.direction === "inbound"
+          ) {
+            setMessages((prev) => {
+              // Avoid duplicate if poll already added it
+              if (prev.some((m) => m.id === newMsg.id)) return prev;
+              return [...prev, newMsg];
+            });
+          }
+
+          // Update conversations sidebar instantly
+          setConversations((prev) => {
+            const exists = prev.some((c) => c.contact_id === newMsg.contact_id);
+            if (!exists) {
+              // New contact — fall back to full fetch
+              fetchConversations();
+              return prev;
+            }
+            const updated = prev.map((c) => {
+              if (c.contact_id !== newMsg.contact_id) return c;
+              const isOpen = newMsg.contact_id === selectedContactRef.current;
+              return {
+                ...c,
+                last_message: newMsg.body,
+                last_direction: newMsg.direction,
+                last_message_at: newMsg.created_at,
+                unread_count:
+                  newMsg.direction === "outbound" || isOpen
+                    ? c.unread_count
+                    : c.unread_count + 1,
+              };
+            });
+            return updated.sort(
+              (a, b) =>
+                new Date(b.last_message_at).getTime() -
+                new Date(a.last_message_at).getTime()
+            );
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchConversations]);
 
   // Scroll to bottom only when new messages arrive
   useEffect(() => {
@@ -161,6 +222,20 @@ export default function Dashboard() {
     }
   };
 
+  // Sync Twilio history (messages sent via Make / API)
+  const syncMessages = async () => {
+    setSyncing(true);
+    try {
+      await fetch("/api/sync", { method: "POST" });
+      await fetchConversations();
+      if (selectedContact) await fetchMessages(selectedContact);
+    } catch (err) {
+      console.error("Sync error:", err);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   // Update contact info
   const saveContact = async () => {
     if (!selectedContact) return;
@@ -229,14 +304,38 @@ export default function Dashboard() {
             <p className="text-[11px] text-pool-light/60">SMS Dashboard</p>
           </div>
         </div>
-        {totalUnread > 0 && (
-          <div className="flex items-center gap-2 bg-pool/10 border border-pool/20 rounded-full px-3 py-1">
-            <span className="w-2 h-2 rounded-full bg-pool pulse-dot" />
-            <span className="text-xs font-medium text-pool-light">
-              {totalUnread} non lu{totalUnread > 1 ? "s" : ""}
-            </span>
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          {totalUnread > 0 && (
+            <div className="flex items-center gap-2 bg-pool/10 border border-pool/20 rounded-full px-3 py-1">
+              <span className="w-2 h-2 rounded-full bg-pool pulse-dot" />
+              <span className="text-xs font-medium text-pool-light">
+                {totalUnread} non lu{totalUnread > 1 ? "s" : ""}
+              </span>
+            </div>
+          )}
+          <button
+            onClick={syncMessages}
+            disabled={syncing}
+            title="Synchroniser l'historique Twilio"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-navy-400 hover:text-white hover:bg-navy-800/60 disabled:opacity-40 disabled:cursor-not-allowed transition"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              className={syncing ? "animate-spin" : ""}
+            >
+              <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+              <path d="M3 3v5h5" />
+              <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+              <path d="M16 16h5v5" />
+            </svg>
+            {syncing ? "Sync..." : "Sync"}
+          </button>
+        </div>
       </header>
 
       {/* Main content */}
