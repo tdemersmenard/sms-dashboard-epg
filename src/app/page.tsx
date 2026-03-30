@@ -36,14 +36,23 @@ export default function Dashboard() {
     try {
       const res = await fetch("/api/conversations");
       const data: Conversation[] = await res.json();
-      // Preserve unread_count: 0 for the open conversation and recently-read ones
-      setConversations(data.map((c) => {
-        if (c.contact_id === selectedContactRef.current) return { ...c, unread_count: 0 };
-        const readAt = lastReadAt.current[c.contact_id] ?? 0;
-        const lastMsgAt = new Date(c.last_message_at).getTime();
-        if (readAt >= lastMsgAt) return { ...c, unread_count: 0 };
-        return c;
-      }));
+      setConversations((prev) =>
+        data.map((serverConv: Conversation) => {
+          // Open conversation: always unread = 0
+          if (serverConv.contact_id === selectedContactRef.current) {
+            return { ...serverConv, unread_count: 0 };
+          }
+          const local = prev.find((c) => c.contact_id === serverConv.contact_id);
+          // Local state is newer (Realtime update not yet in DB) → preserve it
+          if (
+            local &&
+            new Date(local.last_message_at) > new Date(serverConv.last_message_at)
+          ) {
+            return local;
+          }
+          return serverConv;
+        })
+      );
     } catch (err) {
       console.error("Error fetching conversations:", err);
     } finally {
@@ -60,10 +69,9 @@ export default function Dashboard() {
       const data = await res.json();
       setMessages(data);
       messagesLoadedFor.current = contactId;
-      // Record read timestamp before the async call
+      // Await mark-as-read so DB is updated before next fetchConversations poll
       lastReadAt.current[contactId] = Date.now();
-      // Fire-and-forget mark as read
-      fetch("/api/messages/read", {
+      await fetch("/api/messages/read", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ contactId }),
