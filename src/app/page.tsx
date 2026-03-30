@@ -26,6 +26,9 @@ export default function Dashboard() {
   const fetchVersion = useRef(0);
   // Tracks when user last marked each conversation as read (ms timestamp)
   const markReadAt = useRef<Map<string, number>>(new Map());
+  // Tracks when Realtime last fired for each contact (ms timestamp)
+  // Used to block stale poll responses from overwriting Realtime state
+  const realtimeUpdatedAt = useRef<Map<string, number>>(new Map());
 
   const setSelectedContactAndRef = (id: string | null) => {
     selectedContactRef.current = id;
@@ -49,15 +52,14 @@ export default function Dashboard() {
             return { ...c, unread_count: 0 };
           }
           const current = prevMap.get(c.contact_id);
-          // Si Realtime a déjà mis un message plus récent dans le state, ne pas écraser
-          if (
-            current &&
-            new Date(current.last_message_at) > new Date(c.last_message_at)
-          ) {
-            return current;
-          }
-          // Si l'utilisateur a marqué lu APRÈS que cette requête ait démarré, garder 0
+          const realtimeAt = realtimeUpdatedAt.current.get(c.contact_id) ?? 0;
           const markedAt = markReadAt.current.get(c.contact_id) ?? 0;
+          // Si Realtime a mis à jour APRÈS le démarrage de cette requête, ignorer la réponse DB
+          if (current && realtimeAt > initiatedAt) {
+            // L'utilisateur a-t-il lu APRÈS le dernier Realtime ? Si oui, 0 badge
+            return markedAt > realtimeAt ? { ...current, unread_count: 0 } : current;
+          }
+          // Réponse DB plus récente que Realtime → appliquer, mais respecter le mark-as-read
           return {
             ...c,
             unread_count: markedAt > initiatedAt ? 0 : c.unread_count,
@@ -82,33 +84,13 @@ export default function Dashboard() {
       setMessages(data);
       messagesLoadedFor.current = contactId;
 
-      // Met à jour le preview + marque comme lu
+      // Marque comme lu — le poll 3s mettra à jour le badge dans la sidebar
       markReadAt.current.set(contactId, Date.now());
-      if (data.length > 0) {
-        const last = data[data.length - 1];
-        setConversations((prev) =>
-          prev.map((c) => {
-            if (c.contact_id !== contactId) return c;
-            // Ne pas écraser si Realtime a déjà un message plus récent
-            if (new Date(c.last_message_at) > new Date(last.created_at)) {
-              return { ...c, unread_count: 0 };
-            }
-            return {
-              ...c,
-              last_message: last.body,
-              last_direction: last.direction,
-              last_message_at: last.created_at,
-              unread_count: 0,
-            };
-          })
-        );
-      } else {
-        setConversations((prev) =>
-          prev.map((c) =>
-            c.contact_id === contactId ? { ...c, unread_count: 0 } : c
-          )
-        );
-      }
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.contact_id === contactId ? { ...c, unread_count: 0 } : c
+        )
+      );
 
       // Mark as read — fire-and-forget
       fetch("/api/messages/read", {
@@ -155,6 +137,7 @@ export default function Dashboard() {
 
             if (msg.contact_id === selectedContactRef.current) {
               // Conversation ouverte : ajoute le message instantanément
+              realtimeUpdatedAt.current.set(msg.contact_id, Date.now());
               if (msg.direction === "inbound") {
                 setMessages((prev) => {
                   if (prev.some((m) => m.id === msg.id)) return prev;
@@ -187,6 +170,7 @@ export default function Dashboard() {
               });
             } else {
               // Autre conversation : badge + preview instantanés sans fetchConversations
+              realtimeUpdatedAt.current.set(msg.contact_id, Date.now());
               setConversations((prev) => {
                 const contactExists = prev.some(
                   (c) => c.contact_id === msg.contact_id
