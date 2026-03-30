@@ -82,7 +82,7 @@ export default function Dashboard() {
   // ─── Polling fallback (if Realtime disconnects) ──────────────────────────────
   useEffect(() => {
     fetchConversations();
-    const interval = setInterval(fetchConversations, 10000);
+    const interval = setInterval(fetchConversations, 4000);
     return () => clearInterval(interval);
   }, [fetchConversations]);
 
@@ -91,7 +91,7 @@ export default function Dashboard() {
       prevMessageCount.current = 0;
       messagesLoadedFor.current = null;
       fetchMessages(selectedContact);
-      const interval = setInterval(() => fetchMessages(selectedContact), 10000);
+      const interval = setInterval(() => fetchMessages(selectedContact), 4000);
       return () => clearInterval(interval);
     }
   }, [selectedContact, fetchMessages]);
@@ -167,8 +167,8 @@ export default function Dashboard() {
   useEffect(() => {
     autoSync(new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
     const interval = setInterval(
-      () => autoSync(new Date(Date.now() - 5 * 60 * 1000).toISOString()),
-      2 * 60 * 1000
+      () => autoSync(new Date(Date.now() - 15 * 60 * 1000).toISOString()),
+      30 * 1000
     );
     return () => clearInterval(interval);
   }, [autoSync]);
