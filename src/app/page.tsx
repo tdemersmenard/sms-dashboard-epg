@@ -23,35 +23,22 @@ export default function Dashboard() {
   const prevMessageCount = useRef(0);
   const messagesLoadedFor = useRef<string | null>(null);
   const selectedContactRef = useRef<string | null>(null);
-  // Tracks when we last marked each conversation as read (ms timestamp)
-  const lastReadAt = useRef<Record<string, number>>({});
 
-  // Keep selectedContactRef in sync
   useEffect(() => {
     selectedContactRef.current = selectedContact;
   }, [selectedContact]);
 
-  // Fetch conversations
+  // ─── Fetch conversations (single source of truth from DB) ───────────────────
   const fetchConversations = useCallback(async () => {
     try {
       const res = await fetch("/api/conversations");
       const data: Conversation[] = await res.json();
-      setConversations((prev) =>
-        data.map((serverConv: Conversation) => {
-          // Open conversation: always unread = 0
-          if (serverConv.contact_id === selectedContactRef.current) {
-            return { ...serverConv, unread_count: 0 };
-          }
-          const local = prev.find((c) => c.contact_id === serverConv.contact_id);
-          // Local state is newer (Realtime update not yet in DB) → preserve it
-          if (
-            local &&
-            new Date(local.last_message_at) > new Date(serverConv.last_message_at)
-          ) {
-            return local;
-          }
-          return serverConv;
-        })
+      setConversations(
+        data.map((c) =>
+          c.contact_id === selectedContactRef.current
+            ? { ...c, unread_count: 0 }
+            : c
+        )
       );
     } catch (err) {
       console.error("Error fetching conversations:", err);
@@ -60,7 +47,7 @@ export default function Dashboard() {
     }
   }, []);
 
-  // Fetch messages for selected contact
+  // ─── Fetch messages + mark as read ──────────────────────────────────────────
   const fetchMessages = useCallback(async (contactId: string) => {
     const isInitial = messagesLoadedFor.current !== contactId;
     if (isInitial) setLoadingMessages(true);
@@ -69,15 +56,15 @@ export default function Dashboard() {
       const data = await res.json();
       setMessages(data);
       messagesLoadedFor.current = contactId;
-      // Await mark-as-read so DB is updated before next fetchConversations poll
-      lastReadAt.current[contactId] = Date.now();
       await fetch("/api/messages/read", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ contactId }),
       });
       setConversations((prev) =>
-        prev.map((c) => c.contact_id === contactId ? { ...c, unread_count: 0 } : c)
+        prev.map((c) =>
+          c.contact_id === contactId ? { ...c, unread_count: 0 } : c
+        )
       );
     } catch (err) {
       console.error("Error fetching messages:", err);
@@ -86,14 +73,13 @@ export default function Dashboard() {
     }
   }, []);
 
-  // Initial load + polling (fallback si Realtime déconnecté)
+  // ─── Polling fallback (if Realtime disconnects) ──────────────────────────────
   useEffect(() => {
     fetchConversations();
     const interval = setInterval(fetchConversations, 10000);
     return () => clearInterval(interval);
   }, [fetchConversations]);
 
-  // Reload messages when selected contact changes
   useEffect(() => {
     if (selectedContact) {
       prevMessageCount.current = 0;
@@ -104,10 +90,11 @@ export default function Dashboard() {
     }
   }, [selectedContact, fetchMessages]);
 
-  // Supabase Realtime — mises à jour instantanées
+  // ─── Supabase Realtime ───────────────────────────────────────────────────────
+  // When a new message is inserted in DB, Realtime fires AFTER the DB write.
+  // So calling fetchConversations() here always gets fresh, correct data.
   useEffect(() => {
     let channel: ReturnType<typeof supabaseBrowser.channel> | null = null;
-
     try {
       channel = supabaseBrowser
         .channel("db-messages")
@@ -118,7 +105,7 @@ export default function Dashboard() {
           (payload: { new: Message }) => {
             const msg = payload.new;
 
-            // Nouveau message dans la conversation ouverte (inbound uniquement — outbound = optimistic)
+            // Instantly append inbound message to the open conversation
             if (
               msg.contact_id === selectedContactRef.current &&
               msg.direction === "inbound"
@@ -127,7 +114,6 @@ export default function Dashboard() {
                 if (prev.some((m) => m.id === msg.id)) return prev;
                 return [...prev, msg];
               });
-              // Marquer comme lu immédiatement
               fetch("/api/messages/read", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -135,56 +121,53 @@ export default function Dashboard() {
               });
             }
 
-            // Mettre à jour la sidebar instantanément
-            setConversations((prev) => {
-              const contact = prev.find((c) => c.contact_id === msg.contact_id);
-              if (!contact) {
-                fetchConversations();
-                return prev;
-              }
-              const isOpen = msg.contact_id === selectedContactRef.current;
-              // Événement "tardif" = message créé avant qu'on ait lu la conversation
-              const readAt = lastReadAt.current[msg.contact_id] ?? 0;
-              const msgTime = new Date(msg.created_at).getTime();
-              const isStale = msgTime <= readAt;
-              const updated = prev.map((c) =>
-                c.contact_id !== msg.contact_id
-                  ? c
-                  : {
-                      ...c,
-                      last_message: msg.body,
-                      last_direction: msg.direction,
-                      last_message_at: msg.created_at,
-                      unread_count:
-                        msg.direction === "outbound" || isOpen || isStale
-                          ? c.unread_count
-                          : c.unread_count + 1,
-                    }
-              );
-              return [...updated].sort(
-                (a, b) =>
-                  new Date(b.last_message_at).getTime() -
-                  new Date(a.last_message_at).getTime()
-              );
-            });
+            // Refresh sidebar from DB — accurate unread count + correct last message
+            fetchConversations();
           }
         )
         .subscribe((status) => {
           if (status === "CHANNEL_ERROR") {
-            // Realtime indisponible — le polling de 10s prend le relais
-            console.warn("Supabase Realtime unavailable, falling back to polling");
+            console.warn("Realtime unavailable, polling fallback active");
           }
         });
     } catch (err) {
       console.warn("Realtime init error:", err);
     }
-
     return () => {
       if (channel) supabaseBrowser.removeChannel(channel);
     };
   }, [fetchConversations]);
 
-  // Scroll to bottom only when new messages arrive
+  // ─── Auto-sync Twilio (catches outbound Make messages) ───────────────────────
+  const autoSync = useCallback(
+    async (since?: string) => {
+      try {
+        await fetch("/api/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(since ? { since } : {}),
+        });
+        await fetchConversations();
+        if (selectedContactRef.current) {
+          fetchMessages(selectedContactRef.current);
+        }
+      } catch (err) {
+        console.error("Auto-sync error:", err);
+      }
+    },
+    [fetchConversations, fetchMessages]
+  );
+
+  useEffect(() => {
+    autoSync(new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
+    const interval = setInterval(
+      () => autoSync(new Date(Date.now() - 5 * 60 * 1000).toISOString()),
+      2 * 60 * 1000
+    );
+    return () => clearInterval(interval);
+  }, [autoSync]);
+
+  // ─── Scroll on new messages ──────────────────────────────────────────────────
   useEffect(() => {
     if (messages.length > prevMessageCount.current) {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -192,7 +175,7 @@ export default function Dashboard() {
     prevMessageCount.current = messages.length;
   }, [messages]);
 
-  // Select a conversation
+  // ─── Select conversation ─────────────────────────────────────────────────────
   const selectConversation = (contactId: string) => {
     setSelectedContact(contactId);
     setMobileShowChat(true);
@@ -202,19 +185,19 @@ export default function Dashboard() {
       setContactNotes(conv.notes || "");
     }
     setEditingContact(false);
-    lastReadAt.current[contactId] = Date.now();
     setConversations((prev) =>
-      prev.map((c) => c.contact_id === contactId ? { ...c, unread_count: 0 } : c)
+      prev.map((c) =>
+        c.contact_id === contactId ? { ...c, unread_count: 0 } : c
+      )
     );
   };
 
-  // Send message
+  // ─── Send message (optimistic) ───────────────────────────────────────────────
   const sendMessage = async () => {
     if (!newMessage.trim() || !selectedContact || sending) return;
     const body = newMessage.trim();
     setSending(true);
 
-    // Optimistic update — show message instantly
     const optimisticId = `temp-${Date.now()}`;
     const optimisticMsg: Message = {
       id: optimisticId,
@@ -228,9 +211,7 @@ export default function Dashboard() {
     };
     setMessages((prev) => [...prev, optimisticMsg]);
     setNewMessage("");
-    if (inputRef.current) {
-      inputRef.current.style.height = "auto";
-    }
+    if (inputRef.current) inputRef.current.style.height = "auto";
 
     try {
       const res = await fetch("/api/messages", {
@@ -239,12 +220,10 @@ export default function Dashboard() {
         body: JSON.stringify({ contactId: selectedContact, body }),
       });
       if (res.ok) {
-        // Replace optimistic with real data
         await fetchMessages(selectedContact);
         fetchConversations();
         inputRef.current?.focus();
       } else {
-        // Rollback on error
         setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
         setNewMessage(body);
       }
@@ -257,35 +236,7 @@ export default function Dashboard() {
     }
   };
 
-  // Silent background sync — catches outbound Make messages not in DB yet
-  const autoSync = useCallback(async (since?: string) => {
-    try {
-      await fetch("/api/sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(since ? { since } : {}),
-      });
-      await fetchConversations();
-      if (selectedContactRef.current) {
-        await fetchMessages(selectedContactRef.current);
-      }
-    } catch (err) {
-      console.error("Auto-sync error:", err);
-    }
-  }, [fetchConversations, fetchMessages]);
-
-  // On load: sync last 24h. Every 2 min: sync last 5 min.
-  useEffect(() => {
-    const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    autoSync(since24h);
-    const interval = setInterval(() => {
-      const since5min = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-      autoSync(since5min);
-    }, 2 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, [autoSync]);
-
-  // Update contact info
+  // ─── Save contact ────────────────────────────────────────────────────────────
   const saveContact = async () => {
     if (!selectedContact) return;
     try {
@@ -305,7 +256,6 @@ export default function Dashboard() {
     }
   };
 
-  // Handle Enter key
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -313,7 +263,6 @@ export default function Dashboard() {
     }
   };
 
-  // Filter conversations
   const filtered = conversations.filter((c) => {
     const q = search.toLowerCase();
     return (
@@ -363,26 +312,17 @@ export default function Dashboard() {
         )}
       </header>
 
-      {/* Main content */}
+      {/* Main */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Sidebar - conversations list */}
+        {/* Sidebar */}
         <aside
           className={`${
             mobileShowChat ? "hidden md:flex" : "flex"
           } w-full md:w-[340px] lg:w-[380px] flex-shrink-0 flex-col border-r border-navy-800 bg-navy-950/50`}
         >
-          {/* Search */}
           <div className="p-3">
             <div className="relative">
-              <svg
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-navy-400"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-navy-400" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <circle cx="11" cy="11" r="8" />
                 <path d="m21 21-4.3-4.3" />
               </svg>
@@ -396,7 +336,6 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Conversations list */}
           <div className="flex-1 overflow-y-auto">
             {loading ? (
               <div className="flex items-center justify-center py-12">
@@ -417,7 +356,6 @@ export default function Dashboard() {
                     selectedContact === conv.contact_id ? "active" : ""
                   }`}
                 >
-                  {/* Avatar */}
                   <div
                     className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-semibold ${
                       conv.unread_count > 0
@@ -427,8 +365,6 @@ export default function Dashboard() {
                   >
                     {getInitials(conv.name, conv.phone)}
                   </div>
-
-                  {/* Content */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-0.5">
                       <span className="font-medium text-sm text-white truncate">
@@ -458,7 +394,7 @@ export default function Dashboard() {
           </div>
         </aside>
 
-        {/* Chat area */}
+        {/* Chat */}
         <main
           className={`${
             mobileShowChat ? "flex" : "hidden md:flex"
@@ -468,15 +404,7 @@ export default function Dashboard() {
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center">
                 <div className="w-16 h-16 rounded-2xl bg-navy-900/50 border border-navy-800 flex items-center justify-center mx-auto mb-4">
-                  <svg
-                    width="28"
-                    height="28"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    className="text-navy-600"
-                  >
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-navy-600">
                     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                   </svg>
                 </div>
@@ -503,7 +431,6 @@ export default function Dashboard() {
                 <button
                   onClick={() => setEditingContact(!editingContact)}
                   className="text-navy-400 hover:text-pool-light transition p-2 rounded-lg hover:bg-navy-800/50"
-                  title="Modifier le contact"
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
@@ -512,7 +439,7 @@ export default function Dashboard() {
                 </button>
               </div>
 
-              {/* Edit contact panel */}
+              {/* Edit contact */}
               {editingContact && (
                 <div className="flex-shrink-0 border-b border-navy-800 bg-navy-900/50 px-4 py-3 animate-slide-in">
                   <div className="flex gap-3 mb-2">
@@ -564,13 +491,7 @@ export default function Dashboard() {
                         }`}
                       >
                         <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.body}</p>
-                        <p
-                          className={`text-[10px] mt-1 ${
-                            msg.direction === "outbound"
-                              ? "text-white/50"
-                              : "text-navy-500"
-                          }`}
-                        >
+                        <p className={`text-[10px] mt-1 ${msg.direction === "outbound" ? "text-white/50" : "text-navy-500"}`}>
                           {formatFullTime(msg.created_at)}
                         </p>
                       </div>
