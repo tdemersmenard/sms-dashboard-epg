@@ -21,44 +21,69 @@ export default function Dashboard() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const prevMessageCount = useRef(0);
+  // Track previous message count to know when to scroll
+  const prevMsgCount = useRef(0);
+  // Track which contact's messages are loaded (to show spinner only on first open)
   const messagesLoadedFor = useRef<string | null>(null);
+  // Mirror of selectedContact for use inside async callbacks (avoids stale closures)
   const selectedContactRef = useRef<string | null>(null);
+  // Version counter: discard responses that arrived out of order
   const fetchVersion = useRef(0);
-  // When did the user last mark each conversation as read (ms)
-  const markReadAt = useRef<Map<string, number>>(new Map());
+  // Contacts that have been marked as read locally (pending DB confirmation)
+  // Badge stays 0 for these until DB confirms unread_count = 0
+  const pendingRead = useRef<Set<string>>(new Set());
 
-  const setSelectedContactAndRef = (id: string | null) => {
-    selectedContactRef.current = id;
-    setSelectedContact(id);
-  };
+  // ─── Mark as read ─────────────────────────────────────────────────────────────
+  const markAsRead = useCallback((contactId: string) => {
+    pendingRead.current.add(contactId);
+    fetch("/api/messages/read", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contactId }),
+    }).catch(() => {/* silent */});
+  }, []);
 
-  // ─── Single source of truth: DB ──────────────────────────────────────────────
-  // Called from: poll, Realtime signal, autoSync, sendMessage success
+  // ─── Conversations ────────────────────────────────────────────────────────────
   const fetchConversations = useCallback(async () => {
     const v = ++fetchVersion.current;
     try {
       const res = await fetch("/api/conversations");
       const data: Conversation[] = await res.json();
-      // Discard if a newer request has already been fired
-      if (v < fetchVersion.current) return;
+      if (v < fetchVersion.current) return; // stale response, discard
       if (!Array.isArray(data)) return;
-      const now = Date.now();
-      setConversations(
-        data.map((c) => {
-          // Never show badge for the conversation the user is currently viewing
+
+      setConversations((prev) => {
+        const next = data.map((c) => {
+          // Currently open conversation → always 0
           if (c.contact_id === selectedContactRef.current) {
             return { ...c, unread_count: 0 };
           }
-          // If user marked this conversation as read within the last 3s,
-          // keep badge at 0 even if the DB hasn't fully processed is_read=true yet
-          const readAt = markReadAt.current.get(c.contact_id) ?? 0;
-          if (now - readAt < 3000) {
+          // Conversation was marked as read locally (pending DB confirmation)
+          if (pendingRead.current.has(c.contact_id)) {
+            // Once DB confirms 0, remove from pending
+            if (c.unread_count === 0) pendingRead.current.delete(c.contact_id);
             return { ...c, unread_count: 0 };
           }
           return c;
-        })
-      );
+        });
+
+        // Silent merge: only update state if something actually changed
+        // This prevents unnecessary re-renders every 3s
+        const changed =
+          prev.length !== next.length ||
+          prev.some((c, i) => {
+            const n = next[i];
+            return (
+              c.contact_id !== n.contact_id ||
+              c.unread_count !== n.unread_count ||
+              c.last_message !== n.last_message ||
+              c.last_message_at !== n.last_message_at ||
+              c.name !== n.name
+            );
+          });
+
+        return changed ? next : prev;
+      });
     } catch (err) {
       console.error("fetchConversations error:", err);
     } finally {
@@ -67,100 +92,101 @@ export default function Dashboard() {
   }, []);
 
   // ─── Messages ─────────────────────────────────────────────────────────────────
-  const fetchMessages = useCallback(async (contactId: string) => {
-    const isInitial = messagesLoadedFor.current !== contactId;
-    if (isInitial) setLoadingMessages(true);
-    try {
-      const res = await fetch(`/api/messages?contactId=${contactId}`);
-      const data: Message[] = await res.json();
-      if (!Array.isArray(data)) return;
-      setMessages(data);
-      messagesLoadedFor.current = contactId;
-      // Record read time so fetchConversations keeps badge at 0 for a bit
-      markReadAt.current.set(contactId, Date.now());
-      setConversations((prev) =>
-        prev.map((c) =>
-          c.contact_id === contactId ? { ...c, unread_count: 0 } : c
-        )
-      );
-      fetch("/api/messages/read", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contactId }),
-      });
-    } catch (err) {
-      console.error("fetchMessages error:", err);
-    } finally {
-      if (isInitial) setLoadingMessages(false);
-    }
-  }, []);
+  const fetchMessages = useCallback(
+    async (contactId: string) => {
+      const isInitial = messagesLoadedFor.current !== contactId;
+      if (isInitial) setLoadingMessages(true);
+      try {
+        const res = await fetch(`/api/messages?contactId=${contactId}`);
+        const data: Message[] = await res.json();
+        if (!Array.isArray(data)) return;
 
-  // ─── Poll conversations toutes les 2s ────────────────────────────────────────
+        if (isInitial) {
+          // First load: replace all messages, scroll instantly to bottom
+          setMessages(data);
+          messagesLoadedFor.current = contactId;
+          prevMsgCount.current = data.length;
+          setTimeout(() => {
+            messagesEndRef.current?.scrollIntoView({ behavior: "instant" as ScrollBehavior });
+          }, 0);
+        } else {
+          // Subsequent polls: only append NEW messages (compare by ID)
+          setMessages((prev) => {
+            const existingIds = new Set(prev.map((m) => m.id));
+            const newOnes = data.filter((m) => !existingIds.has(m.id));
+            return newOnes.length === 0 ? prev : [...prev, ...newOnes];
+          });
+        }
+
+        // Mark as read every time messages are fetched for the open conversation
+        markAsRead(contactId);
+      } catch (err) {
+        console.error("fetchMessages error:", err);
+      } finally {
+        if (isInitial) setLoadingMessages(false);
+      }
+    },
+    [markAsRead]
+  );
+
+  // ─── Scroll to bottom only when new messages arrive ───────────────────────────
+  useEffect(() => {
+    if (messages.length > prevMsgCount.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+    prevMsgCount.current = messages.length;
+  }, [messages.length]);
+
+  // ─── Poll conversations every 3s ─────────────────────────────────────────────
   useEffect(() => {
     fetchConversations();
-    const t = setInterval(fetchConversations, 2000);
+    const t = setInterval(fetchConversations, 3000);
     return () => clearInterval(t);
   }, [fetchConversations]);
 
-  // ─── Poll messages toutes les 3s quand une conversation est ouverte ──────────
+  // ─── Poll messages every 3s when a conversation is open ───────────────────────
   useEffect(() => {
     if (!selectedContact) return;
-    prevMessageCount.current = 0;
-    messagesLoadedFor.current = null;
+    messagesLoadedFor.current = null; // force initial load for new contact
     fetchMessages(selectedContact);
     const t = setInterval(() => fetchMessages(selectedContact), 3000);
     return () => clearInterval(t);
   }, [selectedContact, fetchMessages]);
 
   // ─── Supabase Realtime ────────────────────────────────────────────────────────
-  // Realtime = signal only. It triggers an immediate DB fetch for conversations,
-  // and directly appends the message to the chat if the conversation is open.
-  // No direct state mutation for conversations from the payload — DB is king.
   useEffect(() => {
     let channel: ReturnType<typeof supabaseBrowser.channel> | null = null;
     try {
       channel = supabaseBrowser
-        .channel("db-messages")
+        .channel("messages-insert")
         .on(
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           "postgres_changes" as any,
           { event: "INSERT", schema: "public", table: "messages" },
           (payload: { new: Message }) => {
             const msg = payload.new;
-            // If the conversation is open: append the message instantly to the chat
-            if (msg.contact_id === selectedContactRef.current) {
-              if (msg.direction === "inbound") {
-                setMessages((prev) => {
-                  if (prev.some((m) => m.id === msg.id)) return prev;
-                  return [...prev, msg];
-                });
-                markReadAt.current.set(msg.contact_id, Date.now());
-                fetch("/api/messages/read", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ contactId: msg.contact_id }),
-                });
-              }
+            // Append to chat if this conversation is currently open
+            if (msg.contact_id === selectedContactRef.current && msg.direction === "inbound") {
+              setMessages((prev) => {
+                if (prev.some((m) => m.id === msg.id)) return prev;
+                return [...prev, msg];
+              });
+              markAsRead(msg.contact_id);
             }
-            // Always: trigger an immediate DB refresh for the conversations sidebar
-            // This is the ONLY way conversations state is updated — from DB
+            // Trigger immediate DB refresh for sidebar
             fetchConversations();
           }
         )
-        .subscribe((status) => {
-          if (status === "CHANNEL_ERROR")
-            console.warn("Realtime unavailable — polling fallback active (2s)");
+        .subscribe((s) => {
+          if (s === "CHANNEL_ERROR") console.warn("Realtime unavailable — using 3s poll");
         });
-    } catch (err) {
-      console.warn("Realtime init error:", err);
+    } catch (e) {
+      console.warn("Realtime init failed:", e);
     }
-    return () => {
-      if (channel) supabaseBrowser.removeChannel(channel);
-    };
-  }, [fetchConversations]);
+    return () => { if (channel) supabaseBrowser.removeChannel(channel); };
+  }, [fetchConversations, markAsRead]);
 
-  // ─── Auto-sync Twilio toutes les 15s ─────────────────────────────────────────
-  // Capture les messages envoyés via Make/API Twilio (pas de webhook pour outbound)
+  // ─── Auto-sync Twilio every 15s (catches messages sent via Make/API) ──────────
   useEffect(() => {
     const sync = async (since: string) => {
       try {
@@ -170,13 +196,11 @@ export default function Dashboard() {
           body: JSON.stringify({ since }),
         });
         fetchConversations();
-      } catch (err) {
-        console.error("autoSync error:", err);
+      } catch (e) {
+        console.error("autoSync error:", e);
       }
     };
-    // Initial: 24h window to catch everything on load
     sync(new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
-    // Every 15s: 20min window to catch new Make messages quickly
     const t = setInterval(
       () => sync(new Date(Date.now() - 20 * 60 * 1000).toISOString()),
       15000
@@ -184,38 +208,31 @@ export default function Dashboard() {
     return () => clearInterval(t);
   }, [fetchConversations]);
 
-  // ─── Scroll vers le bas uniquement quand un nouveau message arrive ────────────
-  useEffect(() => {
-    if (messages.length > prevMessageCount.current)
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    prevMessageCount.current = messages.length;
-  }, [messages]);
-
-  // ─── Sélectionner une conversation ───────────────────────────────────────────
+  // ─── Select conversation ──────────────────────────────────────────────────────
   const selectConversation = (contactId: string) => {
-    setSelectedContactAndRef(contactId);
-    markReadAt.current.set(contactId, Date.now());
+    selectedContactRef.current = contactId;
+    setSelectedContact(contactId);
     setMobileShowChat(true);
+    setEditingContact(false);
+    // Instantly zero the badge locally
+    setConversations((prev) =>
+      prev.map((c) => (c.contact_id === contactId ? { ...c, unread_count: 0 } : c))
+    );
+    // Mark as read immediately (don't wait for fetchMessages)
+    markAsRead(contactId);
     const conv = conversations.find((c) => c.contact_id === contactId);
     if (conv) {
       setContactName(conv.name || "");
       setContactNotes(conv.notes || "");
     }
-    setEditingContact(false);
-    setConversations((prev) =>
-      prev.map((c) =>
-        c.contact_id === contactId ? { ...c, unread_count: 0 } : c
-      )
-    );
   };
 
-  // ─── Envoyer un message ───────────────────────────────────────────────────────
+  // ─── Send message ─────────────────────────────────────────────────────────────
   const sendMessage = async () => {
     if (!newMessage.trim() || !selectedContact || sending) return;
     const body = newMessage.trim();
     setSending(true);
 
-    // Optimistic: add message immediately + move conversation to top
     const optimisticId = `temp-${Date.now()}`;
     const now = new Date().toISOString();
     const optimisticMsg: Message = {
@@ -228,6 +245,7 @@ export default function Dashboard() {
       is_read: true,
       created_at: now,
     };
+
     setMessages((prev) => [...prev, optimisticMsg]);
     setConversations((prev) => {
       const updated = prev.map((c) =>
@@ -249,14 +267,17 @@ export default function Dashboard() {
         body: JSON.stringify({ contactId: selectedContact, body }),
       });
       if (res.ok) {
-        await fetchMessages(selectedContact);
+        // Replace optimistic message with real one
+        const sent: Message = await res.json();
+        setMessages((prev) =>
+          prev.map((m) => (m.id === optimisticId ? sent : m))
+        );
         inputRef.current?.focus();
       } else {
         setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
         setNewMessage(body);
       }
-    } catch (err) {
-      console.error("sendMessage error:", err);
+    } catch {
       setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
       setNewMessage(body);
     } finally {
@@ -273,9 +294,9 @@ export default function Dashboard() {
         body: JSON.stringify({ contactId: selectedContact, name: contactName, notes: contactNotes }),
       });
       setEditingContact(false);
-      await fetchConversations();
-    } catch (err) {
-      console.error("saveContact error:", err);
+      fetchConversations();
+    } catch (e) {
+      console.error("saveContact error:", e);
     }
   };
 
@@ -369,27 +390,27 @@ export default function Dashboard() {
                   onClick={() => selectConversation(conv.contact_id)}
                   className={`conversation-item w-full text-left px-4 py-3 flex items-start gap-3 ${selectedContact === conv.contact_id ? "active" : ""}`}
                 >
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-semibold ${conv.unread_count > 0 ? "bg-gradient-to-br from-pool to-pool-dark text-white" : "bg-navy-800 text-navy-300"}`}>
+                  <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center text-sm font-semibold ${conv.unread_count > 0 ? "bg-gradient-to-br from-pool to-pool-dark text-white" : "bg-navy-800 text-navy-300"}`}>
                     {getInitials(conv.name, conv.phone)}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-0.5">
-                      <span className="font-medium text-sm text-white truncate">
+                      <span className={`text-sm truncate ${conv.unread_count > 0 ? "font-semibold text-white" : "font-medium text-white"}`}>
                         {conv.name || formatPhone(conv.phone)}
                       </span>
                       <span className="text-[11px] text-navy-400 flex-shrink-0 ml-2">
                         {formatMessageTime(conv.last_message_at)}
                       </span>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs text-navy-400 truncate pr-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs text-navy-400 truncate">
                         {conv.last_direction === "outbound" && (
-                          <span className="text-pool-light/50">Toi: </span>
+                          <span className="text-pool-light/60">Toi: </span>
                         )}
                         {conv.last_message}
                       </p>
                       {conv.unread_count > 0 && (
-                        <span className="flex-shrink-0 w-5 h-5 rounded-full bg-pool text-white text-[11px] font-semibold flex items-center justify-center">
+                        <span className="flex-shrink-0 min-w-[20px] h-5 rounded-full bg-pool text-white text-[11px] font-semibold flex items-center justify-center px-1">
                           {conv.unread_count}
                         </span>
                       )}
@@ -416,6 +437,7 @@ export default function Dashboard() {
             </div>
           ) : (
             <>
+              {/* Chat header */}
               <div className="flex-shrink-0 border-b border-navy-800 bg-navy-950/50 backdrop-blur-sm px-4 py-3 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-full bg-gradient-to-br from-pool/20 to-pool-dark/20 border border-pool/20 flex items-center justify-center text-sm font-semibold text-pool-light">
@@ -441,8 +463,9 @@ export default function Dashboard() {
                 </button>
               </div>
 
+              {/* Contact editor */}
               {editingContact && (
-                <div className="flex-shrink-0 border-b border-navy-800 bg-navy-900/50 px-4 py-3 animate-slide-in">
+                <div className="flex-shrink-0 border-b border-navy-800 bg-navy-900/50 px-4 py-3">
                   <div className="flex gap-3 mb-2">
                     <input
                       type="text"
@@ -468,13 +491,14 @@ export default function Dashboard() {
                 </div>
               )}
 
+              {/* Messages */}
               <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2">
                 {loadingMessages ? (
-                  <div className="flex items-center justify-center py-12">
+                  <div className="flex items-center justify-center h-full">
                     <div className="w-6 h-6 border-2 border-pool/30 border-t-pool rounded-full animate-spin" />
                   </div>
                 ) : messages.length === 0 ? (
-                  <div className="text-center py-12">
+                  <div className="flex items-center justify-center h-full">
                     <p className="text-navy-500 text-sm">Aucun message</p>
                   </div>
                 ) : (
@@ -495,6 +519,7 @@ export default function Dashboard() {
                 <div ref={messagesEndRef} />
               </div>
 
+              {/* Input */}
               <div className="flex-shrink-0 border-t border-navy-800 bg-navy-950/50 backdrop-blur-sm p-3">
                 <div className="flex items-end gap-2">
                   <textarea
