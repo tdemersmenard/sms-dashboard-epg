@@ -21,13 +21,24 @@ export default function Dashboard() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const prevMessageCount = useRef(0);
   const messagesLoadedFor = useRef<string | null>(null);
+  const selectedContactRef = useRef<string | null>(null);
+
+  // Keep selectedContactRef in sync
+  useEffect(() => {
+    selectedContactRef.current = selectedContact;
+  }, [selectedContact]);
 
   // Fetch conversations
   const fetchConversations = useCallback(async () => {
     try {
       const res = await fetch("/api/conversations");
-      const data = await res.json();
-      setConversations(data);
+      const data: Conversation[] = await res.json();
+      // Preserve unread_count: 0 for the currently open conversation
+      setConversations(data.map((c) =>
+        c.contact_id === selectedContactRef.current
+          ? { ...c, unread_count: 0 }
+          : c
+      ));
     } catch (err) {
       console.error("Error fetching conversations:", err);
     } finally {
@@ -44,7 +55,8 @@ export default function Dashboard() {
       const data = await res.json();
       setMessages(data);
       messagesLoadedFor.current = contactId;
-      await fetch("/api/messages/read", {
+      // Fire-and-forget mark as read
+      fetch("/api/messages/read", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ contactId }),
@@ -62,7 +74,7 @@ export default function Dashboard() {
   // Initial load + polling
   useEffect(() => {
     fetchConversations();
-    const interval = setInterval(fetchConversations, 5000);
+    const interval = setInterval(fetchConversations, 3000);
     return () => clearInterval(interval);
   }, [fetchConversations]);
 
@@ -72,7 +84,7 @@ export default function Dashboard() {
       prevMessageCount.current = 0;
       messagesLoadedFor.current = null;
       fetchMessages(selectedContact);
-      const interval = setInterval(() => fetchMessages(selectedContact), 5000);
+      const interval = setInterval(() => fetchMessages(selectedContact), 2000);
       return () => clearInterval(interval);
     }
   }, [selectedContact, fetchMessages]);
@@ -103,21 +115,47 @@ export default function Dashboard() {
   // Send message
   const sendMessage = async () => {
     if (!newMessage.trim() || !selectedContact || sending) return;
+    const body = newMessage.trim();
     setSending(true);
+
+    // Optimistic update — show message instantly
+    const optimisticId = `temp-${Date.now()}`;
+    const optimisticMsg: Message = {
+      id: optimisticId,
+      contact_id: selectedContact,
+      twilio_sid: null,
+      direction: "outbound",
+      body,
+      status: "sending",
+      is_read: true,
+      created_at: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, optimisticMsg]);
+    setNewMessage("");
+    if (inputRef.current) {
+      inputRef.current.style.height = "auto";
+    }
+
     try {
       const res = await fetch("/api/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contactId: selectedContact, body: newMessage.trim() }),
+        body: JSON.stringify({ contactId: selectedContact, body }),
       });
       if (res.ok) {
-        setNewMessage("");
+        // Replace optimistic with real data
         await fetchMessages(selectedContact);
-        await fetchConversations();
+        fetchConversations();
         inputRef.current?.focus();
+      } else {
+        // Rollback on error
+        setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
+        setNewMessage(body);
       }
     } catch (err) {
       console.error("Error sending:", err);
+      setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
+      setNewMessage(body);
     } finally {
       setSending(false);
     }
