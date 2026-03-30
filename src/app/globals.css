@@ -1,0 +1,102 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --navy-900: #0a1f3f;
+  --navy-800: #0f2241;
+  --navy-700: #1a3461;
+  --navy-600: #2a4a82;
+  --pool: #38b6d2;
+  --pool-light: #7dd3e8;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: "DM Sans", system-ui, sans-serif;
+  background: #060f1f;
+  color: #e2e8f0;
+  overflow: hidden;
+  height: 100vh;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(56, 182, 210, 0.2);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(56, 182, 210, 0.4);
+}
+
+/* Message bubbles */
+.bubble-in {
+  background: linear-gradient(135deg, #1a3461 0%, #0f2241 100%);
+  border: 1px solid rgba(56, 182, 210, 0.1);
+}
+
+.bubble-out {
+  background: linear-gradient(135deg, #38b6d2 0%, #1a8fa8 100%);
+  color: white;
+}
+
+/* Pulse animation for unread */
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.2);
+  }
+}
+
+.pulse-dot {
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+/* Slide in animation */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-in {
+  animation: slideIn 0.2s ease-out;
+}
+
+/* Conversation item hover */
+.conversation-item {
+  transition: all 0.15s ease;
+}
+.conversation-item:hover {
+  background: rgba(56, 182, 210, 0.06);
+}
+.conversation-item.active {
+  background: rgba(56, 182, 210, 0.1);
+  border-right: 2px solid #38b6d2;
+}
+
+/* Input focus glow */
+.input-glow:focus {
+  box-shadow: 0 0 0 2px rgba(56, 182, 210, 0.3);
+}
