@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Conversation, Message } from "@/lib/types";
-import { supabase } from "@/lib/supabase";
 import { formatPhone, formatMessageTime, formatFullTime, getInitials } from "@/lib/utils";
 
 export default function Dashboard() {
@@ -73,10 +72,10 @@ export default function Dashboard() {
     }
   }, []);
 
-  // Initial load + polling (fallback only — Realtime handles live updates)
+  // Initial load + polling
   useEffect(() => {
     fetchConversations();
-    const interval = setInterval(fetchConversations, 15000);
+    const interval = setInterval(fetchConversations, 3000);
     return () => clearInterval(interval);
   }, [fetchConversations]);
 
@@ -86,69 +85,10 @@ export default function Dashboard() {
       prevMessageCount.current = 0;
       messagesLoadedFor.current = null;
       fetchMessages(selectedContact);
-      const interval = setInterval(() => fetchMessages(selectedContact), 15000);
+      const interval = setInterval(() => fetchMessages(selectedContact), 2000);
       return () => clearInterval(interval);
     }
   }, [selectedContact, fetchMessages]);
-
-  // Supabase Realtime — instant updates for new messages
-  useEffect(() => {
-    const channel = supabase
-      .channel("messages-realtime")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "messages" },
-        (payload) => {
-          const newMsg = payload.new as Message;
-
-          // Add to current conversation instantly (inbound only — outbound are optimistic)
-          if (
-            newMsg.contact_id === selectedContactRef.current &&
-            newMsg.direction === "inbound"
-          ) {
-            setMessages((prev) => {
-              // Avoid duplicate if poll already added it
-              if (prev.some((m) => m.id === newMsg.id)) return prev;
-              return [...prev, newMsg];
-            });
-          }
-
-          // Update conversations sidebar instantly
-          setConversations((prev) => {
-            const exists = prev.some((c) => c.contact_id === newMsg.contact_id);
-            if (!exists) {
-              // New contact — fall back to full fetch
-              fetchConversations();
-              return prev;
-            }
-            const updated = prev.map((c) => {
-              if (c.contact_id !== newMsg.contact_id) return c;
-              const isOpen = newMsg.contact_id === selectedContactRef.current;
-              return {
-                ...c,
-                last_message: newMsg.body,
-                last_direction: newMsg.direction,
-                last_message_at: newMsg.created_at,
-                unread_count:
-                  newMsg.direction === "outbound" || isOpen
-                    ? c.unread_count
-                    : c.unread_count + 1,
-              };
-            });
-            return updated.sort(
-              (a, b) =>
-                new Date(b.last_message_at).getTime() -
-                new Date(a.last_message_at).getTime()
-            );
-          });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [fetchConversations]);
 
   // Scroll to bottom only when new messages arrive
   useEffect(() => {
