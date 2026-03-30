@@ -18,54 +18,47 @@ export default function Dashboard() {
   const [contactName, setContactName] = useState("");
   const [contactNotes, setContactNotes] = useState("");
   const [mobileShowChat, setMobileShowChat] = useState(false);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const prevMessageCount = useRef(0);
   const messagesLoadedFor = useRef<string | null>(null);
   const selectedContactRef = useRef<string | null>(null);
   const fetchVersion = useRef(0);
-  // Tracks when user last marked each conversation as read (ms timestamp)
+  // When did the user last mark each conversation as read (ms)
   const markReadAt = useRef<Map<string, number>>(new Map());
-  // Tracks when Realtime last fired for each contact (ms timestamp)
-  // Used to block stale poll responses from overwriting Realtime state
-  const realtimeUpdatedAt = useRef<Map<string, number>>(new Map());
 
   const setSelectedContactAndRef = (id: string | null) => {
     selectedContactRef.current = id;
     setSelectedContact(id);
   };
 
-  // ─── Conversations — source de vérité DB ─────────────────────────────────────
+  // ─── Single source of truth: DB ──────────────────────────────────────────────
+  // Called from: poll, Realtime signal, autoSync, sendMessage success
   const fetchConversations = useCallback(async () => {
     const v = ++fetchVersion.current;
-    const initiatedAt = Date.now(); // capturé avant le await
     try {
       const res = await fetch("/api/conversations");
       const data: Conversation[] = await res.json();
+      // Discard if a newer request has already been fired
       if (v < fetchVersion.current) return;
       if (!Array.isArray(data)) return;
-      setConversations((prev) => {
-        const prevMap = new Map(prev.map((c) => [c.contact_id, c]));
-        return data.map((c) => {
-          // Conversation sélectionnée : toujours 0 non-lus
+      const now = Date.now();
+      setConversations(
+        data.map((c) => {
+          // Never show badge for the conversation the user is currently viewing
           if (c.contact_id === selectedContactRef.current) {
             return { ...c, unread_count: 0 };
           }
-          const current = prevMap.get(c.contact_id);
-          const realtimeAt = realtimeUpdatedAt.current.get(c.contact_id) ?? 0;
-          const markedAt = markReadAt.current.get(c.contact_id) ?? 0;
-          // Si Realtime a mis à jour APRÈS le démarrage de cette requête, ignorer la réponse DB
-          if (current && realtimeAt > initiatedAt) {
-            // L'utilisateur a-t-il lu APRÈS le dernier Realtime ? Si oui, 0 badge
-            return markedAt > realtimeAt ? { ...current, unread_count: 0 } : current;
+          // If user marked this conversation as read within the last 3s,
+          // keep badge at 0 even if the DB hasn't fully processed is_read=true yet
+          const readAt = markReadAt.current.get(c.contact_id) ?? 0;
+          if (now - readAt < 3000) {
+            return { ...c, unread_count: 0 };
           }
-          // Réponse DB plus récente que Realtime → appliquer, mais respecter le mark-as-read
-          return {
-            ...c,
-            unread_count: markedAt > initiatedAt ? 0 : c.unread_count,
-          };
-        });
-      });
+          return c;
+        })
+      );
     } catch (err) {
       console.error("fetchConversations error:", err);
     } finally {
@@ -73,7 +66,7 @@ export default function Dashboard() {
     }
   }, []);
 
-  // ─── Messages + mark-as-read + mise à jour du preview sidebar ─────────────────
+  // ─── Messages ─────────────────────────────────────────────────────────────────
   const fetchMessages = useCallback(async (contactId: string) => {
     const isInitial = messagesLoadedFor.current !== contactId;
     if (isInitial) setLoadingMessages(true);
@@ -83,16 +76,13 @@ export default function Dashboard() {
       if (!Array.isArray(data)) return;
       setMessages(data);
       messagesLoadedFor.current = contactId;
-
-      // Marque comme lu — le poll 3s mettra à jour le badge dans la sidebar
+      // Record read time so fetchConversations keeps badge at 0 for a bit
       markReadAt.current.set(contactId, Date.now());
       setConversations((prev) =>
         prev.map((c) =>
           c.contact_id === contactId ? { ...c, unread_count: 0 } : c
         )
       );
-
-      // Mark as read — fire-and-forget
       fetch("/api/messages/read", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -105,24 +95,27 @@ export default function Dashboard() {
     }
   }, []);
 
-  // ─── Poll conversations toutes les 3s ────────────────────────────────────────
+  // ─── Poll conversations toutes les 2s ────────────────────────────────────────
   useEffect(() => {
     fetchConversations();
-    const t = setInterval(fetchConversations, 3000);
+    const t = setInterval(fetchConversations, 2000);
     return () => clearInterval(t);
   }, [fetchConversations]);
 
-  // ─── Poll messages toutes les 4s quand une conversation est ouverte ──────────
+  // ─── Poll messages toutes les 3s quand une conversation est ouverte ──────────
   useEffect(() => {
     if (!selectedContact) return;
     prevMessageCount.current = 0;
     messagesLoadedFor.current = null;
     fetchMessages(selectedContact);
-    const t = setInterval(() => fetchMessages(selectedContact), 4000);
+    const t = setInterval(() => fetchMessages(selectedContact), 3000);
     return () => clearInterval(t);
   }, [selectedContact, fetchMessages]);
 
-  // ─── Supabase Realtime — instant pour nouveaux messages ──────────────────────
+  // ─── Supabase Realtime ────────────────────────────────────────────────────────
+  // Realtime = signal only. It triggers an immediate DB fetch for conversations,
+  // and directly appends the message to the chat if the conversation is open.
+  // No direct state mutation for conversations from the payload — DB is king.
   useEffect(() => {
     let channel: ReturnType<typeof supabaseBrowser.channel> | null = null;
     try {
@@ -134,78 +127,29 @@ export default function Dashboard() {
           { event: "INSERT", schema: "public", table: "messages" },
           (payload: { new: Message }) => {
             const msg = payload.new;
-
+            // If the conversation is open: append the message instantly to the chat
             if (msg.contact_id === selectedContactRef.current) {
-              // Conversation ouverte : ajoute le message instantanément
-              realtimeUpdatedAt.current.set(msg.contact_id, Date.now());
               if (msg.direction === "inbound") {
                 setMessages((prev) => {
                   if (prev.some((m) => m.id === msg.id)) return prev;
                   return [...prev, msg];
                 });
+                markReadAt.current.set(msg.contact_id, Date.now());
                 fetch("/api/messages/read", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({ contactId: msg.contact_id }),
                 });
               }
-              // Met à jour le preview de la conversation actuelle (sans badge)
-              setConversations((prev) => {
-                const updated = prev.map((c) =>
-                  c.contact_id === msg.contact_id
-                    ? {
-                        ...c,
-                        last_message: msg.body,
-                        last_direction: msg.direction,
-                        last_message_at: msg.created_at,
-                        unread_count: 0,
-                      }
-                    : c
-                );
-                return [...updated].sort(
-                  (a, b) =>
-                    new Date(b.last_message_at).getTime() -
-                    new Date(a.last_message_at).getTime()
-                );
-              });
-            } else {
-              // Autre conversation : badge + preview instantanés sans fetchConversations
-              realtimeUpdatedAt.current.set(msg.contact_id, Date.now());
-              setConversations((prev) => {
-                const contactExists = prev.some(
-                  (c) => c.contact_id === msg.contact_id
-                );
-                if (!contactExists) {
-                  // Nouveau contact : on a besoin des infos DB (phone/nom)
-                  fetchConversations();
-                  return prev;
-                }
-                const updated = prev.map((c) =>
-                  c.contact_id === msg.contact_id
-                    ? {
-                        ...c,
-                        last_message: msg.body,
-                        last_direction: msg.direction,
-                        last_message_at: msg.created_at,
-                        unread_count:
-                          msg.direction === "inbound"
-                            ? c.unread_count + 1
-                            : c.unread_count,
-                      }
-                    : c
-                );
-                return [...updated].sort(
-                  (a, b) =>
-                    new Date(b.last_message_at).getTime() -
-                    new Date(a.last_message_at).getTime()
-                );
-              });
             }
+            // Always: trigger an immediate DB refresh for the conversations sidebar
+            // This is the ONLY way conversations state is updated — from DB
+            fetchConversations();
           }
         )
         .subscribe((status) => {
           if (status === "CHANNEL_ERROR")
-            console.warn("Realtime unavailable — polling fallback active");
+            console.warn("Realtime unavailable — polling fallback active (2s)");
         });
     } catch (err) {
       console.warn("Realtime init error:", err);
@@ -215,31 +159,30 @@ export default function Dashboard() {
     };
   }, [fetchConversations]);
 
-  // ─── Auto-sync Twilio (messages Make/API non capturés par webhook) ────────────
-  const autoSync = useCallback(
-    async (since?: string) => {
+  // ─── Auto-sync Twilio toutes les 15s ─────────────────────────────────────────
+  // Capture les messages envoyés via Make/API Twilio (pas de webhook pour outbound)
+  useEffect(() => {
+    const sync = async (since: string) => {
       try {
         await fetch("/api/sync", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(since ? { since } : {}),
+          body: JSON.stringify({ since }),
         });
         fetchConversations();
       } catch (err) {
         console.error("autoSync error:", err);
       }
-    },
-    [fetchConversations]
-  );
-
-  useEffect(() => {
-    autoSync(new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
+    };
+    // Initial: 24h window to catch everything on load
+    sync(new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
+    // Every 15s: 20min window to catch new Make messages quickly
     const t = setInterval(
-      () => autoSync(new Date(Date.now() - 15 * 60 * 1000).toISOString()),
-      30 * 1000
+      () => sync(new Date(Date.now() - 20 * 60 * 1000).toISOString()),
+      15000
     );
     return () => clearInterval(t);
-  }, [autoSync]);
+  }, [fetchConversations]);
 
   // ─── Scroll vers le bas uniquement quand un nouveau message arrive ────────────
   useEffect(() => {
@@ -272,6 +215,7 @@ export default function Dashboard() {
     const body = newMessage.trim();
     setSending(true);
 
+    // Optimistic: add message immediately + move conversation to top
     const optimisticId = `temp-${Date.now()}`;
     const now = new Date().toISOString();
     const optimisticMsg: Message = {
@@ -288,18 +232,11 @@ export default function Dashboard() {
     setConversations((prev) => {
       const updated = prev.map((c) =>
         c.contact_id === selectedContact
-          ? {
-              ...c,
-              last_message: body,
-              last_direction: "outbound" as const,
-              last_message_at: now,
-            }
+          ? { ...c, last_message: body, last_direction: "outbound" as const, last_message_at: now }
           : c
       );
       return [...updated].sort(
-        (a, b) =>
-          new Date(b.last_message_at).getTime() -
-          new Date(a.last_message_at).getTime()
+        (a, b) => new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime()
       );
     });
     setNewMessage("");
@@ -333,11 +270,7 @@ export default function Dashboard() {
       await fetch("/api/contacts", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contactId: selectedContact,
-          name: contactName,
-          notes: contactNotes,
-        }),
+        body: JSON.stringify({ contactId: selectedContact, name: contactName, notes: contactNotes }),
       });
       setEditingContact(false);
       await fetchConversations();
@@ -362,9 +295,7 @@ export default function Dashboard() {
     );
   });
 
-  const selectedConv = conversations.find(
-    (c) => c.contact_id === selectedContact
-  );
+  const selectedConv = conversations.find((c) => c.contact_id === selectedContact);
   const totalUnread = conversations.reduce((sum, c) => sum + c.unread_count, 0);
 
   return (
@@ -377,34 +308,18 @@ export default function Dashboard() {
               onClick={() => setMobileShowChat(false)}
               className="md:hidden text-pool-light hover:text-white transition p-1"
             >
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M19 12H5M12 19l-7-7 7-7" />
               </svg>
             </button>
           )}
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-pool to-pool-dark flex items-center justify-center">
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="white"
-              strokeWidth="2"
-            >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
             </svg>
           </div>
           <div>
-            <h1 className="text-sm font-semibold text-white tracking-tight">
-              Entretien Piscine Granby
-            </h1>
+            <h1 className="text-sm font-semibold text-white tracking-tight">Entretien Piscine Granby</h1>
             <p className="text-[11px] text-pool-light/60">SMS Dashboard</p>
           </div>
         </div>
@@ -421,20 +336,10 @@ export default function Dashboard() {
       {/* Main */}
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar */}
-        <aside
-          className={`${mobileShowChat ? "hidden md:flex" : "flex"} w-full md:w-[340px] lg:w-[380px] flex-shrink-0 flex-col border-r border-navy-800 bg-navy-950/50`}
-        >
+        <aside className={`${mobileShowChat ? "hidden md:flex" : "flex"} w-full md:w-[340px] lg:w-[380px] flex-shrink-0 flex-col border-r border-navy-800 bg-navy-950/50`}>
           <div className="p-3">
             <div className="relative">
-              <svg
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-navy-400"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-navy-400" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <circle cx="11" cy="11" r="8" />
                 <path d="m21 21-4.3-4.3" />
               </svg>
@@ -455,9 +360,7 @@ export default function Dashboard() {
               </div>
             ) : filtered.length === 0 ? (
               <div className="text-center py-12 px-4">
-                <p className="text-navy-500 text-sm">
-                  {search ? "Aucun résultat" : "Aucune conversation"}
-                </p>
+                <p className="text-navy-500 text-sm">{search ? "Aucun résultat" : "Aucune conversation"}</p>
               </div>
             ) : (
               filtered.map((conv) => (
@@ -466,9 +369,7 @@ export default function Dashboard() {
                   onClick={() => selectConversation(conv.contact_id)}
                   className={`conversation-item w-full text-left px-4 py-3 flex items-start gap-3 ${selectedContact === conv.contact_id ? "active" : ""}`}
                 >
-                  <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-semibold ${conv.unread_count > 0 ? "bg-gradient-to-br from-pool to-pool-dark text-white" : "bg-navy-800 text-navy-300"}`}
-                  >
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-semibold ${conv.unread_count > 0 ? "bg-gradient-to-br from-pool to-pool-dark text-white" : "bg-navy-800 text-navy-300"}`}>
                     {getInitials(conv.name, conv.phone)}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -501,28 +402,16 @@ export default function Dashboard() {
         </aside>
 
         {/* Chat */}
-        <main
-          className={`${mobileShowChat ? "flex" : "hidden md:flex"} flex-1 flex-col bg-[#060f1f]`}
-        >
+        <main className={`${mobileShowChat ? "flex" : "hidden md:flex"} flex-1 flex-col bg-[#060f1f]`}>
           {!selectedContact ? (
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center">
                 <div className="w-16 h-16 rounded-2xl bg-navy-900/50 border border-navy-800 flex items-center justify-center mx-auto mb-4">
-                  <svg
-                    width="28"
-                    height="28"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    className="text-navy-600"
-                  >
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-navy-600">
                     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                   </svg>
                 </div>
-                <p className="text-navy-500 text-sm">
-                  Sélectionne une conversation
-                </p>
+                <p className="text-navy-500 text-sm">Sélectionne une conversation</p>
               </div>
             </div>
           ) : (
@@ -530,13 +419,11 @@ export default function Dashboard() {
               <div className="flex-shrink-0 border-b border-navy-800 bg-navy-950/50 backdrop-blur-sm px-4 py-3 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-full bg-gradient-to-br from-pool/20 to-pool-dark/20 border border-pool/20 flex items-center justify-center text-sm font-semibold text-pool-light">
-                    {selectedConv &&
-                      getInitials(selectedConv.name, selectedConv.phone)}
+                    {selectedConv && getInitials(selectedConv.name, selectedConv.phone)}
                   </div>
                   <div>
                     <h2 className="text-sm font-semibold text-white">
-                      {selectedConv?.name ||
-                        formatPhone(selectedConv?.phone || "")}
+                      {selectedConv?.name || formatPhone(selectedConv?.phone || "")}
                     </h2>
                     <p className="text-[11px] text-navy-400 font-mono">
                       {selectedConv && formatPhone(selectedConv.phone)}
@@ -547,14 +434,7 @@ export default function Dashboard() {
                   onClick={() => setEditingContact(!editingContact)}
                   className="text-navy-400 hover:text-pool-light transition p-2 rounded-lg hover:bg-navy-800/50"
                 >
-                  <svg
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
                     <path d="m15 5 4 4" />
                   </svg>
@@ -603,15 +483,9 @@ export default function Dashboard() {
                       key={msg.id}
                       className={`flex ${msg.direction === "outbound" ? "justify-end" : "justify-start"}`}
                     >
-                      <div
-                        className={`max-w-[75%] rounded-2xl px-4 py-2.5 ${msg.direction === "outbound" ? "bubble-out" : "bubble-in"}`}
-                      >
-                        <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                          {msg.body}
-                        </p>
-                        <p
-                          className={`text-[10px] mt-1 ${msg.direction === "outbound" ? "text-white/50" : "text-navy-500"}`}
-                        >
+                      <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 ${msg.direction === "outbound" ? "bubble-out" : "bubble-in"}`}>
+                        <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.body}</p>
+                        <p className={`text-[10px] mt-1 ${msg.direction === "outbound" ? "text-white/50" : "text-navy-500"}`}>
                           {formatFullTime(msg.created_at)}
                         </p>
                       </div>
@@ -635,8 +509,7 @@ export default function Dashboard() {
                     onInput={(e) => {
                       const t = e.target as HTMLTextAreaElement;
                       t.style.height = "auto";
-                      t.style.height =
-                        Math.min(t.scrollHeight, 120) + "px";
+                      t.style.height = Math.min(t.scrollHeight, 120) + "px";
                     }}
                   />
                   <button
@@ -647,14 +520,7 @@ export default function Dashboard() {
                     {sending ? (
                       <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     ) : (
-                      <svg
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                      >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <path d="m22 2-7 20-4-9-9-4z" />
                         <path d="m22 2-11 11" />
                       </svg>
