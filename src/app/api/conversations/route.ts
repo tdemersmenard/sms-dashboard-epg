@@ -1,58 +1,56 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 
 export async function GET() {
   try {
-    // Get all contacts with their latest message
     const { data: contacts, error: contactsError } = await supabaseAdmin
       .from("contacts")
-      .select("*");
+      .select("id, phone, name, notes");
 
     if (contactsError) throw contactsError;
-    if (!contacts || contacts.length === 0) {
-      return NextResponse.json([]);
-    }
+    if (!contacts || contacts.length === 0) return NextResponse.json([]);
 
-    const conversations = [];
+    // Run all queries in parallel — prevents stale data from sequential N+1 queries
+    const results = await Promise.all(
+      contacts.map(async (contact) => {
+        const [lastMsgResult, unreadResult] = await Promise.all([
+          supabaseAdmin
+            .from("messages")
+            .select("body, direction, created_at")
+            .eq("contact_id", contact.id)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .single(),
+          supabaseAdmin
+            .from("messages")
+            .select("id", { count: "exact", head: true })
+            .eq("contact_id", contact.id)
+            .eq("direction", "inbound")
+            .eq("is_read", false),
+        ]);
 
-    for (const contact of contacts) {
-      // Get latest message for this contact
-      const { data: lastMsg } = await supabaseAdmin
-        .from("messages")
-        .select("*")
-        .eq("contact_id", contact.id)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .single();
+        if (!lastMsgResult.data) return null;
 
-      if (!lastMsg) continue;
-
-      // Count unread inbound messages
-      const { count } = await supabaseAdmin
-        .from("messages")
-        .select("*", { count: "exact", head: true })
-        .eq("contact_id", contact.id)
-        .eq("direction", "inbound")
-        .eq("is_read", false);
-
-      conversations.push({
-        contact_id: contact.id,
-        phone: contact.phone,
-        name: contact.name,
-        notes: contact.notes,
-        last_message: lastMsg.body,
-        last_direction: lastMsg.direction,
-        last_message_at: lastMsg.created_at,
-        unread_count: count || 0,
-      });
-    }
-
-    // Sort by latest message
-    conversations.sort(
-      (a, b) =>
-        new Date(b.last_message_at).getTime() -
-        new Date(a.last_message_at).getTime()
+        return {
+          contact_id: contact.id,
+          phone: contact.phone,
+          name: contact.name,
+          notes: contact.notes,
+          last_message: lastMsgResult.data.body,
+          last_direction: lastMsgResult.data.direction,
+          last_message_at: lastMsgResult.data.created_at,
+          unread_count: unreadResult.count ?? 0,
+        };
+      })
     );
+
+    const conversations = results
+      .filter(Boolean)
+      .sort(
+        (a, b) =>
+          new Date(b!.last_message_at).getTime() -
+          new Date(a!.last_message_at).getTime()
+      );
 
     return NextResponse.json(conversations);
   } catch (err: any) {

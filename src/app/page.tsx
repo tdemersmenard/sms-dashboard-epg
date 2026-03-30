@@ -23,6 +23,7 @@ export default function Dashboard() {
   const prevMessageCount = useRef(0);
   const messagesLoadedFor = useRef<string | null>(null);
   const selectedContactRef = useRef<string | null>(null);
+  const fetchVersion = useRef(0);
 
   useEffect(() => {
     selectedContactRef.current = selectedContact;
@@ -30,9 +31,12 @@ export default function Dashboard() {
 
   // ─── Fetch conversations (single source of truth from DB) ───────────────────
   const fetchConversations = useCallback(async () => {
+    const version = ++fetchVersion.current;
     try {
       const res = await fetch("/api/conversations");
       const data: Conversation[] = await res.json();
+      // Discard stale responses — only apply the most recently started request
+      if (version < fetchVersion.current) return;
       setConversations(
         data.map((c) =>
           c.contact_id === selectedContactRef.current
@@ -66,6 +70,8 @@ export default function Dashboard() {
           c.contact_id === contactId ? { ...c, unread_count: 0 } : c
         )
       );
+      // Refresh after mark-as-read so this request wins over any in-flight stale ones
+      fetchConversations();
     } catch (err) {
       console.error("Error fetching messages:", err);
     } finally {
@@ -177,6 +183,7 @@ export default function Dashboard() {
 
   // ─── Select conversation ─────────────────────────────────────────────────────
   const selectConversation = (contactId: string) => {
+    selectedContactRef.current = contactId; // Sync immediately, before useEffect
     setSelectedContact(contactId);
     setMobileShowChat(true);
     const conv = conversations.find((c) => c.contact_id === contactId);
