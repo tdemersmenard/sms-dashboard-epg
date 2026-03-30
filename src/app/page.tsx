@@ -24,6 +24,8 @@ export default function Dashboard() {
   const messagesLoadedFor = useRef<string | null>(null);
   const selectedContactRef = useRef<string | null>(null);
   const fetchVersion = useRef(0);
+  // Tracks when user last marked each conversation as read (ms timestamp)
+  const markReadAt = useRef<Map<string, number>>(new Map());
 
   const setSelectedContactAndRef = (id: string | null) => {
     selectedContactRef.current = id;
@@ -33,18 +35,35 @@ export default function Dashboard() {
   // ─── Conversations — source de vérité DB ─────────────────────────────────────
   const fetchConversations = useCallback(async () => {
     const v = ++fetchVersion.current;
+    const initiatedAt = Date.now(); // capturé avant le await
     try {
       const res = await fetch("/api/conversations");
       const data: Conversation[] = await res.json();
       if (v < fetchVersion.current) return;
       if (!Array.isArray(data)) return;
-      setConversations(
-        data.map((c) =>
-          c.contact_id === selectedContactRef.current
-            ? { ...c, unread_count: 0 }
-            : c
-        )
-      );
+      setConversations((prev) => {
+        const prevMap = new Map(prev.map((c) => [c.contact_id, c]));
+        return data.map((c) => {
+          // Conversation sélectionnée : toujours 0 non-lus
+          if (c.contact_id === selectedContactRef.current) {
+            return { ...c, unread_count: 0 };
+          }
+          const current = prevMap.get(c.contact_id);
+          // Si Realtime a déjà mis un message plus récent dans le state, ne pas écraser
+          if (
+            current &&
+            new Date(current.last_message_at) > new Date(c.last_message_at)
+          ) {
+            return current;
+          }
+          // Si l'utilisateur a marqué lu APRÈS que cette requête ait démarré, garder 0
+          const markedAt = markReadAt.current.get(c.contact_id) ?? 0;
+          return {
+            ...c,
+            unread_count: markedAt > initiatedAt ? 0 : c.unread_count,
+          };
+        });
+      });
     } catch (err) {
       console.error("fetchConversations error:", err);
     } finally {
@@ -63,21 +82,25 @@ export default function Dashboard() {
       setMessages(data);
       messagesLoadedFor.current = contactId;
 
-      // Met à jour le preview de la sidebar directement depuis les messages chargés
+      // Met à jour le preview + marque comme lu
+      markReadAt.current.set(contactId, Date.now());
       if (data.length > 0) {
         const last = data[data.length - 1];
         setConversations((prev) =>
-          prev.map((c) =>
-            c.contact_id === contactId
-              ? {
-                  ...c,
-                  last_message: last.body,
-                  last_direction: last.direction,
-                  last_message_at: last.created_at,
-                  unread_count: 0,
-                }
-              : c
-          )
+          prev.map((c) => {
+            if (c.contact_id !== contactId) return c;
+            // Ne pas écraser si Realtime a déjà un message plus récent
+            if (new Date(c.last_message_at) > new Date(last.created_at)) {
+              return { ...c, unread_count: 0 };
+            }
+            return {
+              ...c,
+              last_message: last.body,
+              last_direction: last.direction,
+              last_message_at: last.created_at,
+              unread_count: 0,
+            };
+          })
         );
       } else {
         setConversations((prev) =>
@@ -244,6 +267,7 @@ export default function Dashboard() {
   // ─── Sélectionner une conversation ───────────────────────────────────────────
   const selectConversation = (contactId: string) => {
     setSelectedContactAndRef(contactId);
+    markReadAt.current.set(contactId, Date.now());
     setMobileShowChat(true);
     const conv = conversations.find((c) => c.contact_id === contactId);
     if (conv) {
