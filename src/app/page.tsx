@@ -25,18 +25,19 @@ export default function Dashboard() {
   const selectedContactRef = useRef<string | null>(null);
   const fetchVersion = useRef(0);
 
-  useEffect(() => {
-    selectedContactRef.current = selectedContact;
-  }, [selectedContact]);
+  // Sync ref synchronously — don't wait for useEffect
+  const setSelectedContactAndRef = (id: string | null) => {
+    selectedContactRef.current = id;
+    setSelectedContact(id);
+  };
 
-  // ─── Fetch conversations (single source of truth from DB) ───────────────────
+  // ─── Conversations (source of vérité DB) ─────────────────────────────────────
   const fetchConversations = useCallback(async () => {
-    const version = ++fetchVersion.current;
+    const v = ++fetchVersion.current;
     try {
       const res = await fetch("/api/conversations");
       const data: Conversation[] = await res.json();
-      // Discard stale responses — only apply the most recently started request
-      if (version < fetchVersion.current) return;
+      if (v < fetchVersion.current) return; // réponse périmée, on ignore
       setConversations(
         data.map((c) =>
           c.contact_id === selectedContactRef.current
@@ -45,13 +46,14 @@ export default function Dashboard() {
         )
       );
     } catch (err) {
-      console.error("Error fetching conversations:", err);
+      console.error("fetchConversations error:", err);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  // ─── Fetch messages + mark as read ──────────────────────────────────────────
+  // ─── Messages + mark-as-read ─────────────────────────────────────────────────
+  // Ne déclenche PAS fetchConversations — le poll de 3s et Realtime s'en chargent.
   const fetchMessages = useCallback(async (contactId: string) => {
     const isInitial = messagesLoadedFor.current !== contactId;
     if (isInitial) setLoadingMessages(true);
@@ -60,7 +62,8 @@ export default function Dashboard() {
       const data = await res.json();
       setMessages(data);
       messagesLoadedFor.current = contactId;
-      await fetch("/api/messages/read", {
+      // Mark as read — fire-and-forget, on met aussi à jour le state local immédiatement
+      fetch("/api/messages/read", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ contactId }),
@@ -70,35 +73,31 @@ export default function Dashboard() {
           c.contact_id === contactId ? { ...c, unread_count: 0 } : c
         )
       );
-      // Refresh after mark-as-read so this request wins over any in-flight stale ones
-      fetchConversations();
     } catch (err) {
-      console.error("Error fetching messages:", err);
+      console.error("fetchMessages error:", err);
     } finally {
       if (isInitial) setLoadingMessages(false);
     }
   }, []);
 
-  // ─── Polling fallback (if Realtime disconnects) ──────────────────────────────
+  // ─── Poll conversations toutes les 3s ────────────────────────────────────────
   useEffect(() => {
     fetchConversations();
-    const interval = setInterval(fetchConversations, 4000);
-    return () => clearInterval(interval);
+    const t = setInterval(fetchConversations, 3000);
+    return () => clearInterval(t);
   }, [fetchConversations]);
 
+  // ─── Poll messages toutes les 4s quand une conversation est ouverte ───────────
   useEffect(() => {
-    if (selectedContact) {
-      prevMessageCount.current = 0;
-      messagesLoadedFor.current = null;
-      fetchMessages(selectedContact);
-      const interval = setInterval(() => fetchMessages(selectedContact), 4000);
-      return () => clearInterval(interval);
-    }
+    if (!selectedContact) return;
+    prevMessageCount.current = 0;
+    messagesLoadedFor.current = null;
+    fetchMessages(selectedContact);
+    const t = setInterval(() => fetchMessages(selectedContact), 4000);
+    return () => clearInterval(t);
   }, [selectedContact, fetchMessages]);
 
-  // ─── Supabase Realtime ───────────────────────────────────────────────────────
-  // When a new message is inserted in DB, Realtime fires AFTER the DB write.
-  // So calling fetchConversations() here always gets fresh, correct data.
+  // ─── Supabase Realtime — instant pour les messages inbound ───────────────────
   useEffect(() => {
     let channel: ReturnType<typeof supabaseBrowser.channel> | null = null;
     try {
@@ -110,8 +109,7 @@ export default function Dashboard() {
           { event: "INSERT", schema: "public", table: "messages" },
           (payload: { new: Message }) => {
             const msg = payload.new;
-
-            // Instantly append inbound message to the open conversation
+            // Ajoute le message instantanément si la convo est ouverte
             if (
               msg.contact_id === selectedContactRef.current &&
               msg.direction === "inbound"
@@ -126,65 +124,55 @@ export default function Dashboard() {
                 body: JSON.stringify({ contactId: msg.contact_id }),
               });
             }
-
-            // Refresh sidebar from DB — accurate unread count + correct last message
+            // Rafraîchit la sidebar depuis DB (badge + preview correct)
             fetchConversations();
           }
         )
         .subscribe((status) => {
-          if (status === "CHANNEL_ERROR") {
-            console.warn("Realtime unavailable, polling fallback active");
-          }
+          if (status === "CHANNEL_ERROR")
+            console.warn("Realtime unavailable — polling fallback active");
         });
     } catch (err) {
       console.warn("Realtime init error:", err);
     }
-    return () => {
-      if (channel) supabaseBrowser.removeChannel(channel);
-    };
+    return () => { if (channel) supabaseBrowser.removeChannel(channel); };
   }, [fetchConversations]);
 
-  // ─── Auto-sync Twilio (catches outbound Make messages) ───────────────────────
-  const autoSync = useCallback(
-    async (since?: string) => {
-      try {
-        await fetch("/api/sync", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(since ? { since } : {}),
-        });
-        await fetchConversations();
-        if (selectedContactRef.current) {
-          fetchMessages(selectedContactRef.current);
-        }
-      } catch (err) {
-        console.error("Auto-sync error:", err);
-      }
-    },
-    [fetchConversations, fetchMessages]
-  );
+  // ─── Auto-sync Twilio (messages Make/API non capturés par webhook) ────────────
+  const autoSync = useCallback(async (since?: string) => {
+    try {
+      await fetch("/api/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(since ? { since } : {}),
+      });
+      fetchConversations();
+    } catch (err) {
+      console.error("autoSync error:", err);
+    }
+  }, [fetchConversations]);
 
   useEffect(() => {
+    // Chargement initial : sync dernières 24h
     autoSync(new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
-    const interval = setInterval(
+    // Toutes les 30s : sync dernières 15 min (attrape les nouveaux messages Make)
+    const t = setInterval(
       () => autoSync(new Date(Date.now() - 15 * 60 * 1000).toISOString()),
       30 * 1000
     );
-    return () => clearInterval(interval);
+    return () => clearInterval(t);
   }, [autoSync]);
 
-  // ─── Scroll on new messages ──────────────────────────────────────────────────
+  // ─── Scroll vers le bas uniquement quand un nouveau message arrive ────────────
   useEffect(() => {
-    if (messages.length > prevMessageCount.current) {
+    if (messages.length > prevMessageCount.current)
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }
     prevMessageCount.current = messages.length;
   }, [messages]);
 
-  // ─── Select conversation ─────────────────────────────────────────────────────
+  // ─── Sélectionner une conversation ───────────────────────────────────────────
   const selectConversation = (contactId: string) => {
-    selectedContactRef.current = contactId; // Sync immediately, before useEffect
-    setSelectedContact(contactId);
+    setSelectedContactAndRef(contactId);
     setMobileShowChat(true);
     const conv = conversations.find((c) => c.contact_id === contactId);
     if (conv) {
@@ -199,13 +187,15 @@ export default function Dashboard() {
     );
   };
 
-  // ─── Send message (optimistic) ───────────────────────────────────────────────
+  // ─── Envoyer un message ───────────────────────────────────────────────────────
   const sendMessage = async () => {
     if (!newMessage.trim() || !selectedContact || sending) return;
     const body = newMessage.trim();
     setSending(true);
 
+    // Optimistic : message visible instantanément + conversation remonte en haut
     const optimisticId = `temp-${Date.now()}`;
+    const now = new Date().toISOString();
     const optimisticMsg: Message = {
       id: optimisticId,
       contact_id: selectedContact,
@@ -214,9 +204,20 @@ export default function Dashboard() {
       body,
       status: "sending",
       is_read: true,
-      created_at: new Date().toISOString(),
+      created_at: now,
     };
     setMessages((prev) => [...prev, optimisticMsg]);
+    setConversations((prev) => {
+      const updated = prev.map((c) =>
+        c.contact_id === selectedContact
+          ? { ...c, last_message: body, last_direction: "outbound" as const, last_message_at: now }
+          : c
+      );
+      return [...updated].sort(
+        (a, b) =>
+          new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime()
+      );
+    });
     setNewMessage("");
     if (inputRef.current) inputRef.current.style.height = "auto";
 
@@ -235,7 +236,7 @@ export default function Dashboard() {
         setNewMessage(body);
       }
     } catch (err) {
-      console.error("Error sending:", err);
+      console.error("sendMessage error:", err);
       setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
       setNewMessage(body);
     } finally {
@@ -243,23 +244,18 @@ export default function Dashboard() {
     }
   };
 
-  // ─── Save contact ────────────────────────────────────────────────────────────
   const saveContact = async () => {
     if (!selectedContact) return;
     try {
       await fetch("/api/contacts", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contactId: selectedContact,
-          name: contactName,
-          notes: contactNotes,
-        }),
+        body: JSON.stringify({ contactId: selectedContact, name: contactName, notes: contactNotes }),
       });
       setEditingContact(false);
       await fetchConversations();
     } catch (err) {
-      console.error("Error updating contact:", err);
+      console.error("saveContact error:", err);
     }
   };
 
@@ -303,9 +299,7 @@ export default function Dashboard() {
             </svg>
           </div>
           <div>
-            <h1 className="text-sm font-semibold text-white tracking-tight">
-              Entretien Piscine Granby
-            </h1>
+            <h1 className="text-sm font-semibold text-white tracking-tight">Entretien Piscine Granby</h1>
             <p className="text-[11px] text-pool-light/60">SMS Dashboard</p>
           </div>
         </div>
@@ -322,16 +316,11 @@ export default function Dashboard() {
       {/* Main */}
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar */}
-        <aside
-          className={`${
-            mobileShowChat ? "hidden md:flex" : "flex"
-          } w-full md:w-[340px] lg:w-[380px] flex-shrink-0 flex-col border-r border-navy-800 bg-navy-950/50`}
-        >
+        <aside className={`${mobileShowChat ? "hidden md:flex" : "flex"} w-full md:w-[340px] lg:w-[380px] flex-shrink-0 flex-col border-r border-navy-800 bg-navy-950/50`}>
           <div className="p-3">
             <div className="relative">
               <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-navy-400" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="11" cy="11" r="8" />
-                <path d="m21 21-4.3-4.3" />
+                <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
               </svg>
               <input
                 type="text"
@@ -350,42 +339,26 @@ export default function Dashboard() {
               </div>
             ) : filtered.length === 0 ? (
               <div className="text-center py-12 px-4">
-                <p className="text-navy-500 text-sm">
-                  {search ? "Aucun résultat" : "Aucune conversation"}
-                </p>
+                <p className="text-navy-500 text-sm">{search ? "Aucun résultat" : "Aucune conversation"}</p>
               </div>
             ) : (
               filtered.map((conv) => (
                 <button
                   key={conv.contact_id}
                   onClick={() => selectConversation(conv.contact_id)}
-                  className={`conversation-item w-full text-left px-4 py-3 flex items-start gap-3 ${
-                    selectedContact === conv.contact_id ? "active" : ""
-                  }`}
+                  className={`conversation-item w-full text-left px-4 py-3 flex items-start gap-3 ${selectedContact === conv.contact_id ? "active" : ""}`}
                 >
-                  <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-semibold ${
-                      conv.unread_count > 0
-                        ? "bg-gradient-to-br from-pool to-pool-dark text-white"
-                        : "bg-navy-800 text-navy-300"
-                    }`}
-                  >
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-semibold ${conv.unread_count > 0 ? "bg-gradient-to-br from-pool to-pool-dark text-white" : "bg-navy-800 text-navy-300"}`}>
                     {getInitials(conv.name, conv.phone)}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-0.5">
-                      <span className="font-medium text-sm text-white truncate">
-                        {conv.name || formatPhone(conv.phone)}
-                      </span>
-                      <span className="text-[11px] text-navy-400 flex-shrink-0 ml-2">
-                        {formatMessageTime(conv.last_message_at)}
-                      </span>
+                      <span className="font-medium text-sm text-white truncate">{conv.name || formatPhone(conv.phone)}</span>
+                      <span className="text-[11px] text-navy-400 flex-shrink-0 ml-2">{formatMessageTime(conv.last_message_at)}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <p className="text-xs text-navy-400 truncate pr-2">
-                        {conv.last_direction === "outbound" && (
-                          <span className="text-pool-light/50">Toi: </span>
-                        )}
+                        {conv.last_direction === "outbound" && <span className="text-pool-light/50">Toi: </span>}
                         {conv.last_message}
                       </p>
                       {conv.unread_count > 0 && (
@@ -402,11 +375,7 @@ export default function Dashboard() {
         </aside>
 
         {/* Chat */}
-        <main
-          className={`${
-            mobileShowChat ? "flex" : "hidden md:flex"
-          } flex-1 flex-col bg-[#060f1f]`}
-        >
+        <main className={`${mobileShowChat ? "flex" : "hidden md:flex"} flex-1 flex-col bg-[#060f1f]`}>
           {!selectedContact ? (
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center">
@@ -420,83 +389,44 @@ export default function Dashboard() {
             </div>
           ) : (
             <>
-              {/* Chat header */}
               <div className="flex-shrink-0 border-b border-navy-800 bg-navy-950/50 backdrop-blur-sm px-4 py-3 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-full bg-gradient-to-br from-pool/20 to-pool-dark/20 border border-pool/20 flex items-center justify-center text-sm font-semibold text-pool-light">
                     {selectedConv && getInitials(selectedConv.name, selectedConv.phone)}
                   </div>
                   <div>
-                    <h2 className="text-sm font-semibold text-white">
-                      {selectedConv?.name || formatPhone(selectedConv?.phone || "")}
-                    </h2>
-                    <p className="text-[11px] text-navy-400 font-mono">
-                      {selectedConv && formatPhone(selectedConv.phone)}
-                    </p>
+                    <h2 className="text-sm font-semibold text-white">{selectedConv?.name || formatPhone(selectedConv?.phone || "")}</h2>
+                    <p className="text-[11px] text-navy-400 font-mono">{selectedConv && formatPhone(selectedConv.phone)}</p>
                   </div>
                 </div>
-                <button
-                  onClick={() => setEditingContact(!editingContact)}
-                  className="text-navy-400 hover:text-pool-light transition p-2 rounded-lg hover:bg-navy-800/50"
-                >
+                <button onClick={() => setEditingContact(!editingContact)} className="text-navy-400 hover:text-pool-light transition p-2 rounded-lg hover:bg-navy-800/50">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                    <path d="m15 5 4 4" />
+                    <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" /><path d="m15 5 4 4" />
                   </svg>
                 </button>
               </div>
 
-              {/* Edit contact */}
               {editingContact && (
                 <div className="flex-shrink-0 border-b border-navy-800 bg-navy-900/50 px-4 py-3 animate-slide-in">
                   <div className="flex gap-3 mb-2">
-                    <input
-                      type="text"
-                      placeholder="Nom du contact"
-                      value={contactName}
-                      onChange={(e) => setContactName(e.target.value)}
-                      className="flex-1 bg-navy-800/60 border border-navy-700/50 rounded-lg px-3 py-1.5 text-sm text-white placeholder:text-navy-500 focus:outline-none input-glow"
-                    />
-                    <button
-                      onClick={saveContact}
-                      className="px-4 py-1.5 bg-pool hover:bg-pool-dark text-white text-sm font-medium rounded-lg transition"
-                    >
-                      Sauvegarder
-                    </button>
+                    <input type="text" placeholder="Nom du contact" value={contactName} onChange={(e) => setContactName(e.target.value)} className="flex-1 bg-navy-800/60 border border-navy-700/50 rounded-lg px-3 py-1.5 text-sm text-white placeholder:text-navy-500 focus:outline-none input-glow" />
+                    <button onClick={saveContact} className="px-4 py-1.5 bg-pool hover:bg-pool-dark text-white text-sm font-medium rounded-lg transition">Sauvegarder</button>
                   </div>
-                  <input
-                    type="text"
-                    placeholder="Notes (ex: Ouverture piscine, adresse...)"
-                    value={contactNotes}
-                    onChange={(e) => setContactNotes(e.target.value)}
-                    className="w-full bg-navy-800/60 border border-navy-700/50 rounded-lg px-3 py-1.5 text-sm text-white placeholder:text-navy-500 focus:outline-none input-glow"
-                  />
+                  <input type="text" placeholder="Notes (ex: Ouverture piscine, adresse...)" value={contactNotes} onChange={(e) => setContactNotes(e.target.value)} className="w-full bg-navy-800/60 border border-navy-700/50 rounded-lg px-3 py-1.5 text-sm text-white placeholder:text-navy-500 focus:outline-none input-glow" />
                 </div>
               )}
 
-              {/* Messages */}
               <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2">
                 {loadingMessages ? (
                   <div className="flex items-center justify-center py-12">
                     <div className="w-6 h-6 border-2 border-pool/30 border-t-pool rounded-full animate-spin" />
                   </div>
                 ) : messages.length === 0 ? (
-                  <div className="text-center py-12">
-                    <p className="text-navy-500 text-sm">Aucun message</p>
-                  </div>
+                  <div className="text-center py-12"><p className="text-navy-500 text-sm">Aucun message</p></div>
                 ) : (
                   messages.map((msg) => (
-                    <div
-                      key={msg.id}
-                      className={`flex ${
-                        msg.direction === "outbound" ? "justify-end" : "justify-start"
-                      }`}
-                    >
-                      <div
-                        className={`max-w-[75%] rounded-2xl px-4 py-2.5 ${
-                          msg.direction === "outbound" ? "bubble-out" : "bubble-in"
-                        }`}
-                      >
+                    <div key={msg.id} className={`flex ${msg.direction === "outbound" ? "justify-end" : "justify-start"}`}>
+                      <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 ${msg.direction === "outbound" ? "bubble-out" : "bubble-in"}`}>
                         <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.body}</p>
                         <p className={`text-[10px] mt-1 ${msg.direction === "outbound" ? "text-white/50" : "text-navy-500"}`}>
                           {formatFullTime(msg.created_at)}
@@ -508,7 +438,6 @@ export default function Dashboard() {
                 <div ref={messagesEndRef} />
               </div>
 
-              {/* Compose */}
               <div className="flex-shrink-0 border-t border-navy-800 bg-navy-950/50 backdrop-blur-sm p-3">
                 <div className="flex items-end gap-2">
                   <textarea
@@ -521,9 +450,9 @@ export default function Dashboard() {
                     className="flex-1 bg-navy-900/80 border border-navy-700/50 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-navy-500 focus:outline-none input-glow resize-none transition"
                     style={{ maxHeight: "120px" }}
                     onInput={(e) => {
-                      const target = e.target as HTMLTextAreaElement;
-                      target.style.height = "auto";
-                      target.style.height = Math.min(target.scrollHeight, 120) + "px";
+                      const t = e.target as HTMLTextAreaElement;
+                      t.style.height = "auto";
+                      t.style.height = Math.min(t.scrollHeight, 120) + "px";
                     }}
                   />
                   <button
@@ -535,15 +464,12 @@ export default function Dashboard() {
                       <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     ) : (
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="m22 2-7 20-4-9-9-4z" />
-                        <path d="m22 2-11 11" />
+                        <path d="m22 2-7 20-4-9-9-4z" /><path d="m22 2-11 11" />
                       </svg>
                     )}
                   </button>
                 </div>
-                <p className="text-[10px] text-navy-600 mt-1.5 pl-1">
-                  Entrée pour envoyer · Shift+Entrée pour sauter une ligne
-                </p>
+                <p className="text-[10px] text-navy-600 mt-1.5 pl-1">Entrée pour envoyer · Shift+Entrée pour sauter une ligne</p>
               </div>
             </>
           )}
