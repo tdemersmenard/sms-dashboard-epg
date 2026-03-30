@@ -40,7 +40,9 @@ export default function Dashboard() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ contactId }),
-    }).catch(() => {/* silent */});
+    })
+      .then(() => pendingRead.current.delete(contactId))
+      .catch(() => pendingRead.current.delete(contactId));
   }, []);
 
   // ─── Conversations ────────────────────────────────────────────────────────────
@@ -58,10 +60,8 @@ export default function Dashboard() {
           if (c.contact_id === selectedContactRef.current) {
             return { ...c, unread_count: 0 };
           }
-          // Conversation was marked as read locally (pending DB confirmation)
+          // mark-as-read API in flight: keep badge at 0 until API returns
           if (pendingRead.current.has(c.contact_id)) {
-            // Once DB confirms 0, remove from pending
-            if (c.unread_count === 0) pendingRead.current.delete(c.contact_id);
             return { ...c, unread_count: 0 };
           }
           return c;
