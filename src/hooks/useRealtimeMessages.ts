@@ -90,18 +90,15 @@ export function useRealtimeMessages() {
     }
   }, []);
 
-  // ── Load messages for a conversation ────────────────────────────────────
+  // ── Load messages for a conversation (server-side route bypasses RLS) ──
   const loadMessages = useCallback(async (contactId: string) => {
     setLoadingMessages(true);
     try {
-      const { data, error } = await supabase
-        .from("messages")
-        .select("*")
-        .eq("contact_id", contactId)
-        .order("created_at", { ascending: true })
-        .limit(50);
-      if (error) throw error;
-      setMessages((prev) => ({ ...prev, [contactId]: data ?? [] }));
+      const res = await fetch(`/api/messages?contactId=${contactId}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data: Message[] = await res.json();
+      if (!Array.isArray(data)) return;
+      setMessages((prev) => ({ ...prev, [contactId]: data }));
     } catch (e) {
       console.error("loadMessages:", e);
     } finally {
