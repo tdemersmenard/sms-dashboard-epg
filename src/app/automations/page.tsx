@@ -11,7 +11,7 @@ interface AutomationCard {
 }
 
 const AUTOMATIONS: AutomationCard[] = [
-  { id: "relance_nouveau",    name: "Relance nouveau lead",  trigger: "Lead sans réponse depuis 24h",       action: "Envoie SMS « Premier contact »" },
+  { id: "relance_nouveau",    name: "Relance nouveau lead",  trigger: "Lead sans réponse depuis 48h",       action: "Envoie SMS « Relance nouveau lead »" },
   { id: "relance_soumission", name: "Relance soumission",    trigger: "Soumission sans réponse depuis 72h", action: "Envoie SMS « Relance soumission »" },
   { id: "rappel_paiement",    name: "Rappel paiement",       trigger: "Paiement dû dans 7 jours",           action: "Envoie SMS « Rappel paiement »" },
   { id: "paiement_retard",    name: "Paiement en retard",    trigger: "Paiement en retard de 3+ jours",     action: "Envoie SMS rappel urgent + marque en retard" },
