@@ -2,12 +2,45 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { UserPlus, DollarSign, Calendar, MessageSquare } from "lucide-react";
+import { DollarSign, CreditCard, AlertCircle, Users, Calendar } from "lucide-react";
 import { startOfWeek, endOfWeek, format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { supabaseBrowser } from "@/lib/supabase-browser";
-import type { Job, Message, Contact } from "@/lib/types";
+import type { Job, Message } from "@/lib/types";
 
+// ── Hardcoded client data ───────────────────────────────────
+const clientsData = [
+  { name: "François Tétreault",   address: "24 des Rossignols, Granby",           service: "Entretien",                       total: 2100, paid: 1050 },
+  { name: "Karine Gince",         address: "",                                     service: "Ouverture",                       total: 170,  paid: 0    },
+  { name: "Vicky",                address: "26 Robinson, Waterloo",                service: "Ouverture",                       total: 175,  paid: 175  },
+  { name: "Rox",                  address: "762 rue Beauport, Granby",             service: "Ouverture + Fermeture",           total: 400,  paid: 0    },
+  { name: "Maxime",               address: "",                                     service: "Ouverture + Fermeture",           total: 300,  paid: 300  },
+  { name: "Michael Bernard",      address: "497 Bégin, Granby",                   service: "Entretien spa",                   total: 1800, paid: 300  },
+  { name: "Mathieu Girard",       address: "",                                     service: "Entretien",                       total: 2000, paid: 0    },
+  { name: "Yan",                  address: "",                                     service: "Entretien",                       total: 2700, paid: 0    },
+  { name: "Olivier Tétreault",    address: "767 rue Terrebonne, Granby",           service: "Ouverture 2 passages",            total: 300,  paid: 300  },
+  { name: "Christian Blais",      address: "146 des Cerisiers, Granby",            service: "Entretien",                       total: 2000, paid: 1000 },
+  { name: "Jacqueline Auger",     address: "515 ch Huntington, Bromont",           service: "Ouverture",                       total: 200,  paid: 200  },
+  { name: "Samuel Dupont",        address: "38 rue Church, Granby",                service: "Entretien aux 2 sem.",            total: 1200, paid: 600  },
+  { name: "Marc-André Lapointe",  address: "677 Gilles-Cadorette, Granby",        service: "Entretien",                       total: 2000, paid: 1000 },
+  { name: "Caleb Gaumond",        address: "443 Vimont, Granby",                  service: "Entretien",                       total: 1500, paid: 0    },
+  { name: "Julien Larouche",      address: "58 Impasse de l'Île, Roxton Pond",    service: "Entretien",                       total: 1800, paid: 900  },
+  { name: "Benoit Jalbert",       address: "56 Saint-Urbain, Granby",             service: "Ouverture 2 passages",            total: 300,  paid: 0    },
+  { name: "Jean-François Ostiguy",address: "285 ch de l'Ange-Gardien, St-Paul",  service: "Entretien",                       total: 2000, paid: 0    },
+  { name: "Philippe Dufour",      address: "",                                     service: "Ouvert./Fermet. + 2 passages",    total: 650,  paid: 325  },
+];
+
+const totalRevenue = clientsData.reduce((sum, c) => sum + c.total, 0);
+const totalPaid    = clientsData.reduce((sum, c) => sum + c.paid,  0);
+const totalOwed    = totalRevenue - totalPaid;
+
+function fmt(amount: number) {
+  return new Intl.NumberFormat("fr-CA", {
+    style: "currency", currency: "CAD", minimumFractionDigits: 0,
+  }).format(amount);
+}
+
+// ── Dynamic data types ──────────────────────────────────────
 const JOB_TYPE_COLORS: Record<string, { bg: string; text: string }> = {
   ouverture: { bg: "bg-green-100",  text: "text-green-700" },
   entretien: { bg: "bg-blue-100",   text: "text-blue-700" },
@@ -33,19 +66,11 @@ function formatTime(d: string) {
   return date.toLocaleDateString("fr-CA", { day: "numeric", month: "short" });
 }
 
-interface Stats {
-  newLeads: number;
-  revenue: number;
-  jobsThisWeek: number;
-  unreadMessages: number;
-}
-
 type JobWithContact = Job & { contactName: string };
 type MsgWithContact = Message & { contactName: string; phone: string };
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [stats, setStats] = useState<Stats>({ newLeads: 0, revenue: 0, jobsThisWeek: 0, unreadMessages: 0 });
   const [upcomingJobs, setUpcomingJobs] = useState<JobWithContact[]>([]);
   const [recentMessages, setRecentMessages] = useState<MsgWithContact[]>([]);
   const [loading, setLoading] = useState(true);
@@ -54,51 +79,40 @@ export default function DashboardPage() {
     const load = async () => {
       const today = new Date();
       const todayStr = format(today, "yyyy-MM-dd");
-      const monday = format(startOfWeek(today, { weekStartsOn: 1 }), "yyyy-MM-dd");
-      const sunday = format(endOfWeek(today, { weekStartsOn: 1 }), "yyyy-MM-dd");
 
-      const [
-        { count: newLeads },
-        { data: revenueData },
-        { count: jobsThisWeek },
-        { count: unreadMessages },
-        { data: jobsRaw },
-        { data: msgsRaw },
-      ] = await Promise.all([
-        supabaseBrowser.from("contacts").select("id", { count: "exact", head: true }).eq("stage", "nouveau"),
-        supabaseBrowser.from("contacts").select("season_price").in("stage", ["closé", "planifié", "complété"]),
-        supabaseBrowser.from("jobs").select("id", { count: "exact", head: true }).gte("scheduled_date", monday).lte("scheduled_date", sunday),
-        supabaseBrowser.from("messages").select("id", { count: "exact", head: true }).eq("is_read", false).eq("direction", "inbound"),
-        supabaseBrowser.from("jobs").select("*").gte("scheduled_date", todayStr).neq("status", "annulé").order("scheduled_date").limit(5),
-        supabaseBrowser.from("messages").select("*").eq("direction", "inbound").order("created_at", { ascending: false }).limit(5),
+      const [{ data: jobsRaw }, { data: msgsRaw }] = await Promise.all([
+        supabaseBrowser
+          .from("jobs")
+          .select("*")
+          .gte("scheduled_date", todayStr)
+          .neq("status", "annulé")
+          .order("scheduled_date")
+          .limit(5),
+        supabaseBrowser
+          .from("messages")
+          .select("*")
+          .eq("direction", "inbound")
+          .order("created_at", { ascending: false })
+          .limit(5),
       ]);
 
-      const revenue = (revenueData ?? []).reduce((sum, c) => sum + (c.season_price ?? 0), 0);
-
-      setStats({
-        newLeads: newLeads ?? 0,
-        revenue,
-        jobsThisWeek: jobsThisWeek ?? 0,
-        unreadMessages: unreadMessages ?? 0,
-      });
-
-      // Enrich jobs with contact names
       if (jobsRaw && jobsRaw.length > 0) {
         const ids = Array.from(new Set(jobsRaw.map((j) => j.contact_id)));
-        const { data: cs } = await supabaseBrowser.from("contacts").select("id,first_name,last_name,name,phone").in("id", ids);
+        const { data: cs } = await supabaseBrowser
+          .from("contacts").select("id,first_name,last_name,name,phone").in("id", ids);
         const map = Object.fromEntries((cs ?? []).map((c) => [c.id, displayName(c)]));
         setUpcomingJobs(jobsRaw.map((j) => ({ ...j, contactName: map[j.contact_id] ?? "Client" })) as JobWithContact[]);
       }
 
-      // Enrich messages with contact names
       if (msgsRaw && msgsRaw.length > 0) {
         const ids = Array.from(new Set(msgsRaw.map((m) => m.contact_id).filter(Boolean)));
-        const { data: cs } = await supabaseBrowser.from("contacts").select("id,first_name,last_name,name,phone").in("id", ids);
+        const { data: cs } = await supabaseBrowser
+          .from("contacts").select("id,first_name,last_name,name,phone").in("id", ids);
         const map = Object.fromEntries((cs ?? []).map((c) => [c.id, { name: displayName(c), phone: c.phone ?? "" }]));
         setRecentMessages(
           msgsRaw.map((m) => ({
             ...m,
-            contactName: map[m.contact_id]?.name ?? m.contact_id ?? "Inconnu",
+            contactName: map[m.contact_id]?.name ?? "Inconnu",
             phone: map[m.contact_id]?.phone ?? "",
           })) as MsgWithContact[]
         );
@@ -109,66 +123,103 @@ export default function DashboardPage() {
     load();
   }, []);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="w-6 h-6 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin" />
-      </div>
-    );
-  }
-
   const statCards = [
     {
-      label: "Nouveaux leads",
-      value: stats.newLeads,
-      icon: <UserPlus size={20} className="text-blue-600" />,
-      iconBg: "bg-blue-50",
-      display: String(stats.newLeads),
-    },
-    {
-      label: "Revenu potentiel",
-      value: stats.revenue,
-      icon: <DollarSign size={20} className="text-green-600" />,
+      label: "Revenu total",
+      display: fmt(totalRevenue),
+      icon: <DollarSign size={22} className="text-green-600" />,
       iconBg: "bg-green-50",
-      display: stats.revenue.toLocaleString("fr-CA", { style: "currency", currency: "CAD", maximumFractionDigits: 0 }),
     },
     {
-      label: "Jobs cette semaine",
-      value: stats.jobsThisWeek,
-      icon: <Calendar size={20} className="text-purple-600" />,
-      iconBg: "bg-purple-50",
-      display: String(stats.jobsThisWeek),
+      label: "Payé à date",
+      display: fmt(totalPaid),
+      icon: <CreditCard size={22} className="text-blue-600" />,
+      iconBg: "bg-blue-50",
     },
     {
-      label: "Messages non-lus",
-      value: stats.unreadMessages,
-      icon: <MessageSquare size={20} className="text-orange-600" />,
+      label: "À recevoir",
+      display: fmt(totalOwed),
+      icon: <AlertCircle size={22} className="text-orange-600" />,
       iconBg: "bg-orange-50",
-      display: String(stats.unreadMessages),
+    },
+    {
+      label: "Clients",
+      display: String(clientsData.length),
+      icon: <Users size={22} className="text-purple-600" />,
+      iconBg: "bg-purple-50",
     },
   ];
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="p-6 max-w-6xl mx-auto">
       <h1 className="text-xl font-bold text-gray-900 mb-6">Dashboard</h1>
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {statCards.map((s) => (
-          <div key={s.label} className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
-            <div className={`w-10 h-10 rounded-full ${s.iconBg} flex items-center justify-center mb-3`}>
+          <div key={s.label} className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+            <div className={`w-12 h-12 rounded-xl ${s.iconBg} flex items-center justify-center`}>
               {s.icon}
             </div>
-            <p className="text-2xl font-bold text-gray-900">{s.display}</p>
-            <p className="text-sm text-gray-500 mt-0.5">{s.label}</p>
+            <p className="text-3xl font-bold text-gray-900 mt-3">{s.display}</p>
+            <p className="text-sm text-gray-500 mt-1">{s.label}</p>
           </div>
         ))}
       </div>
 
+      {/* Clients table */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mt-6">
+        <div className="px-5 py-4 border-b border-gray-100">
+          <h2 className="text-sm font-bold text-gray-800">Clients — Saison 2025</h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                {["Nom", "Adresse", "Service", "Total", "Payé", "Reste"].map((h) => (
+                  <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {clientsData.map((c, i) => {
+                const reste = c.total - c.paid;
+                return (
+                  <tr key={i} className="hover:bg-gray-50 transition">
+                    <td className="px-4 py-3 text-sm font-medium text-gray-900 whitespace-nowrap">{c.name}</td>
+                    <td className="px-4 py-3 text-sm text-gray-500">{c.address || <span className="text-gray-300">—</span>}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">{c.service}</td>
+                    <td className="px-4 py-3 text-sm text-gray-900 font-medium whitespace-nowrap">{fmt(c.total)}</td>
+                    <td className={`px-4 py-3 text-sm font-medium whitespace-nowrap ${c.paid > 0 ? "text-green-600" : "text-gray-400"}`}>
+                      {c.paid > 0 ? fmt(c.paid) : "—"}
+                    </td>
+                    <td className={`px-4 py-3 text-sm font-medium whitespace-nowrap ${reste > 0 ? "text-red-600" : "text-green-600"}`}>
+                      {reste > 0 ? fmt(reste) : "✓"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr className="border-t-2 border-gray-200 bg-gray-50">
+                <td className="px-4 py-3 text-sm font-bold text-gray-900" colSpan={3}>Total</td>
+                <td className="px-4 py-3 text-sm font-bold text-gray-900 whitespace-nowrap">{fmt(totalRevenue)}</td>
+                <td className="px-4 py-3 text-sm font-bold text-green-600 whitespace-nowrap">{fmt(totalPaid)}</td>
+                <td className="px-4 py-3 text-sm font-bold text-red-600 whitespace-nowrap">{fmt(totalOwed)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
       {/* Upcoming jobs */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 mb-4">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mt-6">
         <h2 className="text-sm font-bold text-gray-800 mb-4">Prochains rendez-vous</h2>
-        {upcomingJobs.length === 0 ? (
+        {loading ? (
+          <div className="w-5 h-5 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin" />
+        ) : upcomingJobs.length === 0 ? (
           <p className="text-sm text-gray-400">Aucun rendez-vous à venir</p>
         ) : (
           <div className="space-y-2">
@@ -176,7 +227,8 @@ export default function DashboardPage() {
               const jc = JOB_TYPE_COLORS[j.job_type] ?? JOB_TYPE_COLORS.autre;
               return (
                 <div key={j.id} className="flex items-center gap-3 py-1.5">
-                  <p className="text-sm text-gray-500 w-28 flex-shrink-0">
+                  <Calendar size={14} className="text-gray-400 flex-shrink-0" />
+                  <p className="text-sm text-gray-500 w-32 flex-shrink-0">
                     {format(new Date(j.scheduled_date + "T00:00:00"), "d MMM yyyy", { locale: fr })}
                     {j.scheduled_time_start ? ` · ${j.scheduled_time_start}` : ""}
                   </p>
@@ -192,9 +244,11 @@ export default function DashboardPage() {
       </div>
 
       {/* Recent messages */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mt-4">
         <h2 className="text-sm font-bold text-gray-800 mb-4">Derniers messages reçus</h2>
-        {recentMessages.length === 0 ? (
+        {loading ? (
+          <div className="w-5 h-5 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin" />
+        ) : recentMessages.length === 0 ? (
           <p className="text-sm text-gray-400">Aucun message reçu</p>
         ) : (
           <div className="space-y-1">
