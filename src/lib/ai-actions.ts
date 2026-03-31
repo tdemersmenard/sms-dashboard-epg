@@ -26,7 +26,12 @@ type ReminderAction = {
   description: string;
 };
 
-type AIAction = GenerateInvoiceAction | GenerateContractAction | BookJobAction | ReminderAction;
+type EscalateAction = {
+  type: "ESCALATE";
+  description: string;
+};
+
+type AIAction = GenerateInvoiceAction | GenerateContractAction | BookJobAction | ReminderAction | EscalateAction;
 
 export function parseActions(aiResponse: string): { cleanMessage: string; actions: AIAction[] } {
   const actions: AIAction[] = [];
@@ -65,6 +70,16 @@ export function parseActions(aiResponse: string): { cleanMessage: string; action
         date: reminderMatch[1],
         time: reminderMatch[2],
         description: reminderMatch[3],
+      });
+      continue;
+    }
+
+    // ESCALATE: __ACTION:ESCALATE:{description}__
+    const escalateMatch = line.match(/^__ACTION:ESCALATE:(.+)__$/);
+    if (escalateMatch) {
+      actions.push({
+        type: "ESCALATE",
+        description: escalateMatch[1],
       });
       continue;
     }
@@ -111,7 +126,7 @@ export async function executeActions(actions: AIAction[], contactId: string) {
           const secondPayment = action.amount - firstPayment;
           paymentTerms = `Versement 1: ${firstPayment}$ à la signature. Versement 2: ${secondPayment}$ mi-juillet 2026.`;
         } else {
-          paymentTerms = `Paiement complet de ${action.amount}$ requis avant le service. Minimum 30% (${Math.ceil(action.amount * 0.3)}$) comme dépôt.`;
+          paymentTerms = `Paiement complet de ${action.amount}$ requis avant le service.`;
         }
 
         // Save document in DB
@@ -155,6 +170,30 @@ export async function executeActions(actions: AIAction[], contactId: string) {
           });
         }
 
+        // Update contact: services, season_price, stage
+        const serviceLower = action.service.toLowerCase();
+        const existingServices: string[] = Array.isArray(contact.services) ? contact.services : [];
+        const newService = serviceLower.includes("ouverture")
+          ? "ouverture"
+          : serviceLower.includes("fermeture")
+          ? "fermeture"
+          : serviceLower.includes("entretien")
+          ? "entretien"
+          : null;
+
+        const updatedServices = newService && !existingServices.includes(newService)
+          ? [...existingServices, newService]
+          : existingServices;
+
+        await supabaseAdmin
+          .from("contacts")
+          .update({
+            services: updatedServices,
+            season_price: action.amount,
+            stage: "closé",
+          })
+          .eq("id", contactId);
+
         console.log(`[ai-actions] Created ${docType} ${docNumber} for ${name}: ${action.amount}$`);
       } else if (action.type === "BOOK_JOB") {
         // Calculate time_end = time + 2h
@@ -183,6 +222,47 @@ export async function executeActions(actions: AIAction[], contactId: string) {
         });
 
         console.log(`[ai-actions] Reminder set for ${action.date}: ${action.description}`);
+      } else if (action.type === "ESCALATE") {
+        // Get client info for the escalation message
+        const { data: contact } = await supabaseAdmin
+          .from("contacts")
+          .select("first_name, last_name, phone")
+          .eq("id", contactId)
+          .single();
+
+        const clientName = contact
+          ? [contact.first_name, contact.last_name].filter(Boolean).join(" ") || "Inconnu"
+          : "Inconnu";
+        const clientPhone = contact?.phone || "?";
+
+        // Find or create Thomas's contact
+        const THOMAS_PHONE = "+14509942215";
+        let { data: thomasContact } = await supabaseAdmin
+          .from("contacts")
+          .select("id")
+          .eq("phone", THOMAS_PHONE)
+          .maybeSingle();
+
+        if (!thomasContact) {
+          const { data: newContact } = await supabaseAdmin
+            .from("contacts")
+            .insert({ first_name: "Thomas", last_name: "(Admin)", phone: THOMAS_PHONE })
+            .select("id")
+            .single();
+          thomasContact = newContact;
+        }
+
+        if (thomasContact) {
+          const smsBody = `⚠️ CHLORE ESCALATION: ${clientName} (${clientPhone}) — ${action.description}`;
+          const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
+          await fetch(`${baseUrl}/api/sms/send`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ contactId: thomasContact.id, body: smsBody }),
+          });
+        }
+
+        console.log(`[ai-actions] Escalated to Thomas: ${action.description}`);
       }
     } catch (err) {
       console.error("[ai-actions] Error executing action:", err);
