@@ -16,7 +16,8 @@ function displayName(conv: Conversation): string {
   const first = conv.first_name;
   const last = conv.last_name;
   if (first || last) return [first, last].filter(Boolean).join(" ");
-  return conv.name ?? formatPhone(conv.phone);
+  if (conv.name) return conv.name;
+  return formatPhone(conv.phone);
 }
 
 function getInitials(conv: Conversation): string {
