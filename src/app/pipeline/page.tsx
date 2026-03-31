@@ -84,7 +84,7 @@ export default function PipelinePage() {
       </div>
 
       {/* Board */}
-      <div className="flex-1 overflow-hidden pt-4">
+      <div className="flex-1 overflow-x-auto pt-4">
         {loading ? (
           <div className="flex items-center justify-center h-full">
             <div className="w-6 h-6 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin" />

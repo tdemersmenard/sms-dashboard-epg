@@ -51,7 +51,7 @@ export default function AutomationsPage() {
     setEnabled((prev) => ({ ...prev, [id]: !prev[id] }));
 
   return (
-    <div className="p-6 max-w-4xl mx-auto overflow-y-auto h-full">
+    <div className="p-6 max-w-4xl mx-auto">
       <h1 className="text-xl font-bold text-gray-900 mb-6">Automations</h1>
 
       <div className="space-y-3">

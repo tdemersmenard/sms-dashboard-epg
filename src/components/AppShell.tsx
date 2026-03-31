@@ -56,7 +56,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         onMobileClose={() => setSidebarOpen(false)}
       />
 
-      <main className="h-screen overflow-hidden bg-white md:ml-[260px]">
+      <main className="h-screen overflow-y-auto bg-white md:ml-[260px]">
         {children}
       </main>
     </ToastProvider>
