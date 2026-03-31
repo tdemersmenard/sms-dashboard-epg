@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { MessageSquare } from "lucide-react";
 import { useRealtimeMessages } from "@/hooks/useRealtimeMessages";
-import { supabase } from "@/lib/supabase";
+import { supabaseBrowser as supabase } from "@/lib/supabase-browser";
 import ConversationList from "@/components/Messages/ConversationList";
 import MessageThread from "@/components/Messages/MessageThread";
 import MessageInput from "@/components/Messages/MessageInput";
