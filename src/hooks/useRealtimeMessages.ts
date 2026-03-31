@@ -53,7 +53,7 @@ export function useRealtimeMessages() {
   const loadConversations = useCallback(async () => {
     const v = ++fetchVersion.current;
     try {
-      const res = await fetch("/api/conversations");
+      const res = await fetch("/api/conversations", { cache: "no-store" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data: Conversation[] = await res.json();
       if (v < fetchVersion.current) return; // stale response
@@ -125,7 +125,7 @@ export function useRealtimeMessages() {
       .catch(() => pendingRead.current.delete(contactId));
   }, []);
 
-  // ── Send a message (optimistic) ──────────────────────────────────────────
+  // ── Send a message (optimistic + DB sync after confirm) ─────────────────
   const sendMessage = useCallback(
     async (contactId: string, body: string) => {
       const optimisticId = `temp-${Date.now()}`;
@@ -181,6 +181,8 @@ export function useRealtimeMessages() {
             m.id === optimisticId ? sent : m
           ),
         }));
+        // Sync conversation list from DB so preview persists on refresh
+        loadConversations();
       } catch (e) {
         // Rollback on failure
         setMessages((prev) => ({
@@ -192,7 +194,7 @@ export function useRealtimeMessages() {
         throw e;
       }
     },
-    []
+    [loadConversations]
   );
 
   // ── Initial load ─────────────────────────────────────────────────────────
