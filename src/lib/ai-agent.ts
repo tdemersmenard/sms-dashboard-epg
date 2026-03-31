@@ -165,6 +165,34 @@ export async function generateAIResponse(contactId: string, inboundMessage: stri
       return true;
     });
 
+    // Detect obvious confirmations and skip AI call to save credits
+    const lastInbound = inboundMessage.toLowerCase().trim();
+    const isConfirmation = /^(oui|yes|ok|go|deal|correct|parfait|envoie|oui.*facture|oui.*book|oui.*réserv|c'?est bon|on y va|let'?s go|d'?accord|j'?accepte)/.test(lastInbound);
+
+    if (isConfirmation) {
+      // Check what the last outbound message was asking
+      const lastOutbound = (messages || []).filter(m => m.direction === "outbound").pop();
+      const lastOutText = lastOutbound?.body?.toLowerCase() || "";
+
+      if (lastOutText.includes("book") || lastOutText.includes("réserv")) {
+        // Was asking to book — propose dates
+        return "Super! J'ai des dispos le samedi ou dimanche prochain. Quel jour t'arrange le mieux, matin ou après-midi?";
+      }
+
+      if (lastOutText.includes("facture") || lastOutText.includes("email") || lastOutText.includes("courriel")) {
+        // Was asking about invoice — ask for email
+        return "Parfait! C'est quoi ton adresse courriel que je t'envoie la facture?";
+      }
+
+      // Generic confirmation — move forward
+      return "Parfait! Pour aller de l'avant j'aurais besoin de ton adresse (pour le rendez-vous) et ton courriel (pour la facture). Tu peux m'envoyer ça?";
+    }
+
+    // Also detect "erreur" or confused messages
+    if (lastInbound === "erreur" || lastInbound === "error" || lastInbound === "??" || lastInbound === "???") {
+      return "Désolé pour la confusion! Dis-moi comment je peux t'aider, je suis là.";
+    }
+
     // 3. Build conversation history for Claude
     const conversationHistory = filteredMessages.map((msg) => ({
       role: msg.direction === "outbound" ? "assistant" as const : "user" as const,
