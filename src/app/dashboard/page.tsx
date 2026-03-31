@@ -1,19 +1,19 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { DollarSign, CreditCard, AlertCircle, Users, Calendar, Plus, Trash2 } from "lucide-react";
+import { DollarSign, CreditCard, AlertCircle, Users, Calendar } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import type { Job, Message } from "@/lib/types";
 
 // ── Types ───────────────────────────────────────────────────
-interface SaisonClient {
+interface ClientRow {
   id: string;
   name: string;
-  address: string;
-  service: string;
+  address: string | null;
+  services: string[];
   total: number;
   paid: number;
   notes: string | null;
@@ -54,72 +54,52 @@ function formatTime(d: string) {
   return date.toLocaleDateString("fr-CA", { day: "numeric", month: "short" });
 }
 
-// ── Inline number cell ──────────────────────────────────────
-function EditableCell({
-  value, onSave, className = "",
-}: {
-  value: number;
-  onSave: (v: number) => void;
-  className?: string;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(String(value));
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => { setDraft(String(value)); }, [value]);
-  useEffect(() => { if (editing) inputRef.current?.select(); }, [editing]);
-
-  const commit = () => {
-    setEditing(false);
-    const parsed = parseFloat(draft);
-    if (!isNaN(parsed) && parsed !== value) onSave(parsed);
-    else setDraft(String(value));
-  };
-
-  if (editing) {
-    return (
-      <input
-        ref={inputRef}
-        type="number" min="0" step="0.01"
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") { setDraft(String(value)); setEditing(false); } }}
-        className="w-20 border border-blue-300 rounded px-1.5 py-0.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
-      />
-    );
-  }
-
-  return (
-    <span
-      onClick={() => setEditing(true)}
-      title="Cliquer pour modifier"
-      className={`cursor-pointer hover:underline decoration-dotted ${className}`}
-    >
-      {fmt(value)}
-    </span>
-  );
-}
-
 // ── Page ────────────────────────────────────────────────────
 export default function DashboardPage() {
   const router = useRouter();
-  const [clients, setClients] = useState<SaisonClient[]>([]);
+  const [clients, setClients] = useState<ClientRow[]>([]);
   const [clientsLoading, setClientsLoading] = useState(true);
   const [upcomingJobs, setUpcomingJobs] = useState<JobWithContact[]>([]);
   const [recentMessages, setRecentMessages] = useState<MsgWithContact[]>([]);
   const [dynamicLoading, setDynamicLoading] = useState(true);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [newForm, setNewForm] = useState({ name: "", address: "", service: "", total: "", paid: "" });
 
-  // Load saison_clients
+  // Load contacts with season_price > 0 + their received payments
   const loadClients = async () => {
-    const { data } = await supabaseBrowser
-      .from("saison_clients")
-      .select("*")
-      .order("created_at");
-    setClients((data ?? []) as SaisonClient[]);
+    const { data: contactsData } = await supabaseBrowser
+      .from("contacts")
+      .select("id, first_name, last_name, name, phone, address, services, season_price, notes")
+      .gt("season_price", 0)
+      .order("first_name");
+
+    if (!contactsData || contactsData.length === 0) {
+      setClients([]);
+      setClientsLoading(false);
+      return;
+    }
+
+    const ids = contactsData.map((c) => c.id);
+    const { data: paymentsData } = await supabaseBrowser
+      .from("payments")
+      .select("contact_id, amount")
+      .eq("status", "reçu")
+      .in("contact_id", ids);
+
+    const paidMap: Record<string, number> = {};
+    for (const p of paymentsData ?? []) {
+      paidMap[p.contact_id] = (paidMap[p.contact_id] ?? 0) + (p.amount ?? 0);
+    }
+
+    setClients(
+      contactsData.map((c) => ({
+        id: c.id,
+        name: displayName(c),
+        address: c.address,
+        services: c.services ?? [],
+        total: c.season_price ?? 0,
+        paid: paidMap[c.id] ?? 0,
+        notes: c.notes,
+      }))
+    );
     setClientsLoading(false);
   };
 
@@ -152,39 +132,8 @@ export default function DashboardPage() {
     load();
   }, []);
 
-  useEffect(() => { loadClients(); }, []);
+  useEffect(() => { loadClients(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Update a field on a client row
-  const updateClient = async (id: string, field: "paid" | "total" | "notes", value: number | string) => {
-    setClients((prev) => prev.map((c) => c.id === id ? { ...c, [field]: value } : c));
-    await supabaseBrowser.from("saison_clients").update({ [field]: value }).eq("id", id);
-  };
-
-  // Delete a client row
-  const deleteClient = async (id: string) => {
-    setClients((prev) => prev.filter((c) => c.id !== id));
-    await supabaseBrowser.from("saison_clients").delete().eq("id", id);
-  };
-
-  // Add a new client row
-  const handleAdd = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newForm.name.trim()) return;
-    setSaving(true);
-    const { data } = await supabaseBrowser.from("saison_clients").insert({
-      name: newForm.name.trim(),
-      address: newForm.address.trim(),
-      service: newForm.service.trim(),
-      total: parseFloat(newForm.total) || 0,
-      paid: parseFloat(newForm.paid) || 0,
-    }).select().single();
-    if (data) setClients((prev) => [...prev, data as SaisonClient]);
-    setShowAddModal(false);
-    setNewForm({ name: "", address: "", service: "", total: "", paid: "" });
-    setSaving(false);
-  };
-
-  // Computed totals
   const totalRevenue = clients.reduce((s, c) => s + c.total, 0);
   const totalPaid    = clients.reduce((s, c) => s + c.paid,  0);
   const totalOwed    = totalRevenue - totalPaid;
@@ -215,27 +164,24 @@ export default function DashboardPage() {
 
       {/* Clients table */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mt-6">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <h2 className="text-sm font-bold text-gray-800">Clients — Saison 2025</h2>
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#0a1f3f] text-white text-xs font-medium rounded-lg hover:bg-[#0f2855] transition"
-          >
-            <Plus size={13} />
-            Ajouter
-          </button>
+        <div className="px-5 py-4 border-b border-gray-100">
+          <h2 className="text-sm font-bold text-gray-800">Clients — Saison 2026</h2>
         </div>
 
         {clientsLoading ? (
           <div className="flex items-center justify-center py-12">
             <div className="w-6 h-6 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin" />
           </div>
+        ) : clients.length === 0 ? (
+          <p className="px-5 py-8 text-sm text-gray-400">
+            Aucun client avec un prix de saison enregistré. Ajoutez un prix saison dans la fiche client.
+          </p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
-                  {["Nom", "Adresse", "Service", "Total", "Payé", "Reste", ""].map((h) => (
+                  {["Nom", "Adresse", "Services", "Total", "Payé", "Reste", "Notes"].map((h) => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
                       {h}
                     </th>
@@ -246,35 +192,22 @@ export default function DashboardPage() {
                 {clients.map((c) => {
                   const reste = c.total - c.paid;
                   return (
-                    <tr key={c.id} className="hover:bg-gray-50 transition group">
+                    <tr
+                      key={c.id}
+                      onClick={() => router.push(`/clients/${c.id}`)}
+                      className="hover:bg-gray-50 transition cursor-pointer"
+                    >
                       <td className="px-4 py-3 text-sm font-medium text-gray-900 whitespace-nowrap">{c.name}</td>
-                      <td className="px-4 py-3 text-sm text-gray-500 max-w-[180px] truncate">{c.address || <span className="text-gray-300">—</span>}</td>
-                      <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">{c.service}</td>
-                      <td className="px-4 py-3 text-sm whitespace-nowrap">
-                        <EditableCell
-                          value={c.total}
-                          onSave={(v) => updateClient(c.id, "total", v)}
-                          className="text-gray-900 font-medium"
-                        />
-                      </td>
-                      <td className="px-4 py-3 text-sm whitespace-nowrap">
-                        <EditableCell
-                          value={c.paid}
-                          onSave={(v) => updateClient(c.id, "paid", v)}
-                          className={c.paid > 0 ? "text-green-600 font-medium" : "text-gray-400"}
-                        />
+                      <td className="px-4 py-3 text-sm text-gray-500 max-w-[160px] truncate">{c.address || <span className="text-gray-300">—</span>}</td>
+                      <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">{c.services.length > 0 ? c.services.join(", ") : <span className="text-gray-300">—</span>}</td>
+                      <td className="px-4 py-3 text-sm font-medium text-gray-900 whitespace-nowrap">{fmt(c.total)}</td>
+                      <td className={`px-4 py-3 text-sm font-medium whitespace-nowrap ${c.paid > 0 ? "text-green-600" : "text-gray-400"}`}>
+                        {fmt(c.paid)}
                       </td>
                       <td className={`px-4 py-3 text-sm font-medium whitespace-nowrap ${reste > 0 ? "text-red-600" : "text-green-600"}`}>
                         {reste > 0 ? fmt(reste) : "✓ Soldé"}
                       </td>
-                      <td className="px-4 py-3">
-                        <button
-                          onClick={() => { if (confirm(`Supprimer ${c.name} ?`)) deleteClient(c.id); }}
-                          className="opacity-0 group-hover:opacity-100 transition text-gray-300 hover:text-red-500"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </td>
+                      <td className="px-4 py-3 text-xs text-gray-400 max-w-[180px] truncate">{c.notes ?? "—"}</td>
                     </tr>
                   );
                 })}
@@ -352,56 +285,6 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
-
-      {/* Add client modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-              <h2 className="text-base font-bold text-gray-900">Ajouter un client</h2>
-              <button onClick={() => setShowAddModal(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
-            </div>
-            <form onSubmit={handleAdd} className="px-5 py-4 space-y-3">
-              <div>
-                <label className="text-xs font-medium text-gray-600 mb-1 block">Nom *</label>
-                <input type="text" required value={newForm.name} onChange={(e) => setNewForm((p) => ({ ...p, name: e.target.value }))}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-gray-600 mb-1 block">Adresse</label>
-                <input type="text" value={newForm.address} onChange={(e) => setNewForm((p) => ({ ...p, address: e.target.value }))}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-gray-600 mb-1 block">Service</label>
-                <input type="text" value={newForm.service} onChange={(e) => setNewForm((p) => ({ ...p, service: e.target.value }))}
-                  placeholder="ex: Entretien, Ouverture..."
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-medium text-gray-600 mb-1 block">Total ($)</label>
-                  <input type="number" min="0" step="0.01" value={newForm.total} onChange={(e) => setNewForm((p) => ({ ...p, total: e.target.value }))}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-gray-600 mb-1 block">Payé ($)</label>
-                  <input type="number" min="0" step="0.01" value={newForm.paid} onChange={(e) => setNewForm((p) => ({ ...p, paid: e.target.value }))}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
-                </div>
-              </div>
-              <div className="flex justify-end gap-2 pt-2">
-                <button type="button" onClick={() => setShowAddModal(false)} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition">
-                  Annuler
-                </button>
-                <button type="submit" disabled={saving} className="px-5 py-2 bg-[#0a1f3f] text-white text-sm font-medium rounded-lg hover:bg-[#0f2855] disabled:opacity-50 transition">
-                  {saving ? "Ajout..." : "Ajouter"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

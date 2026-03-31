@@ -18,8 +18,6 @@ export async function GET(req: NextRequest) {
     const succeeded = results.filter((r) => r.status === "success").length;
     const failed    = results.filter((r) => r.status === "error").length;
 
-    console.log(`[cron/automations] ran_at=${new Date().toISOString()} actions=${results.length} ok=${succeeded} err=${failed}`);
-
     return NextResponse.json({
       ok: true,
       ran_at: new Date().toISOString(),

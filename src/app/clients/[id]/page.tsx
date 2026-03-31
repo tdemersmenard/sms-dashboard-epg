@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { MessageSquare, CalendarPlus, ChevronDown } from "lucide-react";
+import { MessageSquare, CalendarPlus, ChevronDown, Upload, Download, Trash2 } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import type { Contact, Job, Document, Payment, Message } from "@/lib/types";
 
@@ -36,10 +36,18 @@ const DOC_STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   payé:      { bg: "bg-purple-100", text: "text-purple-700" },
 };
 
-const PAY_STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  en_attente: { bg: "bg-yellow-100", text: "text-yellow-700" },
-  reçu:       { bg: "bg-green-100",  text: "text-green-700" },
-  en_retard:  { bg: "bg-red-100",    text: "text-red-700" },
+const METHOD_BADGES: Record<string, { bg: string; text: string; label: string }> = {
+  interac: { bg: "bg-blue-100",   text: "text-blue-700",   label: "Interac" },
+  cash:    { bg: "bg-green-100",  text: "text-green-700",  label: "Cash" },
+  cheque:  { bg: "bg-gray-100",   text: "text-gray-600",   label: "Chèque" },
+  carte:   { bg: "bg-purple-100", text: "text-purple-700", label: "Carte" },
+  autre:   { bg: "bg-gray-100",   text: "text-gray-500",   label: "Autre" },
+};
+
+const DOC_PREFIX: Record<string, string> = {
+  soumission: "S",
+  contrat: "C",
+  facture: "F",
 };
 
 function displayName(c: Contact): string {
@@ -113,6 +121,8 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [showStageDropdown, setShowStageDropdown] = useState(false);
+
+  // Job modal
   const [showJobModal, setShowJobModal] = useState(false);
   const [savingJob, setSavingJob] = useState(false);
   const [jobForm, setJobForm] = useState({
@@ -123,13 +133,29 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
     notes: "",
   });
 
+  // Document upload
+  const [showDocUpload, setShowDocUpload] = useState(false);
+  const [docFile, setDocFile] = useState<File | null>(null);
+  const [docType, setDocType] = useState<Document["doc_type"]>("soumission");
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+
+  // Payment form
+  const [showPayForm, setShowPayForm] = useState(false);
+  const [payForm, setPayForm] = useState({
+    amount: "",
+    received_date: new Date().toISOString().slice(0, 10),
+    method: "interac" as Payment["method"],
+    notes: "",
+  });
+  const [savingPayment, setSavingPayment] = useState(false);
+
   const load = useCallback(async () => {
-    const [{ data: c }, { data: m }, { data: j }, { data: d }, { data: p }] = await Promise.all([
+    const [{ data: c }, m, { data: j }, { data: d }, { data: p }] = await Promise.all([
       supabaseBrowser.from("contacts").select("*").eq("id", id).single(),
       fetch(`/api/messages?contactId=${id}`).then((r) => r.json()).catch(() => []),
       supabaseBrowser.from("jobs").select("*").eq("contact_id", id).order("scheduled_date"),
       supabaseBrowser.from("documents").select("*").eq("contact_id", id).order("created_at", { ascending: false }),
-      supabaseBrowser.from("payments").select("*").eq("contact_id", id).order("due_date"),
+      supabaseBrowser.from("payments").select("*").eq("contact_id", id).order("received_date", { ascending: false }),
     ]);
     if (c) setContact(c as Contact);
     setMessages(Array.isArray(m) ? (m as Message[]).slice(-5) : []);
@@ -165,6 +191,89 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
     setSavingJob(false);
   };
 
+  const handleDocUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!docFile) return;
+    setUploadingDoc(true);
+
+    try {
+      // Get count for this type to auto-number
+      const { count } = await supabaseBrowser
+        .from("documents")
+        .select("*", { count: "exact", head: true })
+        .eq("doc_type", docType);
+      const prefix = DOC_PREFIX[docType] ?? "D";
+      const docNumber = `${prefix}-2026-${String((count ?? 0) + 1).padStart(3, "0")}`;
+
+      // Upload to storage
+      const path = `${id}/${Date.now()}-${docFile.name}`;
+      const { error: uploadError } = await supabaseBrowser.storage
+        .from("documents")
+        .upload(path, docFile);
+
+      if (uploadError) {
+        console.error("[doc-upload]", uploadError);
+        alert("Erreur lors du téléversement du fichier.");
+        setUploadingDoc(false);
+        return;
+      }
+
+      const { data: urlData } = supabaseBrowser.storage
+        .from("documents")
+        .getPublicUrl(path);
+
+      const { data: newDoc } = await supabaseBrowser
+        .from("documents")
+        .insert({
+          contact_id: id,
+          doc_type: docType,
+          doc_number: docNumber,
+          status: "envoyé",
+          pdf_url: urlData.publicUrl,
+        })
+        .select()
+        .single();
+
+      if (newDoc) setDocuments((prev) => [newDoc as Document, ...prev]);
+      setDocFile(null);
+      setShowDocUpload(false);
+    } catch (err) {
+      console.error("[doc-upload]", err);
+      alert("Erreur inattendue lors du téléversement.");
+    }
+    setUploadingDoc(false);
+  };
+
+  const handleAddPayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!payForm.amount) return;
+    setSavingPayment(true);
+
+    const { data } = await supabaseBrowser
+      .from("payments")
+      .insert({
+        contact_id: id,
+        amount: parseFloat(payForm.amount),
+        method: payForm.method,
+        status: "reçu",
+        received_date: payForm.received_date,
+        notes: payForm.notes || null,
+      })
+      .select()
+      .single();
+
+    if (data) setPayments((prev) => [data as Payment, ...prev]);
+    setPayForm({ amount: "", received_date: new Date().toISOString().slice(0, 10), method: "interac", notes: "" });
+    setShowPayForm(false);
+    setSavingPayment(false);
+  };
+
+  const handleDeletePayment = async (paymentId: string) => {
+    if (!confirm("Supprimer ce paiement ?")) return;
+    setPayments((prev) => prev.filter((p) => p.id !== paymentId));
+    await supabaseBrowser.from("payments").delete().eq("id", paymentId);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -179,6 +288,11 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
 
   const stage = contact.stage ?? "nouveau";
   const sc = STAGE_COLORS[stage];
+
+  const totalPaidAmount = payments
+    .filter((p) => p.status === "reçu")
+    .reduce((s, p) => s + p.amount, 0);
+  const resteAPayer = (contact.season_price ?? 0) - totalPaidAmount;
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
@@ -204,7 +318,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
                     <button
                       key={s}
                       onClick={() => handleStageChange(s)}
-                      className={`w-full text-left px-3 py-1.5 text-xs font-medium hover:bg-gray-50 flex items-center gap-2`}
+                      className="w-full text-left px-3 py-1.5 text-xs font-medium hover:bg-gray-50 flex items-center gap-2"
                     >
                       <span className={`w-2 h-2 rounded-full ${c2?.bg ?? "bg-gray-200"}`} />
                       {s}
@@ -383,7 +497,51 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
 
           {/* Documents */}
           <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
-            <h2 className="text-sm font-bold text-gray-800 mb-3">Documents</h2>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-bold text-gray-800">Documents</h2>
+              <button
+                onClick={() => setShowDocUpload((v) => !v)}
+                className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+              >
+                {showDocUpload ? "Annuler" : "+ Uploader"}
+              </button>
+            </div>
+
+            {showDocUpload && (
+              <form onSubmit={handleDocUpload} className="bg-gray-50 rounded-lg p-3 mb-3 space-y-2">
+                <div>
+                  <label className="text-xs text-gray-500 mb-0.5 block">Type de document</label>
+                  <select
+                    value={docType}
+                    onChange={(e) => setDocType(e.target.value as Document["doc_type"])}
+                    className="w-full border border-gray-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                  >
+                    <option value="soumission">Soumission</option>
+                    <option value="contrat">Contrat</option>
+                    <option value="facture">Facture</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-0.5 block">Fichier</label>
+                  <input
+                    type="file"
+                    accept=".pdf,.doc,.docx"
+                    required
+                    onChange={(e) => setDocFile(e.target.files?.[0] ?? null)}
+                    className="w-full text-xs text-gray-600 file:mr-2 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:bg-gray-200 file:text-gray-700 hover:file:bg-gray-300"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={uploadingDoc || !docFile}
+                  className="w-full py-1.5 bg-[#0a1f3f] text-white text-xs font-medium rounded-lg hover:bg-[#0f2855] disabled:opacity-50 transition flex items-center justify-center gap-1.5"
+                >
+                  <Upload size={12} />
+                  {uploadingDoc ? "Téléversement..." : "Téléverser"}
+                </button>
+              </form>
+            )}
+
             {documents.length === 0 ? (
               <p className="text-xs text-gray-400">Aucun document</p>
             ) : (
@@ -400,9 +558,22 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
                           </p>
                         )}
                       </div>
-                      <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full flex-shrink-0 ${dsc?.bg ?? "bg-gray-100"} ${dsc?.text ?? "text-gray-600"}`}>
-                        {d.status}
-                      </span>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${dsc?.bg ?? "bg-gray-100"} ${dsc?.text ?? "text-gray-600"}`}>
+                          {d.status}
+                        </span>
+                        {d.pdf_url && (
+                          <a
+                            href={d.pdf_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-500 hover:text-blue-700"
+                            title="Télécharger"
+                          >
+                            <Download size={13} />
+                          </a>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
@@ -412,27 +583,118 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
 
           {/* Paiements */}
           <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
-            <h2 className="text-sm font-bold text-gray-800 mb-3">Paiements</h2>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-bold text-gray-800">Paiements</h2>
+              <button
+                onClick={() => setShowPayForm((v) => !v)}
+                className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+              >
+                {showPayForm ? "Annuler" : "+ Ajouter"}
+              </button>
+            </div>
+
+            {showPayForm && (
+              <form onSubmit={handleAddPayment} className="bg-gray-50 rounded-lg p-3 mb-3 space-y-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs text-gray-500 mb-0.5 block">Montant ($)</label>
+                    <input
+                      type="number" min="0" step="0.01" required
+                      value={payForm.amount}
+                      onChange={(e) => setPayForm((p) => ({ ...p, amount: e.target.value }))}
+                      className="w-full border border-gray-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 mb-0.5 block">Date reçu</label>
+                    <input
+                      type="date" required
+                      value={payForm.received_date}
+                      onChange={(e) => setPayForm((p) => ({ ...p, received_date: e.target.value }))}
+                      className="w-full border border-gray-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-0.5 block">Méthode</label>
+                  <select
+                    value={payForm.method}
+                    onChange={(e) => setPayForm((p) => ({ ...p, method: e.target.value as Payment["method"] }))}
+                    className="w-full border border-gray-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                  >
+                    <option value="interac">Interac</option>
+                    <option value="cash">Cash</option>
+                    <option value="cheque">Chèque</option>
+                    <option value="carte">Carte</option>
+                    <option value="autre">Autre</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-0.5 block">Notes</label>
+                  <input
+                    type="text"
+                    value={payForm.notes}
+                    onChange={(e) => setPayForm((p) => ({ ...p, notes: e.target.value }))}
+                    className="w-full border border-gray-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={savingPayment}
+                  className="w-full py-1.5 bg-[#0a1f3f] text-white text-xs font-medium rounded-lg hover:bg-[#0f2855] disabled:opacity-50 transition"
+                >
+                  {savingPayment ? "Enregistrement..." : "Enregistrer le paiement"}
+                </button>
+              </form>
+            )}
+
             {payments.length === 0 ? (
               <p className="text-xs text-gray-400">Aucun paiement</p>
             ) : (
               <div className="space-y-2">
                 {payments.map((p) => {
-                  const psc = PAY_STATUS_COLORS[p.status];
+                  const mb = METHOD_BADGES[p.method] ?? METHOD_BADGES.autre;
                   return (
-                    <div key={p.id} className="flex items-center justify-between gap-2">
+                    <div key={p.id} className="flex items-center justify-between gap-2 group">
                       <div className="min-w-0">
                         <p className="text-xs font-medium text-gray-800">
                           {p.amount.toLocaleString("fr-CA", { style: "currency", currency: "CAD", maximumFractionDigits: 0 })}
                         </p>
-                        {p.due_date && <p className="text-xs text-gray-500">Dû le {formatDate(p.due_date)}</p>}
+                        {p.received_date && <p className="text-xs text-gray-500">{formatDate(p.received_date)}</p>}
+                        {p.notes && <p className="text-xs text-gray-400 truncate">{p.notes}</p>}
                       </div>
-                      <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full flex-shrink-0 ${psc?.bg ?? "bg-gray-100"} ${psc?.text ?? "text-gray-600"}`}>
-                        {p.status}
-                      </span>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${mb.bg} ${mb.text}`}>
+                          {mb.label}
+                        </span>
+                        <button
+                          onClick={() => handleDeletePayment(p.id)}
+                          className="opacity-0 group-hover:opacity-100 transition text-gray-300 hover:text-red-500"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
                     </div>
                   );
                 })}
+              </div>
+            )}
+
+            {/* Summary */}
+            {contact.season_price != null && (
+              <div className="mt-3 pt-3 border-t border-gray-100 space-y-1">
+                <div className="flex justify-between text-xs">
+                  <span className="text-gray-600">Total payé</span>
+                  <span className="font-medium text-green-600">
+                    {totalPaidAmount.toLocaleString("fr-CA", { style: "currency", currency: "CAD", maximumFractionDigits: 0 })}
+                  </span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-gray-600">Reste à payer</span>
+                  <span className={`font-medium ${resteAPayer > 0 ? "text-red-600" : "text-green-600"}`}>
+                    {Math.max(0, resteAPayer).toLocaleString("fr-CA", { style: "currency", currency: "CAD", maximumFractionDigits: 0 })}
+                  </span>
+                </div>
               </div>
             )}
           </div>

@@ -41,8 +41,6 @@ export default function CalendarPage() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [selectedJob, setSelectedJob] = useState<JobWithContact | null>(null);
   const [showNewJobModal, setShowNewJobModal] = useState(false);
-  const [newJobDate, setNewJobDate] = useState("");
-  const [newJobTime, setNewJobTime] = useState("08:00");
   const [savingJob, setSavingJob] = useState(false);
   const [jobForm, setJobForm] = useState({
     contact_id: "",
@@ -100,8 +98,6 @@ export default function CalendarPage() {
   }, []);
 
   const openNewJob = (date: string, time: string) => {
-    setNewJobDate(date);
-    setNewJobTime(time);
     setJobForm((p) => ({ ...p, scheduled_date: date, scheduled_time_start: time, scheduled_time_end: "" }));
     setShowNewJobModal(true);
   };

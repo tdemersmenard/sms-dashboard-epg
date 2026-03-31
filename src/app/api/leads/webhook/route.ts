@@ -15,7 +15,6 @@ export async function GET(req: NextRequest) {
     token === process.env.FACEBOOK_VERIFY_TOKEN &&
     challenge
   ) {
-    console.log("[fb-webhook] Verification OK");
     return new NextResponse(challenge, { status: 200, headers: { "Content-Type": "text/plain" } });
   }
 
@@ -26,8 +25,6 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const payload = await req.json();
-    console.log("[fb-webhook] payload:", JSON.stringify(payload, null, 2));
-
     const body = payload;
 
     let firstName = body.first_name || null;
@@ -71,8 +68,6 @@ export async function POST(req: NextRequest) {
 
         if (error) {
           console.error("[fb-webhook] insert error:", error);
-        } else {
-          console.log("[fb-webhook] created contact:", contact?.id, "leadgen_id:", leadgenId);
         }
 
         if (!existing && contact && contact.phone) {
