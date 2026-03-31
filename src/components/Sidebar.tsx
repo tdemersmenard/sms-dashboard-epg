@@ -3,36 +3,39 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard,
-  Kanban,
-  MessageSquare,
-  Users,
-  Calendar,
-  FileText,
-  Zap,
+  LayoutDashboard, Kanban, MessageSquare, Users,
+  Calendar, FileText, Zap,
 } from "lucide-react";
 
 const NAV_ITEMS = [
-  { label: "Dashboard",    href: "/dashboard",    icon: LayoutDashboard },
-  { label: "Pipeline",     href: "/pipeline",     icon: Kanban },
-  { label: "Messages",     href: "/messages",     icon: MessageSquare },
-  { label: "Clients",      href: "/clients",      icon: Users },
-  { label: "Calendrier",   href: "/calendar",     icon: Calendar },
-  { label: "Templates",    href: "/templates",    icon: FileText },
-  { label: "Automations",  href: "/automations",  icon: Zap },
+  { label: "Dashboard",   href: "/dashboard",   icon: LayoutDashboard },
+  { label: "Pipeline",    href: "/pipeline",    icon: Kanban },
+  { label: "Messages",    href: "/messages",    icon: MessageSquare },
+  { label: "Clients",     href: "/clients",     icon: Users },
+  { label: "Calendrier",  href: "/calendar",    icon: Calendar },
+  { label: "Templates",   href: "/templates",   icon: FileText },
+  { label: "Automations", href: "/automations", icon: Zap },
 ];
 
 interface SidebarProps {
   unreadCount?: number;
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
 }
 
-export default function Sidebar({ unreadCount = 0 }: SidebarProps) {
+export default function Sidebar({
+  unreadCount = 0,
+  mobileOpen = false,
+  onMobileClose,
+}: SidebarProps) {
   const pathname = usePathname();
 
   return (
     <aside
       style={{ width: 260 }}
-      className="fixed inset-y-0 left-0 flex flex-col bg-[#0a1f3f] z-50"
+      className={`fixed inset-y-0 left-0 flex flex-col bg-[#0a1f3f] z-50 transition-transform duration-300 ease-in-out md:translate-x-0 ${
+        mobileOpen ? "translate-x-0" : "-translate-x-full"
+      }`}
     >
       {/* Brand */}
       <div className="px-5 pt-6 pb-5 border-b border-white/10">
@@ -48,6 +51,7 @@ export default function Sidebar({ unreadCount = 0 }: SidebarProps) {
             <Link
               key={href}
               href={href}
+              onClick={onMobileClose}
               className={`flex items-center gap-3 px-5 py-3 rounded-lg text-sm transition-all duration-150 ${
                 active
                   ? "bg-white/10 text-white font-medium"
