@@ -166,8 +166,6 @@ export function useRealtimeMessages() {
             m.id === optimisticId ? sent : m
           ),
         }));
-        // Sync conversation list from DB so preview persists on refresh
-        loadConversations();
       } catch (e) {
         // Rollback on failure
         setMessages((prev) => ({
@@ -179,7 +177,7 @@ export function useRealtimeMessages() {
         throw e;
       }
     },
-    [loadConversations]
+    []
   );
 
   // ── Initial load ─────────────────────────────────────────────────────────
