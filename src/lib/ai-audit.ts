@@ -16,7 +16,7 @@ export interface AuditAction {
 }
 
 export async function runAudit(): Promise<AuditAction[]> {
-  // 1. Fetch all contacts who have messages
+  // 1. Fetch all contacts
   const { data: contacts } = await supabaseAdmin
     .from("contacts")
     .select("id, first_name, last_name, phone, stage, services, season_price, notes, address, pool_type")
@@ -26,27 +26,22 @@ export async function runAudit(): Promise<AuditAction[]> {
 
   const allActions: AuditAction[] = [];
 
-  // Process contacts with a valid phone, up to 50
-  const batch = contacts.filter((c) => c.phone && !c.phone.startsWith("client-")).slice(0, 50);
+  // Keep only contacts with a real phone number
+  const batch = contacts.filter((c) => c.phone && c.phone.startsWith("+")).slice(0, 50);
 
   for (const contact of batch) {
-    // Fetch last 15 messages for this contact
+    // Fetch last 30 messages for this contact
     const { data: messages } = await supabaseAdmin
       .from("messages")
       .select("body, direction, created_at")
       .eq("contact_id", contact.id)
       .order("created_at", { ascending: true })
-      .limit(15);
+      .limit(30);
 
     if (!messages || messages.length === 0) continue;
 
-    // Check if last message is inbound (client waiting for response)
     const lastMsg = messages[messages.length - 1];
-    const lastMsgAge = Date.now() - new Date(lastMsg.created_at).getTime();
-    const hoursAgo = Math.floor(lastMsgAge / 3600000);
-
-    // Skip if last message is outbound and older than 7 days
-    if (lastMsg.direction === "outbound" && hoursAgo > 168) continue;
+    const hoursAgo = Math.floor((Date.now() - new Date(lastMsg.created_at).getTime()) / 3600000);
 
     const name = [contact.first_name, contact.last_name].filter(Boolean).join(" ") || contact.phone;
 
@@ -64,6 +59,17 @@ Réponds UNIQUEMENT en JSON valide, rien d'autre. Format:
 {"actions": [{"priority": "urgent|high|medium|low", "action": "description courte", "details": "détails", "category": "appeler|soumission|contrat|relance|paiement|rdv|autre"}]}
 
 Si aucune action n'est nécessaire, retourne: {"actions": []}
+
+IMPORTANT: Analyse chaque conversation en profondeur. Cherche spécifiquement:
+- Est-ce que le client a demandé qu'on le rappelle? À quel moment?
+- Est-ce que le client a demandé une soumission ou un prix?
+- Est-ce que le client a posé une question qui n'a pas eu de réponse?
+- Est-ce que le client a confirmé vouloir un service mais aucun contrat n'a été envoyé?
+- Est-ce que le dernier message est du client (il attend une réponse)?
+- Est-ce qu'un RDV a été discuté mais pas confirmé?
+
+Si la conversation montre que le client est intéressé mais que rien n'a été conclu, c'est au minimum une action 'high' priority.
+Si le client a explicitement demandé quelque chose (rappel, soumission, prix) et qu'il n'y a pas eu de suite, c'est 'urgent'.
 
 Priorités:
 - urgent: client attend une réponse depuis 24h+, urgence piscine, client mécontent
