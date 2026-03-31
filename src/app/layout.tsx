@@ -18,7 +18,7 @@ export default function RootLayout({
         <Sidebar />
         <main
           style={{ marginLeft: 260 }}
-          className="min-h-screen bg-gray-50"
+          className="h-screen overflow-hidden bg-white"
         >
           {children}
         </main>

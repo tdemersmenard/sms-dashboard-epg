@@ -63,7 +63,7 @@ export default function MessagesPage() {
   const activeMessages = activeContactId ? (messages[activeContactId] ?? []) : [];
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-full bg-white">
       {/* Conversation list — 320px */}
       <div className="w-80 flex-shrink-0 border-r border-gray-200 flex flex-col">
         <ConversationList
