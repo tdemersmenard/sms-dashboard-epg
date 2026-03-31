@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { DollarSign, CreditCard, AlertCircle, Users, Calendar, Sparkles, Phone, MessageSquare } from "lucide-react";
+import { useEffect, useState, useCallback, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { DollarSign, CreditCard, AlertCircle, Users, Calendar, Sparkles, Phone, MessageSquare, Mail } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { supabaseBrowser } from "@/lib/supabase-browser";
@@ -56,6 +56,27 @@ function formatTime(d: string) {
 }
 
 // ── Page ────────────────────────────────────────────────────
+// Separate component for search-params-based toast (requires Suspense)
+function GmailToastHandler({
+  onToast,
+  onStatusConnected,
+}: {
+  onToast: (t: "connected" | "error") => void;
+  onStatusConnected: () => void;
+}) {
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    const gmail = searchParams.get("gmail");
+    if (gmail === "connected") {
+      onToast("connected");
+      onStatusConnected();
+    } else if (gmail === "error") {
+      onToast("error");
+    }
+  }, [searchParams, onToast, onStatusConnected]);
+  return null;
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const [clients, setClients] = useState<ClientRow[]>([]);
@@ -65,6 +86,8 @@ export default function DashboardPage() {
   const [dynamicLoading, setDynamicLoading] = useState(true);
   const [auditActions, setAuditActions] = useState<AuditAction[] | null>(null);
   const [auditLoading, setAuditLoading] = useState(false);
+  const [gmailStatus, setGmailStatus] = useState<"connected" | "disconnected" | "loading">("loading");
+  const [gmailToast, setGmailToast] = useState<"connected" | "error" | null>(null);
 
   // Load contacts with season_price > 0 + their received payments
   const loadClients = async () => {
@@ -137,6 +160,19 @@ export default function DashboardPage() {
 
   useEffect(() => { loadClients(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Check Gmail connection status
+  const checkGmail = useCallback(async () => {
+    try {
+      const res = await fetch("/api/email/check-payments");
+      const data = await res.json();
+      setGmailStatus(data.reason === "Gmail not connected" || data.checked === false ? "disconnected" : "connected");
+    } catch {
+      setGmailStatus("disconnected");
+    }
+  }, []);
+
+  useEffect(() => { checkGmail(); }, [checkGmail]);
+
   const runAudit = async () => {
     setAuditLoading(true);
     setAuditActions(null);
@@ -163,7 +199,45 @@ export default function DashboardPage() {
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
-      <h1 className="text-xl font-bold text-gray-900 mb-6">Dashboard</h1>
+      {/* Gmail search-params handler (needs Suspense) */}
+      <Suspense fallback={null}>
+        <GmailToastHandler
+          onToast={(t) => {
+            setGmailToast(t);
+            setTimeout(() => setGmailToast(null), 4000);
+          }}
+          onStatusConnected={() => setGmailStatus("connected")}
+        />
+      </Suspense>
+
+      {/* Gmail OAuth toast */}
+      {gmailToast && (
+        <div className={`fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg text-sm font-medium transition-all ${
+          gmailToast === "connected" ? "bg-green-500 text-white" : "bg-red-500 text-white"
+        }`}>
+          <Mail size={16} />
+          {gmailToast === "connected" ? "Gmail connecté avec succès!" : "Erreur de connexion Gmail"}
+        </div>
+      )}
+
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-xl font-bold text-gray-900">Dashboard</h1>
+        {/* Gmail connection button */}
+        {gmailStatus === "loading" ? null : gmailStatus === "connected" ? (
+          <div className="flex items-center gap-1.5 text-xs font-medium text-green-600 bg-green-50 border border-green-200 px-3 py-1.5 rounded-lg">
+            <Mail size={13} />
+            Gmail connecté ✓
+          </div>
+        ) : (
+          <a
+            href="/api/auth/google"
+            className="flex items-center gap-1.5 text-xs font-medium text-white bg-[#0a1f3f] hover:bg-[#0f2855] px-3 py-1.5 rounded-lg transition"
+          >
+            <Mail size={13} />
+            Connecter Gmail
+          </a>
+        )}
+      </div>
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
