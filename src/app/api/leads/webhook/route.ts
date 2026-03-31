@@ -28,6 +28,18 @@ export async function POST(req: NextRequest) {
     const payload = await req.json();
     console.log("[fb-webhook] payload:", JSON.stringify(payload, null, 2));
 
+    const body = payload;
+
+    let firstName = body.first_name || null;
+    let lastName = body.last_name || null;
+
+    // Si on reçoit "name" au lieu de first_name/last_name (format Make.com)
+    if (!firstName && body.name) {
+      const parts = body.name.trim().split(" ");
+      firstName = parts[0] || null;
+      lastName = parts.slice(1).join(" ") || null;
+    }
+
     const entries = payload?.entry ?? [];
 
     for (const entry of entries) {
