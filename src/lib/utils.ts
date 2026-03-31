@@ -1,4 +1,4 @@
-import { formatDistanceToNow, format, isToday, isYesterday } from "date-fns";
+import { format, isToday, isYesterday } from "date-fns";
 import { fr } from "date-fns/locale";
 
 export function formatPhone(phone: string): string {
@@ -47,4 +47,39 @@ export function getInitials(name: string | null, phone: string): string {
       .slice(0, 2);
   }
   return phone.slice(-2);
+}
+
+// For conversation list timestamps: "14:32" | "Hier" | "Lun" | "23 mars"
+export function formatConvTime(dateStr: string): string {
+  const date = new Date(dateStr);
+  if (isToday(date)) return format(date, "HH:mm");
+  if (isYesterday(date)) return "Hier";
+  const now = new Date();
+  const diffDays = (now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24);
+  if (diffDays < 7) {
+    const days = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
+    return days[date.getDay()];
+  }
+  return format(date, "d MMM", { locale: fr });
+}
+
+// For date separators in message thread
+export function formatDateSeparator(dateStr: string): string {
+  const date = new Date(dateStr);
+  if (isToday(date)) return "Aujourd'hui";
+  if (isYesterday(date)) return "Hier";
+  return format(date, "d MMMM yyyy", { locale: fr });
+}
+
+const AVATAR_COLORS = [
+  "#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FECA57", "#DDA0DD",
+  "#6C5CE7", "#00B894", "#E17055", "#74B9FF", "#A29BFE", "#55EFC4",
+];
+
+export function getAvatarColor(str: string): string {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
 }
