@@ -143,10 +143,10 @@ export default function ConversationList({
                         : ""}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs text-gray-400 truncate leading-snug">
+                  <div className="flex items-center gap-2">
+                    <p className="flex-1 min-w-0 text-xs text-gray-500 truncate leading-snug">
                       {conv.last_direction === "outbound" && (
-                        <span className="text-gray-500">Toi: </span>
+                        <span className="text-gray-600">Toi: </span>
                       )}
                       {conv.last_message ?? ""}
                     </p>
