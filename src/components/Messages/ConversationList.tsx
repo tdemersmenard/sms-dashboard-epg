@@ -51,6 +51,8 @@ export default function ConversationList({
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  console.log("CONV DEBUG:", conversations[0]);
+
   // Debounce search 300ms
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
