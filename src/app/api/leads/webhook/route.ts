@@ -24,83 +24,122 @@ export async function GET(req: NextRequest) {
 // POST — Receive Facebook Lead Ads events
 export async function POST(req: NextRequest) {
   try {
-    const payload = await req.json();
-    const body = payload;
+    const body = await req.json();
 
-    let firstName = body.first_name || null;
-    let lastName = body.last_name || null;
+    // ── Detect format: Make.com (has phone) vs Facebook native (has entry) ──
+    const entries = body?.entry ?? [];
+    const isMakeFormat = !!(body.phone || body.name || body.first_name);
 
-    // Si on reçoit "name" au lieu de first_name/last_name (format Make.com)
-    if (!firstName && body.name) {
-      const parts = body.name.trim().split(" ");
-      firstName = parts[0] || null;
-      lastName = parts.slice(1).join(" ") || null;
-    }
+    if (isMakeFormat) {
+      // ── MAKE.COM FORMAT ──
+      let firstName = body.first_name || null;
+      let lastName = body.last_name || null;
+      const phone = body.phone || null;
+      const email = body.email || null;
 
-    const entries = payload?.entry ?? [];
+      if (!firstName && body.name) {
+        const parts = body.name.trim().split(" ");
+        firstName = parts[0] || null;
+        lastName = parts.slice(1).join(" ") || null;
+      }
 
-    for (const entry of entries) {
-      const changes = entry?.changes ?? [];
+      if (!phone) {
+        return NextResponse.json({ error: "phone is required" }, { status: 400 });
+      }
 
-      for (const change of changes) {
-        if (change.field !== "leadgen") continue;
+      // Check if contact already exists
+      const { data: existing } = await supabaseAdmin
+        .from("contacts")
+        .select("id, phone")
+        .eq("phone", phone)
+        .maybeSingle();
 
-        const leadgenId: string = change.value?.leadgen_id ?? entry?.id ?? "unknown";
+      let contact;
 
-        // Create a placeholder contact
-        // Real lead data requires a Graph API call with leadgen_id
-        // (needs page access token — connect via Facebook App settings)
-        const { data: contact, error } = await supabaseAdmin
+      if (existing) {
+        const { data } = await supabaseAdmin
+          .from("contacts")
+          .update({
+            ...(firstName && { first_name: firstName }),
+            ...(lastName && { last_name: lastName }),
+            ...(email && { email }),
+          })
+          .eq("id", existing.id)
+          .select()
+          .single();
+        contact = data;
+      } else {
+        const { data } = await supabaseAdmin
           .from("contacts")
           .insert({
+            first_name: firstName,
+            last_name: lastName,
+            phone,
+            email,
+            stage: "nouveau",
+            lead_source: "facebook",
+          })
+          .select()
+          .single();
+        contact = data;
+      }
+
+      // Send SMS only for NEW contacts
+      if (!existing && contact && contact.phone) {
+        try {
+          const { data: template } = await supabaseAdmin
+            .from("message_templates")
+            .select("body")
+            .eq("name", "Premier contact")
+            .single();
+
+          if (template) {
+            const name = contact.first_name || "";
+            const messageBody = template.body.replace(/\{\{prénom\}\}/g, name);
+
+            const baseUrl = process.env.NEXT_PUBLIC_APP_URL || `https://${req.headers.get("host")}`;
+
+            await fetch(`${baseUrl}/api/sms/send`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                contactId: contact.id,
+                body: messageBody,
+              }),
+            });
+          }
+        } catch (smsErr) {
+          console.error("[leads webhook] SMS send error:", smsErr);
+        }
+      }
+
+      return NextResponse.json({ success: true, contact, isNew: !existing });
+
+    } else if (entries.length > 0) {
+      // ── FACEBOOK NATIVE FORMAT ──
+      for (const entry of entries) {
+        const changes = entry?.changes ?? [];
+        for (const change of changes) {
+          if (change.field !== "leadgen") continue;
+          const leadgenId = change.value?.leadgen_id ?? entry?.id ?? "unknown";
+          console.log("[fb-webhook] leadgen received:", leadgenId);
+
+          await supabaseAdmin.from("contacts").insert({
             first_name: "Lead Facebook",
             last_name: leadgenId.slice(0, 8),
             phone: null,
             stage: "nouveau",
             lead_source: "facebook",
-            services: [],
-            has_spa: false,
-          })
-          .select()
-          .single();
-
-        const existing = false;
-
-        if (error) {
-          console.error("[fb-webhook] insert error:", error);
-        }
-
-        if (!existing && contact && contact.phone) {
-          try {
-            const { data: template } = await supabaseAdmin
-              .from("message_templates")
-              .select("body")
-              .eq("name", "Premier contact")
-              .single();
-
-            if (template) {
-              const firstName = contact.first_name || "";
-              const messageBody = template.body.replace(/\{\{prénom\}\}/g, firstName);
-
-              await fetch(new URL("/api/sms/send", req.url).toString(), {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  contactId: contact.id,
-                  body: messageBody,
-                }),
-              });
-            }
-          } catch (smsErr) {
-            console.error("[leads webhook] SMS error:", smsErr);
-          }
+          });
         }
       }
-    }
+      return NextResponse.json({ ok: true });
 
-    return NextResponse.json({ ok: true });
+    } else {
+      return NextResponse.json({ error: "Unknown payload format" }, { status: 400 });
+    }
   } catch (err) {
     console.error("[fb-webhook] error:", err);
-    return NextResponse.json({ ok: false }, { status: 500 });
+    return NextResponse.json({ ok: false, error: String(err) }, { status: 500 });
   }
 }
