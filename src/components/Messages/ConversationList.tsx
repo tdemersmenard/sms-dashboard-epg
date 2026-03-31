@@ -13,10 +13,10 @@ import {
 // Helpers
 // ---------------------------------------------------------------------------
 function displayName(conv: Conversation): string {
-  const first = conv.first_name;
-  const last = conv.last_name;
+  const first = conv.first_name && conv.first_name !== "Inconnu" ? conv.first_name : null;
+  const last = conv.last_name && conv.last_name.trim() !== "" ? conv.last_name : null;
   if (first || last) return [first, last].filter(Boolean).join(" ");
-  if (conv.name) return conv.name;
+  if (conv.name && conv.name !== "Inconnu") return conv.name;
   return conv.phone ?? "Inconnu";
 }
 
@@ -50,8 +50,6 @@ export default function ConversationList({
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  console.log("CONV DEBUG:", conversations[0]);
 
   // Debounce search 300ms
   useEffect(() => {
