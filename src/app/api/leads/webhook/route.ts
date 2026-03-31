@@ -67,10 +67,38 @@ export async function POST(req: NextRequest) {
           .select()
           .single();
 
+        const existing = false;
+
         if (error) {
           console.error("[fb-webhook] insert error:", error);
         } else {
           console.log("[fb-webhook] created contact:", contact?.id, "leadgen_id:", leadgenId);
+        }
+
+        if (!existing && contact && contact.phone) {
+          try {
+            const { data: template } = await supabaseAdmin
+              .from("message_templates")
+              .select("body")
+              .eq("name", "Premier contact")
+              .single();
+
+            if (template) {
+              const firstName = contact.first_name || "";
+              const messageBody = template.body.replace(/\{\{prénom\}\}/g, firstName);
+
+              await fetch(new URL("/api/sms/send", req.url).toString(), {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  contactId: contact.id,
+                  body: messageBody,
+                }),
+              });
+            }
+          } catch (smsErr) {
+            console.error("[leads webhook] SMS error:", smsErr);
+          }
         }
       }
     }

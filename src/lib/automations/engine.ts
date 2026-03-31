@@ -100,10 +100,10 @@ export async function runAutomations(): Promise<AutomationResult[]> {
 
   // ── A. RELANCES ────────────────────────────────────────────────────────────
 
-  // 1. Nouveaux leads sans message outbound depuis 24h
+  // 1. Nouveaux leads avec message outbound mais aucun inbound depuis 48h
   {
     const ACTION = "relance_nouveau_lead";
-    const cutoff = new Date(now.getTime() - 24 * 3600 * 1000).toISOString();
+    const cutoff = new Date(now.getTime() - 48 * 3600 * 1000).toISOString();
 
     const { data: contacts } = await supabaseAdmin
       .from("contacts")
@@ -112,8 +112,28 @@ export async function runAutomations(): Promise<AutomationResult[]> {
 
     for (const contact of contacts ?? []) {
       try {
-        // Check no outbound in last 24h
-        const { data: msgs } = await supabaseAdmin
+        // Skip si le lead a répondu (message inbound reçu)
+        const { data: inbound } = await supabaseAdmin
+          .from("messages")
+          .select("id")
+          .eq("contact_id", contact.id)
+          .eq("direction", "inbound")
+          .limit(1);
+
+        if ((inbound?.length ?? 0) > 0) continue;
+
+        // Check qu'on a envoyé le premier contact (message outbound existe)
+        const { data: outbound } = await supabaseAdmin
+          .from("messages")
+          .select("id")
+          .eq("contact_id", contact.id)
+          .eq("direction", "outbound")
+          .limit(1);
+
+        if ((outbound?.length ?? 0) === 0) continue;
+
+        // Check que le dernier outbound date de plus de 48h
+        const { data: recentOut } = await supabaseAdmin
           .from("messages")
           .select("id")
           .eq("contact_id", contact.id)
@@ -121,10 +141,10 @@ export async function runAutomations(): Promise<AutomationResult[]> {
           .gte("created_at", cutoff)
           .limit(1);
 
-        if ((msgs?.length ?? 0) > 0) continue;
-        if (await alreadyLogged(contact.id, ACTION, 24)) continue;
+        if ((recentOut?.length ?? 0) > 0) continue;
+        if (await alreadyLogged(contact.id, ACTION, 48)) continue;
 
-        const tmpl = await getTemplate("Premier contact");
+        const tmpl = await getTemplate("Relance nouveau lead");
         if (!tmpl) continue;
 
         const body = fillTemplate(tmpl, contactVars(contact));
