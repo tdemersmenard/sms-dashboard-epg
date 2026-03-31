@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import Sidebar from "@/components/Sidebar";
 
 export const metadata: Metadata = {
-  title: "SMS Dashboard — Entretien Piscine Granby",
-  description: "Gestion des conversations SMS avec tes leads piscine",
+  title: "CHLORE — Entretien Piscine Granby",
+  description: "CRM pour la gestion des clients, leads et opérations",
 };
 
 export default function RootLayout({
@@ -13,7 +14,15 @@ export default function RootLayout({
 }) {
   return (
     <html lang="fr">
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        <Sidebar />
+        <main
+          style={{ marginLeft: 260 }}
+          className="min-h-screen bg-gray-50"
+        >
+          {children}
+        </main>
+      </body>
     </html>
   );
 }
