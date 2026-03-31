@@ -49,7 +49,31 @@ export async function POST(request: NextRequest) {
 
     if (msgError) throw msgError;
 
-    // Return empty TwiML (no auto-reply)
+    // AI Agent — auto-reply
+    if (process.env.AI_AGENT_ENABLED === "true") {
+      try {
+        const { generateAIResponse } = await import("@/lib/ai-agent");
+
+        const aiReply = await generateAIResponse(contact!.id, body);
+
+        if (aiReply) {
+          const baseUrl = process.env.NEXT_PUBLIC_APP_URL || `https://${request.headers.get("host")}`;
+          await fetch(`${baseUrl}/api/sms/send`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contactId: contact!.id,
+              body: aiReply,
+            }),
+          });
+        }
+      } catch (aiErr) {
+        console.error("[webhook] AI agent error:", aiErr);
+        // Ne pas fail le webhook si l'AI crash
+      }
+    }
+
+    // Return empty TwiML (no auto-reply via TwiML)
     return new NextResponse(
       '<?xml version="1.0" encoding="UTF-8"?><Response></Response>',
       { headers: { "Content-Type": "text/xml" } }

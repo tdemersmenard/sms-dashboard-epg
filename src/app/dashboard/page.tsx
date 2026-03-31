@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { DollarSign, CreditCard, AlertCircle, Users, Calendar } from "lucide-react";
+import { DollarSign, CreditCard, AlertCircle, Users, Calendar, Sparkles, Phone, MessageSquare } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import type { Job, Message } from "@/lib/types";
+import type { AuditAction } from "@/lib/ai-audit";
 
 // ── Types ───────────────────────────────────────────────────
 interface ClientRow {
@@ -62,6 +63,8 @@ export default function DashboardPage() {
   const [upcomingJobs, setUpcomingJobs] = useState<JobWithContact[]>([]);
   const [recentMessages, setRecentMessages] = useState<MsgWithContact[]>([]);
   const [dynamicLoading, setDynamicLoading] = useState(true);
+  const [auditActions, setAuditActions] = useState<AuditAction[] | null>(null);
+  const [auditLoading, setAuditLoading] = useState(false);
 
   // Load contacts with season_price > 0 + their received payments
   const loadClients = async () => {
@@ -134,6 +137,19 @@ export default function DashboardPage() {
 
   useEffect(() => { loadClients(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const runAudit = async () => {
+    setAuditLoading(true);
+    setAuditActions(null);
+    try {
+      const res = await fetch("/api/ai/audit");
+      const data = await res.json();
+      setAuditActions(data.actions ?? []);
+    } catch {
+      setAuditActions([]);
+    }
+    setAuditLoading(false);
+  };
+
   const totalRevenue = clients.reduce((s, c) => s + c.total, 0);
   const totalPaid    = clients.reduce((s, c) => s + c.paid,  0);
   const totalOwed    = totalRevenue - totalPaid;
@@ -160,6 +176,96 @@ export default function DashboardPage() {
             <p className="text-sm text-gray-500 mt-1">{s.label}</p>
           </div>
         ))}
+      </div>
+
+      {/* AI Audit */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mt-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-sm font-bold text-gray-800">Analyse AI des conversations</h2>
+            {auditActions && auditActions.length > 0 && (
+              <p className="text-xs text-gray-500 mt-0.5">
+                {auditActions.filter((a) => a.priority === "urgent").length} urgentes ·{" "}
+                {auditActions.filter((a) => a.priority === "high").length} high priority ·{" "}
+                {auditActions.length} total
+              </p>
+            )}
+          </div>
+          <button
+            onClick={runAudit}
+            disabled={auditLoading}
+            className="flex items-center gap-2 px-4 py-2 bg-[#0a1f3f] text-white text-sm font-medium rounded-lg hover:bg-[#0f2855] disabled:opacity-50 transition"
+          >
+            <Sparkles size={15} />
+            {auditLoading ? "Analyse en cours..." : "Analyser les conversations"}
+          </button>
+        </div>
+
+        {auditLoading && (
+          <div className="flex items-center gap-3 py-6 text-sm text-gray-500">
+            <div className="w-5 h-5 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin flex-shrink-0" />
+            L&apos;AI analyse vos conversations...
+          </div>
+        )}
+
+        {auditActions && auditActions.length === 0 && !auditLoading && (
+          <p className="text-sm text-gray-400 py-2">Aucune action détectée — toutes les conversations sont à jour 🏊</p>
+        )}
+
+        {auditActions && auditActions.length > 0 && (
+          <div className="space-y-3">
+            {auditActions.map((a, i) => {
+              const PRIORITY_BADGE: Record<string, string> = {
+                urgent: "bg-red-100 text-red-700",
+                high:   "bg-orange-100 text-orange-700",
+                medium: "bg-yellow-100 text-yellow-700",
+                low:    "bg-gray-100 text-gray-500",
+              };
+              const CATEGORY_BADGE: Record<string, { cls: string; label: string }> = {
+                appeler:    { cls: "bg-green-100 text-green-700",  label: "Appeler" },
+                soumission: { cls: "bg-blue-100 text-blue-700",    label: "Soumission" },
+                contrat:    { cls: "bg-purple-100 text-purple-700",label: "Contrat" },
+                relance:    { cls: "bg-orange-100 text-orange-700",label: "Relance" },
+                paiement:   { cls: "bg-red-100 text-red-700",      label: "Paiement" },
+                rdv:        { cls: "bg-teal-100 text-teal-700",    label: "RDV" },
+                autre:      { cls: "bg-gray-100 text-gray-600",    label: "Autre" },
+              };
+              const cat = CATEGORY_BADGE[a.category] ?? CATEGORY_BADGE.autre;
+              return (
+                <div key={i} className="bg-gray-50 rounded-xl border border-gray-100 p-4">
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                      <span className="text-sm font-semibold text-gray-900 truncate">{a.contactName}</span>
+                      <span className="text-xs text-gray-400">{a.phone}</span>
+                      <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${cat.cls}`}>{cat.label}</span>
+                    </div>
+                    <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full flex-shrink-0 ${PRIORITY_BADGE[a.priority] ?? PRIORITY_BADGE.low}`}>
+                      {a.priority}
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-800 font-medium mb-1">{a.action}</p>
+                  <p className="text-xs text-gray-500 mb-3">{a.details}</p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => router.push("/messages")}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-[#0a1f3f] text-white text-xs font-medium rounded-lg hover:bg-[#0f2855] transition"
+                    >
+                      <MessageSquare size={12} />
+                      SMS
+                    </button>
+                    <a
+                      href={`tel:${a.phone}`}
+                      className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-50 transition"
+                    >
+                      <Phone size={12} />
+                      Appeler
+                    </a>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Clients table */}
