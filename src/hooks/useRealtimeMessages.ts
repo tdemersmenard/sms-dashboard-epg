@@ -59,30 +59,15 @@ export function useRealtimeMessages() {
       if (v < fetchVersion.current) return; // stale response
       if (!Array.isArray(data)) return;
 
-      setConversations((prev) => {
-        const next = data.map((c) => {
+      setConversations(
+        data.map((c) => {
           if (pendingRead.current.has(c.contact_id))
             return { ...c, unread_count: 0 };
           if (c.contact_id === activeContactIdRef.current)
             return { ...c, unread_count: 0 };
           return c;
-        });
-        // Skip re-render if nothing meaningful changed
-        const changed =
-          prev.length !== next.length ||
-          prev.some((c, i) => {
-            const n = next[i];
-            return (
-              !n ||
-              c.contact_id !== n.contact_id ||
-              c.unread_count !== n.unread_count ||
-              c.last_message !== n.last_message ||
-              c.last_message_at !== n.last_message_at ||
-              c.name !== n.name
-            );
-          });
-        return changed ? next : prev;
-      });
+        })
+      );
     } catch (e) {
       console.error("loadConversations:", e);
     } finally {
