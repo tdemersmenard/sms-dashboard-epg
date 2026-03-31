@@ -1,10 +1,32 @@
 import { supabaseAdmin } from "@/lib/supabase";
 
-interface AIAction {
-  type: "GENERATE_INVOICE" | "GENERATE_CONTRACT";
+type GenerateInvoiceAction = {
+  type: "GENERATE_INVOICE";
   service: string;
   amount: number;
-}
+};
+
+type GenerateContractAction = {
+  type: "GENERATE_CONTRACT";
+  service: string;
+  amount: number;
+};
+
+type BookJobAction = {
+  type: "BOOK_JOB";
+  jobType: string;
+  date: string;
+  time: string;
+};
+
+type ReminderAction = {
+  type: "REMINDER";
+  date: string;
+  time: string;
+  description: string;
+};
+
+type AIAction = GenerateInvoiceAction | GenerateContractAction | BookJobAction | ReminderAction;
 
 export function parseActions(aiResponse: string): { cleanMessage: string; actions: AIAction[] } {
   const actions: AIAction[] = [];
@@ -12,16 +34,42 @@ export function parseActions(aiResponse: string): { cleanMessage: string; action
   const messageLines: string[] = [];
 
   for (const line of lines) {
-    const match = line.match(/^__ACTION:(GENERATE_INVOICE|GENERATE_CONTRACT):(.+):(\d+)__$/);
-    if (match) {
+    // GENERATE_INVOICE / GENERATE_CONTRACT
+    const docMatch = line.match(/^__ACTION:(GENERATE_INVOICE|GENERATE_CONTRACT):(.+):(\d+)__$/);
+    if (docMatch) {
       actions.push({
-        type: match[1] as AIAction["type"],
-        service: match[2],
-        amount: parseInt(match[3]),
+        type: docMatch[1] as "GENERATE_INVOICE" | "GENERATE_CONTRACT",
+        service: docMatch[2],
+        amount: parseInt(docMatch[3]),
       });
-    } else {
-      messageLines.push(line);
+      continue;
     }
+
+    // BOOK_JOB: __ACTION:BOOK_JOB:{jobType}:{date}:{time}__
+    const bookMatch = line.match(/^__ACTION:BOOK_JOB:(.+):(\d{4}-\d{2}-\d{2}):(\d{2}:\d{2})__$/);
+    if (bookMatch) {
+      actions.push({
+        type: "BOOK_JOB",
+        jobType: bookMatch[1],
+        date: bookMatch[2],
+        time: bookMatch[3],
+      });
+      continue;
+    }
+
+    // REMINDER: __ACTION:REMINDER:{date}:{time}:{description}__
+    const reminderMatch = line.match(/^__ACTION:REMINDER:(\d{4}-\d{2}-\d{2}):(\d{2}:\d{2}):(.+)__$/);
+    if (reminderMatch) {
+      actions.push({
+        type: "REMINDER",
+        date: reminderMatch[1],
+        time: reminderMatch[2],
+        description: reminderMatch[3],
+      });
+      continue;
+    }
+
+    messageLines.push(line);
   }
 
   return {
@@ -33,80 +81,109 @@ export function parseActions(aiResponse: string): { cleanMessage: string; action
 export async function executeActions(actions: AIAction[], contactId: string) {
   for (const action of actions) {
     try {
-      // Get contact info
-      const { data: contact } = await supabaseAdmin
-        .from("contacts")
-        .select("*")
-        .eq("id", contactId)
-        .single();
+      if (action.type === "GENERATE_INVOICE" || action.type === "GENERATE_CONTRACT") {
+        // Get contact info
+        const { data: contact } = await supabaseAdmin
+          .from("contacts")
+          .select("*")
+          .eq("id", contactId)
+          .single();
 
-      if (!contact) continue;
+        if (!contact) continue;
 
-      const name = [contact.first_name, contact.last_name].filter(Boolean).join(" ") || "Client";
-      const now = new Date();
-      const docPrefix = action.type === "GENERATE_INVOICE" ? "F" : "C";
-      const docType = action.type === "GENERATE_INVOICE" ? "facture" : "contrat";
+        const name = [contact.first_name, contact.last_name].filter(Boolean).join(" ") || "Client";
+        const now = new Date();
+        const docPrefix = action.type === "GENERATE_INVOICE" ? "F" : "C";
+        const docType = action.type === "GENERATE_INVOICE" ? "facture" : "contrat";
 
-      // Generate doc number
-      const { count } = await supabaseAdmin
-        .from("documents")
-        .select("id", { count: "exact", head: true })
-        .eq("doc_type", docType);
-
-      const docNumber = `${docPrefix}-2026-${String((count || 0) + 1).padStart(3, "0")}`;
-
-      // Determine payment terms based on service
-      let paymentTerms = "";
-      if (action.service.includes("entretien")) {
-        const firstPayment = Math.ceil(action.amount / 2);
-        const secondPayment = action.amount - firstPayment;
-        paymentTerms = `Versement 1: ${firstPayment}$ à la signature. Versement 2: ${secondPayment}$ mi-juillet 2026.`;
-      } else {
-        paymentTerms = `Paiement complet de ${action.amount}$ requis avant le service. Minimum 30% (${Math.ceil(action.amount * 0.3)}$) comme dépôt.`;
-      }
-
-      // Save document in DB
-      const { data: doc } = await supabaseAdmin
-        .from("documents")
-        .insert({
-          contact_id: contactId,
-          doc_type: docType,
-          doc_number: docNumber,
-          amount: action.amount,
-          status: "brouillon",
-          data: {
-            service: action.service,
-            client_name: name,
-            client_email: contact.email,
-            client_phone: contact.phone,
-            client_address: contact.address,
-            payment_terms: paymentTerms,
-            pool_type: contact.pool_type,
-            generated_at: now.toISOString(),
-          },
-        })
-        .select()
-        .single();
-
-      // If client has email, send document by email
-      if (contact.email && doc) {
-        await supabaseAdmin
+        // Generate doc number
+        const { count } = await supabaseAdmin
           .from("documents")
-          .update({ status: "envoyé" })
-          .eq("id", doc.id);
+          .select("id", { count: "exact", head: true })
+          .eq("doc_type", docType);
 
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
-        await fetch(`${baseUrl}/api/email/send-document`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            documentId: doc.id,
-            contactId,
-          }),
+        const docNumber = `${docPrefix}-2026-${String((count || 0) + 1).padStart(3, "0")}`;
+
+        // Determine payment terms based on service
+        let paymentTerms = "";
+        if (action.service.includes("entretien")) {
+          const firstPayment = Math.ceil(action.amount / 2);
+          const secondPayment = action.amount - firstPayment;
+          paymentTerms = `Versement 1: ${firstPayment}$ à la signature. Versement 2: ${secondPayment}$ mi-juillet 2026.`;
+        } else {
+          paymentTerms = `Paiement complet de ${action.amount}$ requis avant le service. Minimum 30% (${Math.ceil(action.amount * 0.3)}$) comme dépôt.`;
+        }
+
+        // Save document in DB
+        const { data: doc } = await supabaseAdmin
+          .from("documents")
+          .insert({
+            contact_id: contactId,
+            doc_type: docType,
+            doc_number: docNumber,
+            amount: action.amount,
+            status: "brouillon",
+            data: {
+              service: action.service,
+              client_name: name,
+              client_email: contact.email,
+              client_phone: contact.phone,
+              client_address: contact.address,
+              payment_terms: paymentTerms,
+              pool_type: contact.pool_type,
+              generated_at: now.toISOString(),
+            },
+          })
+          .select()
+          .single();
+
+        // If client has email, send document by email
+        if (contact.email && doc) {
+          await supabaseAdmin
+            .from("documents")
+            .update({ status: "envoyé" })
+            .eq("id", doc.id);
+
+          const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
+          await fetch(`${baseUrl}/api/email/send-document`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              documentId: doc.id,
+              contactId,
+            }),
+          });
+        }
+
+        console.log(`[ai-actions] Created ${docType} ${docNumber} for ${name}: ${action.amount}$`);
+      } else if (action.type === "BOOK_JOB") {
+        // Calculate time_end = time + 2h
+        const [hours, minutes] = action.time.split(":").map(Number);
+        const endHours = (hours + 2) % 24;
+        const timeEnd = `${String(endHours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+
+        await supabaseAdmin.from("jobs").insert({
+          contact_id: contactId,
+          job_type: action.jobType,
+          scheduled_date: action.date,
+          scheduled_time_start: action.time,
+          scheduled_time_end: timeEnd,
+          status: "confirmé",
         });
-      }
 
-      console.log(`[ai-actions] Created ${docType} ${docNumber} for ${name}: ${action.amount}$`);
+        console.log(`[ai-actions] Booked ${action.jobType} for ${action.date} at ${action.time}`);
+      } else if (action.type === "REMINDER") {
+        await supabaseAdmin.from("jobs").insert({
+          contact_id: contactId,
+          job_type: "autre",
+          scheduled_date: action.date,
+          scheduled_time_start: action.time,
+          notes: action.description,
+          status: "planifié",
+        });
+
+        console.log(`[ai-actions] Reminder set for ${action.date}: ${action.description}`);
+      }
     } catch (err) {
       console.error("[ai-actions] Error executing action:", err);
     }
