@@ -6,7 +6,37 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY!,
 });
 
-const SYSTEM_PROMPT = `Tu es l'assistant de Thomas Demers-Ménard, propriétaire d'Entretien Piscine Granby. Tu réponds aux clients par SMS en te faisant passer pour Thomas. Personne ne doit savoir que tu es un bot.
+const SYSTEM_PROMPT = `RÈGLE CRITIQUE #0 — COMMENT TU FONCTIONNES:
+Tu es Claude, un AI qui répond aux SMS pour Thomas. Tu reçois l'historique de la conversation et tu dois répondre naturellement.
+
+IMPORTANT:
+- Tu dois TOUJOURS écrire un message texte au client. JAMAIS retourner seulement des actions sans message.
+- Ton message au client va sur les premières lignes. Les actions __ACTION:...__ vont APRÈS ton message, sur des lignes séparées.
+- Exemple correct:
+  Parfait, je te prépare la facture et je te l'envoie à ton courriel!
+  __ACTION:GENERATE_INVOICE:ouverture hors-terre:180__
+
+- Exemple INCORRECT (PAS de message, juste une action):
+  __ACTION:GENERATE_INVOICE:ouverture hors-terre:180__
+
+- CHAQUE réponse DOIT commencer par du texte pour le client. Les actions sont optionnelles et viennent après.
+
+RÈGLE CRITIQUE #1 — NE PAS SPAMMER THOMAS:
+Tu envoies un message à Thomas (__ACTION:NOTIFY_THOMAS__) SEULEMENT dans ces cas:
+- Le client demande EXPLICITEMENT de parler au téléphone ou d'être rappelé
+- Le client demande un rabais et insiste
+- Tu ne sais vraiment pas quoi répondre
+Tu N'envoies PAS de notification à Thomas pour:
+- Un client qui donne son email ou son adresse (c'est normal, traite-le toi-même)
+- Un client qui confirme un service (traite-le toi-même)
+- Un client qui pose une question basique
+
+RÈGLE CRITIQUE #2 — NE JAMAIS BOUCLER:
+Lis l'historique de la conversation. Si tu as déjà dit quelque chose, NE LE RÉPÈTE PAS. Si le client a déjà donné une info, NE LA REDEMANDE PAS. Avance toujours la conversation vers l'étape suivante.
+
+═══════════════════════════════════════
+
+Tu es l'assistant de Thomas Demers-Ménard, propriétaire d'Entretien Piscine Granby. Tu réponds aux clients par SMS en te faisant passer pour Thomas. Personne ne doit savoir que tu es un bot.
 
 ═══════════════════════════════════════
 PERSONNALITÉ
@@ -196,14 +226,12 @@ RÈGLES ABSOLUES
 
 export async function generateAIResponse(contactId: string, inboundMessage: string): Promise<string | null> {
   try {
-    // 1. Fetch contact info
     const { data: contact } = await supabaseAdmin
       .from("contacts")
       .select("*")
       .eq("id", contactId)
       .single();
 
-    // 2. Fetch last 10 messages for context (filter out bad old bot messages)
     const { data: messages } = await supabaseAdmin
       .from("messages")
       .select("body, direction, created_at")
@@ -211,85 +239,52 @@ export async function generateAIResponse(contactId: string, inboundMessage: stri
       .order("created_at", { ascending: true })
       .limit(10);
 
-    // Filter out old bot messages that mentioned deposits/30%
-    const cleanMessages = (messages || []).filter(msg => {
-      if (msg.direction === "outbound") {
-        const body = msg.body.toLowerCase();
-        if (body.includes("dépôt") || body.includes("55$") || body.includes("30%") || body.includes("acompte")) {
-          return false;
-        }
-      }
-      return true;
-    });
-
-    // 3. Build conversation history
-    const conversationHistory = cleanMessages.map((msg) => ({
+    const conversationHistory = (messages || []).map((msg) => ({
       role: msg.direction === "outbound" ? "assistant" as const : "user" as const,
       content: msg.body,
     }));
 
-    // 4. Build client context
     let clientContext = "\n\nINFOS CONNUES SUR CE CLIENT:\n";
     if (contact) {
       const name = [contact.first_name, contact.last_name].filter(Boolean).join(" ");
-      if (name && name !== "Inconnu") clientContext += `- Nom: ${name}\n`;
+      if (name) clientContext += `- Nom: ${name}\n`;
       if (contact.phone) clientContext += `- Téléphone: ${contact.phone}\n`;
       if (contact.email) clientContext += `- Email: ${contact.email}\n`;
       if (contact.address) clientContext += `- Adresse: ${contact.address}\n`;
       if (contact.pool_type) clientContext += `- Piscine: ${contact.pool_type}\n`;
-      if (contact.services && Array.isArray(contact.services) && contact.services.length > 0) clientContext += `- Services: ${contact.services.join(", ")}\n`;
+      if (contact.services?.length) clientContext += `- Services: ${contact.services.join(", ")}\n`;
       if (contact.season_price) clientContext += `- Prix saison: ${contact.season_price}$\n`;
-      if (contact.stage) clientContext += `- Stage actuel: ${contact.stage}\n`;
+      if (contact.stage) clientContext += `- Stage: ${contact.stage}\n`;
       if (contact.notes) clientContext += `- Notes: ${contact.notes}\n`;
-    } else {
-      clientContext += "- Nouveau contact, aucune info connue\n";
     }
 
-    // 5. Call Claude API
     const response = await anthropic.messages.create({
       model: "claude-sonnet-4-20250514",
-      max_tokens: 400,
+      max_tokens: 500,
       system: SYSTEM_PROMPT + clientContext,
       messages: conversationHistory,
     });
 
     const aiText = response.content[0]?.type === "text" ? response.content[0].text : null;
-    console.log("[ai-agent] Raw AI response:", JSON.stringify(aiText));
 
-    if (!aiText) {
-      return "Désolé j'ai mal reçu ton message, peux-tu me le renvoyer?";
-    }
+    console.log("[ai-agent] Raw response:", aiText);
 
-    if (aiText.trim() === "__NO_REPLY__") {
-      return null;
-    }
+    if (!aiText) return null;
+    if (aiText.trim() === "__NO_REPLY__") return null;
 
-    // 6. Parse and execute actions
+    // Parse actions from response
     const { cleanMessage, actions } = parseActions(aiText);
 
     if (actions.length > 0) {
       executeActions(actions, contactId).catch(err =>
-        console.error("[ai-agent] Action execution error:", err)
+        console.error("[ai-agent] Action error:", err)
       );
     }
 
-    // 7. Safety net — never return empty
-    if (!cleanMessage || cleanMessage.trim().length === 0) {
-      if (actions.length > 0) {
-        // Contextual response based on action type
-        const actionTypes = actions.map(a => a.type);
-        if (actionTypes.includes("GENERATE_INVOICE")) return "Parfait, je te prépare la facture et je te l'envoie par courriel!";
-        if (actionTypes.includes("GENERATE_CONTRACT")) return "Super, je te prépare le contrat et je te l'envoie par courriel!";
-        if (actionTypes.includes("BOOK_JOB")) return "C'est booké! Je t'envoie une confirmation.";
-        if (actionTypes.includes("NOTIFY_THOMAS")) return "Laisse-moi vérifier ça, je te reviens rapidement!";
-        return "C'est noté, je m'en occupe!";
-      }
-      return "Hey! Peux-tu me donner plus de détails? Je suis pas sûr de comprendre ta demande.";
-    }
-
-    return cleanMessage.trim();
+    // Return whatever Claude said — no safety nets, no fallbacks
+    return cleanMessage || null;
   } catch (err) {
     console.error("[ai-agent] Error:", err);
-    return "Désolé j'ai un petit problème technique, peux-tu me réécrire? Sinon appelle-moi au 450-994-2215!";
+    return null;
   }
 }
