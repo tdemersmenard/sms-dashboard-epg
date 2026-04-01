@@ -25,13 +25,23 @@ export async function extractAndSaveContactInfo(contactId: string) {
   // Email
   if (!contact.email) {
     const emailMatch = allText.match(/[\w.-]+@[\w.-]+\.\w+/);
-    if (emailMatch) updates.email = emailMatch[0].toLowerCase();
+    if (emailMatch) {
+      const email = emailMatch[0].toLowerCase();
+      if (!email.includes("entretienpiscinegranby") && !email.includes("service@") && email !== "thomasdemersmenard@hotmail.com") {
+        updates.email = email;
+      }
+    }
   }
 
   // Adresse
   if (!contact.address) {
-    const addrMatch = allText.match(/(\d+[\s,]+(?:rue|chemin|boul|boulevard|avenue|av\.|ch\.|rang|impasse|place|croissant|montée|côte|route)[^,\n]+)/i);
-    if (addrMatch) updates.address = addrMatch[1].trim();
+    const addrMatch = allText.match(/(\d+[\s,]+(?:rue|chemin|boul|boulevard|avenue|av\.|ch\.|rang|impasse|place|croissant|montée|côte|route)[^,\n]{3,60})/i);
+    if (addrMatch) {
+      const addr = addrMatch[1].trim();
+      if (!addr.toLowerCase().includes("windsor") && !addr.toLowerCase().includes("86 rue")) {
+        updates.address = addr;
+      }
+    }
   }
 
   // Code postal
@@ -66,10 +76,24 @@ export async function extractAndSaveContactInfo(contactId: string) {
   if (!contact.first_name || contact.first_name === "Inconnu" || contact.first_name === "Lead Facebook") {
     const nameMatch = allText.match(/(?:je m'appelle|mon nom est|c'est|moi c'est)\s+([A-ZÀ-Ü][a-zà-ü]+(?:\s+[A-ZÀ-Ü][a-zà-ü]+)?)/i);
     if (nameMatch) {
-      const parts = nameMatch[1].trim().split(" ");
-      updates.first_name = parts[0];
-      if (parts[1]) updates.last_name = parts.slice(1).join(" ");
+      const extractedName = nameMatch[1].trim();
+      if (extractedName.length > 2 && extractedName.length < 40 && !extractedName.includes("@") && !extractedName.match(/\d{3}/)) {
+        const parts = extractedName.split(" ");
+        updates.first_name = parts[0];
+        if (parts[1]) updates.last_name = parts.slice(1).join(" ");
+      }
     }
+  }
+
+  // Validation finale
+  if (updates.address && (updates.address.match(/\+?\d{10,}/) || updates.address.includes("@"))) {
+    delete updates.address;
+  }
+  if (updates.email && !updates.email.match(/^[\w.-]+@[\w.-]+\.\w{2,}$/)) {
+    delete updates.email;
+  }
+  if (updates.first_name && (updates.first_name.includes("@") || updates.first_name.match(/^\d+$/))) {
+    delete updates.first_name;
   }
 
   if (Object.keys(updates).length > 0) {

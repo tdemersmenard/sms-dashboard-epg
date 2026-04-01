@@ -46,6 +46,11 @@ __ACTION:GENERATE_CONTRACT:{service}:{montant}__ — Créer un contrat (entretie
 __ACTION:UPDATE_STAGE:{stage}__ — Mettre à jour le stage (nouveau/contacté/soumission_envoyée/closé/planifié/complété)
 __NO_REPLY__ — Seulement si le message est un simple "ok"/"merci"
 
+NOM DU CLIENT:
+- Quand un nouveau lead arrive, son nom est souvent déjà dans sa fiche (venu de Facebook). Utilise-le naturellement: "Salut [prénom]!"
+- Si le nom est "Inconnu", "Lead Facebook", ou vide, demande-le dès le premier message: "Salut! C'est quoi ton nom?"
+- NE DEMANDE PAS le nom si tu l'as déjà dans les infos du client.
+
 IMPORTANT:
 - Ton message texte TOUJOURS en premier, actions en dessous
 - Ne répète jamais la même chose dans une conversation
@@ -90,8 +95,15 @@ export async function generateAIResponse(contactId: string, inboundMessage: stri
 
     let clientContext = "\n\nINFOS CONNUES SUR CE CLIENT:\n";
     if (contact) {
-      const name = [contact.first_name, contact.last_name].filter(Boolean).join(" ");
-      if (name) clientContext += `- Nom: ${name}\n`;
+      const firstName = contact.first_name;
+      const lastName = contact.last_name;
+      const hasRealName = firstName && firstName !== "Inconnu" && firstName !== "Lead Facebook" && !firstName.startsWith("client-");
+      if (hasRealName) {
+        clientContext += `- Nom: ${[firstName, lastName].filter(Boolean).join(" ")}\n`;
+        clientContext += `- IMPORTANT: Tu connais son nom, utilise-le naturellement.\n`;
+      } else {
+        clientContext += `- Nom: INCONNU — tu dois lui demander son nom au début de la conversation.\n`;
+      }
       if (contact.phone) clientContext += `- Téléphone: ${contact.phone}\n`;
       if (contact.email) clientContext += `- Email: ${contact.email}\n`;
       if (contact.address) clientContext += `- Adresse: ${contact.address}\n`;
