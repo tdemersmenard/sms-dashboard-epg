@@ -34,22 +34,44 @@ export async function extractAndSaveContactInfo(contactId: string) {
     }
   }
 
-  // Adresse
+  // Adresse — extraire SEULEMENT le pattern numéro + rue + nom
   if (!contact.address) {
-    const addrMatch = allText.match(/(\d+[\s,]+(?:rue|chemin|boul|boulevard|avenue|av\.|ch\.|rang|impasse|place|croissant|montée|côte|route)[^,\n]{3,60})/i);
-    if (addrMatch) {
-      let addr = addrMatch[1].trim();
-      if (!addr.toLowerCase().includes("windsor") && !addr.toLowerCase().includes("86 rue")) {
-        addr = addr.replace(/\+?\d{10,}/g, "").replace(/[\w.-]+@[\w.-]+\.\w+/g, "").replace(/\s{2,}/g, " ").trim();
-        if (addr.length >= 5) updates.address = addr;
+    for (const msg of messages) {
+      const text = msg.body;
+      const addrMatch = text.match(/(\d{1,5}\s+(?:rue|chemin|boul\.?|boulevard|avenue|av\.?|ch\.?|rang|impasse|place|croissant|montée|côte|route)\s+[A-Za-zÀ-ÿ'-]+(?:\s+[A-Za-zÀ-ÿ'-]+){0,3})/i);
+      if (addrMatch) {
+        let addr = addrMatch[1].trim();
+        addr = addr.replace(/\+?\d{10,}/g, "");
+        addr = addr.replace(/[\w.-]+@[\w.-]+\.\w+/g, "");
+        addr = addr.replace(/\s{2,}/g, " ").trim();
+        if (addr.toLowerCase().includes("windsor")) continue;
+        if (addr.length < 8 || addr.length > 60) continue;
+        updates.address = addr;
+        break;
+      }
+    }
+
+    // Code postal — chercher dans les messages si on a trouvé une adresse
+    if (updates.address && !contact.postal_code) {
+      for (const msg of messages) {
+        const text = msg.body;
+        const postalMatch = text.match(/[A-Za-z]\d[A-Za-z]\s?\d[A-Za-z]\d/);
+        if (postalMatch) {
+          const raw = postalMatch[0].replace(/\s/g, "").toUpperCase();
+          updates.postal_code = raw.slice(0, 3) + " " + raw.slice(3);
+          break;
+        }
       }
     }
   }
 
-  // Code postal
-  if (!contact.postal_code) {
+  // Code postal (si pas d'adresse trouvée, chercher quand même)
+  if (!contact.postal_code && !updates.postal_code) {
     const postalMatch = allText.match(/[A-Z]\d[A-Z]\s?\d[A-Z]\d/i);
-    if (postalMatch) updates.postal_code = postalMatch[0].toUpperCase();
+    if (postalMatch) {
+      const raw = postalMatch[0].replace(/\s/g, "").toUpperCase();
+      updates.postal_code = raw.slice(0, 3) + " " + raw.slice(3);
+    }
   }
 
   // Ville
