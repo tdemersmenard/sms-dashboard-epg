@@ -100,6 +100,40 @@ export async function POST(req: NextRequest) {
         .update({ status: "envoyé" })
         .eq("id", doc.id);
 
+      // Notifier Thomas — une seule fois par document
+      const { data: alreadyNotified } = await supabaseAdmin
+        .from("automation_logs")
+        .select("id")
+        .eq("action", "invoice_sent_notif_" + doc.id)
+        .limit(1);
+
+      if (!alreadyNotified || alreadyNotified.length === 0) {
+        const { data: thomas } = await supabaseAdmin
+          .from("contacts")
+          .select("id")
+          .eq("phone", "+14509942215")
+          .single();
+
+        if (thomas) {
+          const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
+          const docTypeLabel = doc.doc_type === "facture" ? "Facture" : "Contrat";
+          await fetch(`${baseUrl}/api/sms/send`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contactId: thomas.id,
+              body: `CHLORE: ${docTypeLabel} ${doc.doc_number} envoyée à ${clientName} (${clientEmail}) — ${doc.amount}$`,
+            }),
+          }).catch(err => console.error("[email] Notification error:", err));
+        }
+
+        await supabaseAdmin.from("automation_logs").insert({
+          action: "invoice_sent_notif_" + doc.id,
+          status: "success",
+          details: { doc_number: doc.doc_number, email: clientEmail },
+        });
+      }
+
       return NextResponse.json({ sent: true, email: clientEmail, document: doc.doc_number });
     } catch (gmailErr) {
       console.error("[email] Gmail send error:", gmailErr);
