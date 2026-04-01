@@ -56,11 +56,9 @@ export function parseActions(aiResponse: string): { cleanMessage: string; action
     // Check if line contains an action anywhere
     const actionRegex = /__ACTION:([A-Z_]+):(.+?)__/g;
     let match;
-    let lineHasAction = false;
     let remainingText = trimmed;
 
     while ((match = actionRegex.exec(trimmed)) !== null) {
-      lineHasAction = true;
       const fullMatch = match[0];
       const actionType = match[1];
       const actionParams = match[2];
@@ -102,6 +100,9 @@ export function parseActions(aiResponse: string): { cleanMessage: string; action
     }
   }
 
+  console.log("[parseActions] Found actions:", actions.length, actions.map(a => a.type));
+  console.log("[parseActions] Clean message length:", messageLines.join("").length);
+
   return {
     cleanMessage: messageLines.join("\n").trim(),
     actions,
@@ -116,6 +117,21 @@ export async function executeActions(actions: AIAction[], contactId: string) {
       switch (action.type) {
 
         case "NOTIFY_THOMAS": {
+          // Anti-spam: check si on a déjà notifié Thomas pour ce client récemment
+          const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+          const { data: recentNotif } = await supabaseAdmin
+            .from("automation_logs")
+            .select("id")
+            .eq("action", "notify_thomas")
+            .eq("contact_id", contactId)
+            .gte("created_at", twoHoursAgo)
+            .limit(1);
+
+          if (recentNotif && recentNotif.length > 0) {
+            console.log("[ai-actions] Skipping NOTIFY_THOMAS — already notified recently for this client");
+            break;
+          }
+
           const { data: contact } = await supabaseAdmin
             .from("contacts")
             .select("first_name, last_name, phone")
@@ -148,6 +164,15 @@ export async function executeActions(actions: AIAction[], contactId: string) {
               body: JSON.stringify({ contactId: thomas.id, body: notification }),
             });
           }
+
+          // Log pour éviter les doublons
+          await supabaseAdmin.from("automation_logs").insert({
+            action: "notify_thomas",
+            contact_id: contactId,
+            status: "success",
+            details: { message: action.message },
+          });
+
           console.log(`[ai-actions] Notified Thomas: ${action.message}`);
           break;
         }
@@ -169,6 +194,10 @@ export async function executeActions(actions: AIAction[], contactId: string) {
         }
 
         case "GENERATE_INVOICE": {
+          console.log("[ai-actions] === GENERATING INVOICE ===");
+          console.log("[ai-actions] contactId:", contactId);
+          console.log("[ai-actions] service:", action.service, "amount:", action.amount);
+
           const { count } = await supabaseAdmin
             .from("documents")
             .select("id", { count: "exact", head: true })
@@ -181,7 +210,7 @@ export async function executeActions(actions: AIAction[], contactId: string) {
             .eq("id", contactId)
             .single();
 
-          const { data: doc } = await supabaseAdmin.from("documents").insert({
+          const { data: doc, error: docError } = await supabaseAdmin.from("documents").insert({
             contact_id: contactId,
             doc_type: "facture",
             doc_number: docNumber,
@@ -197,6 +226,12 @@ export async function executeActions(actions: AIAction[], contactId: string) {
             },
           }).select().single();
 
+          if (docError) {
+            console.error("[ai-actions] INVOICE INSERT ERROR:", docError);
+          } else {
+            console.log("[ai-actions] INVOICE CREATED:", doc.doc_number, doc.id);
+          }
+
           if (contact?.email && doc) {
             await supabaseAdmin.from("documents").update({ status: "envoyé" }).eq("id", doc.id);
             await fetch(`${baseUrl}/api/email/send-document`, {
@@ -211,11 +246,14 @@ export async function executeActions(actions: AIAction[], contactId: string) {
             season_price: action.amount,
           }).eq("id", contactId);
 
-          console.log(`[ai-actions] Invoice ${docNumber}: ${action.service} ${action.amount}$`);
           break;
         }
 
         case "GENERATE_CONTRACT": {
+          console.log("[ai-actions] === GENERATING CONTRACT ===");
+          console.log("[ai-actions] contactId:", contactId);
+          console.log("[ai-actions] service:", action.service, "amount:", action.amount);
+
           const { count } = await supabaseAdmin
             .from("documents")
             .select("id", { count: "exact", head: true })
@@ -231,7 +269,7 @@ export async function executeActions(actions: AIAction[], contactId: string) {
           const firstPayment = Math.ceil(action.amount / 2);
           const secondPayment = action.amount - firstPayment;
 
-          const { data: doc } = await supabaseAdmin.from("documents").insert({
+          const { data: doc, error: docError } = await supabaseAdmin.from("documents").insert({
             contact_id: contactId,
             doc_type: "contrat",
             doc_number: docNumber,
@@ -247,6 +285,12 @@ export async function executeActions(actions: AIAction[], contactId: string) {
             },
           }).select().single();
 
+          if (docError) {
+            console.error("[ai-actions] CONTRACT INSERT ERROR:", docError);
+          } else {
+            console.log("[ai-actions] CONTRACT CREATED:", doc.doc_number, doc.id);
+          }
+
           if (contact?.email && doc) {
             await supabaseAdmin.from("documents").update({ status: "envoyé" }).eq("id", doc.id);
             await fetch(`${baseUrl}/api/email/send-document`, {
@@ -261,7 +305,6 @@ export async function executeActions(actions: AIAction[], contactId: string) {
             season_price: action.amount,
           }).eq("id", contactId);
 
-          console.log(`[ai-actions] Contract ${docNumber}: ${action.service} ${action.amount}$`);
           break;
         }
 
