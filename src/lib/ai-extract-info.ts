@@ -34,16 +34,18 @@ export async function extractAndSaveContactInfo(contactId: string) {
     }
   }
 
-  // Adresse — extraire SEULEMENT le pattern numéro + rue + nom
   if (!contact.address) {
     for (const msg of messages) {
       const text = msg.body;
+      // Match SEULEMENT: numéro + type de rue + nom de rue (max 4 mots après)
       const addrMatch = text.match(/(\d{1,5}\s+(?:rue|chemin|boul\.?|boulevard|avenue|av\.?|ch\.?|rang|impasse|place|croissant|montée|côte|route)\s+[A-Za-zÀ-ÿ'-]+(?:\s+[A-Za-zÀ-ÿ'-]+){0,3})/i);
       if (addrMatch) {
         let addr = addrMatch[1].trim();
-        addr = addr.replace(/\+?\d{10,}/g, "");
-        addr = addr.replace(/[\w.-]+@[\w.-]+\.\w+/g, "");
-        addr = addr.replace(/\s{2,}/g, " ").trim();
+        // COUPER à certains mots qui indiquent la fin de l'adresse
+        addr = addr.split(/\s+(?:et|à|mon|email|courriel|pis|aussi|le|la|pour|chez|,)/i)[0].trim();
+        // Enlever emails et téléphones qui se seraient glissés
+        addr = addr.replace(/[\w.-]+@[\w.-]+\.\w+/g, "").replace(/\+?\d{10,}/g, "").trim();
+        // Skip adresse de l'entreprise
         if (addr.toLowerCase().includes("windsor")) continue;
         if (addr.length < 8 || addr.length > 60) continue;
         updates.address = addr;

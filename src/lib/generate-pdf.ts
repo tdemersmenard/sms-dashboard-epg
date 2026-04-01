@@ -115,8 +115,17 @@ function InvoicePDF({ data }: { data: DocData }) {
 export async function generatePDFBuffer(data: DocData): Promise<Buffer> {
   // Nettoyer les données
   if (data.clientAddress) {
-    data.clientAddress = data.clientAddress.replace(/\+?\d{10,}/g, "").replace(/[\w.-]+@[\w.-]+\.\w+/g, "").replace(/\s{2,}/g, " ").trim();
-    if (data.clientAddress.length < 5) data.clientAddress = undefined;
+    let addr = data.clientAddress;
+    // Couper tout après "et", "mon email", "courriel", etc.
+    addr = addr.split(/\s+(?:et\s|mon\s|email|courriel|pis\s|aussi\s)/i)[0].trim();
+    // Enlever emails
+    addr = addr.replace(/[\w.-]+@[\w.-]+\.\w+/g, "").trim();
+    // Enlever numéros de téléphone
+    addr = addr.replace(/\+?\d{10,}/g, "").trim();
+    // Enlever doubles espaces
+    addr = addr.replace(/\s{2,}/g, " ").trim();
+    // Si trop court après nettoyage, ignorer
+    data.clientAddress = addr.length >= 8 ? addr : undefined;
   }
   if (data.clientEmail) {
     const emailOnly = data.clientEmail.match(/[\w.-]+@[\w.-]+\.\w{2,}/);
