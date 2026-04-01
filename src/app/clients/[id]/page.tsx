@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { MessageSquare, CalendarPlus, ChevronDown, Upload, Download, Trash2 } from "lucide-react";
+import { MessageSquare, CalendarPlus, ChevronDown, Upload, Download, Trash2, CheckCircle } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import type { Contact, Job, Document, Payment, Message } from "@/lib/types";
 
@@ -49,6 +49,16 @@ const DOC_PREFIX: Record<string, string> = {
   contrat: "C",
   facture: "F",
 };
+
+const CLOSE_SERVICES = [
+  { label: "Ouverture hors-terre", value: "ouverture hors-terre", price: 180, jobType: "ouverture", docType: "facture" as const },
+  { label: "Ouverture creusée", value: "ouverture creusée", price: 200, jobType: "ouverture", docType: "facture" as const },
+  { label: "Fermeture hors-terre", value: "fermeture hors-terre", price: 150, jobType: "fermeture", docType: "facture" as const },
+  { label: "Fermeture creusée", value: "fermeture creusée", price: 175, jobType: "fermeture", docType: "facture" as const },
+  { label: "Entretien hebdo hors-terre", value: "entretien hebdo hors-terre", price: 2000, jobType: "entretien", docType: "contrat" as const },
+  { label: "Entretien hebdo creusée", value: "entretien hebdo creusée", price: 2200, jobType: "entretien", docType: "contrat" as const },
+  { label: "Entretien aux 2 semaines", value: "entretien aux 2 semaines", price: 1200, jobType: "entretien", docType: "contrat" as const },
+];
 
 function displayName(c: Contact): string {
   const first = c.first_name && c.first_name !== "Inconnu" ? c.first_name : null;
@@ -138,6 +148,94 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   const [docFile, setDocFile] = useState<File | null>(null);
   const [docType, setDocType] = useState<Document["doc_type"]>("soumission");
   const [uploadingDoc, setUploadingDoc] = useState(false);
+
+  // Close modal
+  const [showCloseModal, setShowCloseModal] = useState(false);
+  const [savingClose, setSavingClose] = useState(false);
+  const [closeToast, setCloseToast] = useState(false);
+  const [closeForm, setCloseForm] = useState({
+    service: CLOSE_SERVICES[0].value,
+    price: CLOSE_SERVICES[0].price,
+    method: "interac" as "interac" | "cash",
+    scheduled_date: new Date().toISOString().slice(0, 10),
+    scheduled_time: "08:00",
+    notes: "",
+  });
+
+  const handleCloseClient = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingClose(true);
+    const svc = CLOSE_SERVICES.find((s) => s.value === closeForm.service) ?? CLOSE_SERVICES[0];
+
+    try {
+      // 1. Update contact stage + season_price
+      await supabaseBrowser.from("contacts").update({
+        stage: "closé",
+        season_price: closeForm.price,
+      }).eq("id", id);
+
+      // 2. Create job
+      const endHour = parseInt(closeForm.scheduled_time.split(":")[0]) + 2;
+      const endTime = `${String(endHour).padStart(2, "0")}:${closeForm.scheduled_time.split(":")[1]}`;
+      await supabaseBrowser.from("jobs").insert({
+        contact_id: id,
+        job_type: svc.jobType,
+        scheduled_date: closeForm.scheduled_date,
+        scheduled_time_start: closeForm.scheduled_time,
+        scheduled_time_end: endTime,
+        status: "confirmé",
+        notes: closeForm.notes || null,
+      });
+
+      // 3. Create document
+      const { count } = await supabaseBrowser
+        .from("documents")
+        .select("id", { count: "exact", head: true })
+        .eq("doc_type", svc.docType);
+      const prefix = svc.docType === "facture" ? "F" : "C";
+      const docNumber = `${prefix}-2026-${String((count ?? 0) + 1).padStart(3, "0")}`;
+      const firstPayment = Math.ceil(closeForm.price / 2);
+      const secondPayment = closeForm.price - firstPayment;
+      const paymentTerms = svc.docType === "contrat"
+        ? `Versement 1: ${firstPayment}$ à la signature. Versement 2: ${secondPayment}$ mi-juillet 2026.`
+        : `Paiement complet de ${closeForm.price}$ requis avant le service.`;
+
+      const { data: newDoc } = await supabaseBrowser.from("documents").insert({
+        contact_id: id,
+        doc_type: svc.docType,
+        doc_number: docNumber,
+        amount: closeForm.price,
+        status: closeForm.method === "interac" && contact?.email ? "envoyé" : "brouillon",
+        data: {
+          service: closeForm.service,
+          client_name: contact ? [contact.first_name, contact.last_name].filter(Boolean).join(" ") : "",
+          client_email: contact?.email,
+          client_phone: contact?.phone,
+          client_address: contact?.address,
+          payment_terms: paymentTerms,
+        },
+      }).select().single();
+
+      // 4. Send email if interac + has email
+      if (closeForm.method === "interac" && contact?.email && newDoc) {
+        await fetch("/api/email/send-document", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ documentId: newDoc.id, contactId: id }),
+        }).catch(console.error);
+      }
+
+      // 5. Reload data + show toast
+      await load();
+      setShowCloseModal(false);
+      setCloseToast(true);
+      setTimeout(() => setCloseToast(false), 3000);
+    } catch (err) {
+      console.error("[close-client]", err);
+      alert("Erreur lors du closing. Réessaie.");
+    }
+    setSavingClose(false);
+  };
 
   // Payment form
   const [showPayForm, setShowPayForm] = useState(false);
@@ -343,6 +441,13 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
           >
             <CalendarPlus size={15} />
             Créer RDV
+          </button>
+          <button
+            onClick={() => setShowCloseModal(true)}
+            className="flex items-center gap-1.5 px-3 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition"
+          >
+            <CheckCircle size={15} />
+            Closer
           </button>
         </div>
       </div>
@@ -704,6 +809,107 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
       {/* Close dropdown on outside click */}
       {showStageDropdown && (
         <div className="fixed inset-0 z-10" onClick={() => setShowStageDropdown(false)} />
+      )}
+
+      {/* Close toast */}
+      {closeToast && (
+        <div className="fixed bottom-6 right-6 z-50 bg-green-600 text-white px-5 py-3 rounded-xl shadow-xl text-sm font-medium flex items-center gap-2">
+          <CheckCircle size={16} />
+          Client closé!
+        </div>
+      )}
+
+      {/* Close client modal */}
+      {showCloseModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <h2 className="text-base font-bold text-gray-900">Closer ce client</h2>
+              <button onClick={() => setShowCloseModal(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+            </div>
+            <form onSubmit={handleCloseClient} className="px-5 py-4 space-y-3">
+              <div>
+                <label className="text-xs font-medium text-gray-600 mb-1 block">Service confirmé</label>
+                <select
+                  value={closeForm.service}
+                  onChange={(e) => {
+                    const svc = CLOSE_SERVICES.find((s) => s.value === e.target.value);
+                    setCloseForm((p) => ({ ...p, service: e.target.value, price: svc?.price ?? p.price }));
+                  }}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-200"
+                >
+                  {CLOSE_SERVICES.map((s) => (
+                    <option key={s.value} value={s.value}>{s.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-gray-600 mb-1 block">Prix ($)</label>
+                  <input
+                    type="number" min="0" required
+                    value={closeForm.price}
+                    onChange={(e) => setCloseForm((p) => ({ ...p, price: parseFloat(e.target.value) }))}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-200"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-600 mb-1 block">Méthode de paiement</label>
+                  <select
+                    value={closeForm.method}
+                    onChange={(e) => setCloseForm((p) => ({ ...p, method: e.target.value as "interac" | "cash" }))}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-200"
+                  >
+                    <option value="interac">Interac</option>
+                    <option value="cash">Cash</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-gray-600 mb-1 block">Date du RDV</label>
+                  <input
+                    type="date" required
+                    value={closeForm.scheduled_date}
+                    onChange={(e) => setCloseForm((p) => ({ ...p, scheduled_date: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-200"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-600 mb-1 block">Heure</label>
+                  <input
+                    type="time"
+                    value={closeForm.scheduled_time}
+                    onChange={(e) => setCloseForm((p) => ({ ...p, scheduled_time: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-200"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600 mb-1 block">Notes (optionnel)</label>
+                <textarea
+                  rows={2}
+                  value={closeForm.notes}
+                  onChange={(e) => setCloseForm((p) => ({ ...p, notes: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-green-200"
+                />
+              </div>
+              {closeForm.method === "interac" && !contact?.email && (
+                <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">
+                  ⚠️ Pas d&apos;email enregistré — la facture ne sera pas envoyée automatiquement.
+                </p>
+              )}
+              <div className="flex justify-end gap-2 pt-2">
+                <button type="button" onClick={() => setShowCloseModal(false)} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition">
+                  Annuler
+                </button>
+                <button type="submit" disabled={savingClose} className="px-5 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 transition">
+                  {savingClose ? "Closing..." : "Closer le client"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
       {/* Job modal */}
