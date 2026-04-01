@@ -64,8 +64,7 @@ export async function generateAIResponse(contactId: string, inboundMessage: stri
       .from("messages")
       .select("body, direction, created_at")
       .eq("contact_id", contactId)
-      .order("created_at", { ascending: true })
-      .limit(20);
+      .order("created_at", { ascending: true });
 
     // Nettoyer les messages outbound: enlever les tags __ACTION:...__ du texte
     const cleanMessages = (messages || []).map(msg => {
