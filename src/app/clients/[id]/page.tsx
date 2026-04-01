@@ -225,11 +225,26 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
         }).catch(console.error);
       }
 
-      // 5. Reload data + show toast
+      // 5. Generate and open PDF in new tab
+      if (newDoc) {
+        const res = await fetch("/api/documents/generate-pdf", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ documentId: newDoc.id }),
+        });
+        if (res.ok) {
+          const html = await res.text();
+          const blob = new Blob([html], { type: "text/html" });
+          const url = URL.createObjectURL(blob);
+          window.open(url, "_blank");
+        }
+      }
+
+      // 6. Reload data + show toast
       await load();
       setShowCloseModal(false);
       setCloseToast(true);
-      setTimeout(() => setCloseToast(false), 3000);
+      setTimeout(() => setCloseToast(false), 4000);
     } catch (err) {
       console.error("[close-client]", err);
       alert("Erreur lors du closing. Réessaie.");
@@ -667,6 +682,24 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
                         <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${dsc?.bg ?? "bg-gray-100"} ${dsc?.text ?? "text-gray-600"}`}>
                           {d.status}
                         </span>
+                        <button
+                          onClick={async () => {
+                            const res = await fetch("/api/documents/generate-pdf", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ documentId: d.id }),
+                            });
+                            if (res.ok) {
+                              const html = await res.text();
+                              const blob = new Blob([html], { type: "text/html" });
+                              window.open(URL.createObjectURL(blob), "_blank");
+                            }
+                          }}
+                          className="text-blue-500 hover:text-blue-700 text-[10px] font-medium underline"
+                          title="Voir le document"
+                        >
+                          Voir
+                        </button>
                         {d.pdf_url && (
                           <a
                             href={d.pdf_url}
@@ -815,7 +848,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
       {closeToast && (
         <div className="fixed bottom-6 right-6 z-50 bg-green-600 text-white px-5 py-3 rounded-xl shadow-xl text-sm font-medium flex items-center gap-2">
           <CheckCircle size={16} />
-          Client closé!
+          Client closé! Le document s&apos;est ouvert dans un nouvel onglet.
         </div>
       )}
 

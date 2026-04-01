@@ -282,6 +282,41 @@ export async function executeActions(actions: AIAction[], contactId: string) {
               body: JSON.stringify({ documentId: doc.id, contactId }),
             }).catch(err => console.error("[ai-actions] Email error:", err));
             console.log("[ai-actions] Invoice sent to:", clientEmail);
+
+            // Notifier Thomas que la facture a été envoyée
+            const { data: alreadyNotified } = await supabaseAdmin
+              .from("automation_logs")
+              .select("id")
+              .eq("action", "invoice_sent_notif")
+              .eq("contact_id", contactId)
+              .limit(1);
+
+            if (!alreadyNotified || alreadyNotified.length === 0) {
+              const clientName = [contact?.first_name, contact?.last_name].filter(Boolean).join(" ") || "Client";
+              let { data: thomas } = await supabaseAdmin
+                .from("contacts")
+                .select("id")
+                .eq("phone", "+14509942215")
+                .maybeSingle();
+
+              if (thomas) {
+                await fetch(`${baseUrl}/api/sms/send`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    contactId: thomas.id,
+                    body: `CHLORE: Facture ${doc.doc_number} envoyée à ${clientName} (${clientEmail}) — ${action.service} ${action.amount}$`,
+                  }),
+                }).catch(err => console.error("[ai-actions] Thomas notif error:", err));
+              }
+
+              await supabaseAdmin.from("automation_logs").insert({
+                action: "invoice_sent_notif",
+                contact_id: contactId,
+                status: "success",
+                details: { doc_number: doc.doc_number, email: clientEmail },
+              });
+            }
           } else {
             console.log("[ai-actions] No email found — invoice stays as brouillon");
           }
@@ -386,6 +421,41 @@ export async function executeActions(actions: AIAction[], contactId: string) {
               body: JSON.stringify({ documentId: doc.id, contactId }),
             }).catch(err => console.error("[ai-actions] Email error:", err));
             console.log("[ai-actions] Contract sent to:", clientEmail);
+
+            // Notifier Thomas que le contrat a été envoyé
+            const { data: alreadyNotified } = await supabaseAdmin
+              .from("automation_logs")
+              .select("id")
+              .eq("action", "invoice_sent_notif")
+              .eq("contact_id", contactId)
+              .limit(1);
+
+            if (!alreadyNotified || alreadyNotified.length === 0) {
+              const clientName = [contact?.first_name, contact?.last_name].filter(Boolean).join(" ") || "Client";
+              let { data: thomas } = await supabaseAdmin
+                .from("contacts")
+                .select("id")
+                .eq("phone", "+14509942215")
+                .maybeSingle();
+
+              if (thomas) {
+                await fetch(`${baseUrl}/api/sms/send`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    contactId: thomas.id,
+                    body: `CHLORE: Contrat ${doc.doc_number} envoyé à ${clientName} (${clientEmail}) — ${action.service} ${action.amount}$`,
+                  }),
+                }).catch(err => console.error("[ai-actions] Thomas notif error:", err));
+              }
+
+              await supabaseAdmin.from("automation_logs").insert({
+                action: "invoice_sent_notif",
+                contact_id: contactId,
+                status: "success",
+                details: { doc_number: doc.doc_number, email: clientEmail },
+              });
+            }
           } else {
             console.log("[ai-actions] No email found — contract stays as brouillon");
           }

@@ -6,7 +6,7 @@
     },
     {
       "path": "/api/email/check-payments",
-      "schedule": "*/30 * * * *"
+      "schedule": "*/10 * * * *"
     }
   ]
 }

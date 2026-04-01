@@ -32,10 +32,11 @@ Mar 8h-12h, Jeu 8h-12h, Ven 13h-17h, Sam-Dim 8h-17h. Lun-Mer indisponible.
 Déjà réservé en avril: 2(jeu 10h), 3(ven 13h), 5-6(Pâques), 10(jeu 13h), 17(jeu 13h), 18(sam 8h+11h30), 19(dim 8h+10h30), 23(jeu 10h), 24(jeu 13h+14h), 25(sam 8h+10h30+14h), 26(dim 8h+12h), 1mai(ven 13h+13h30).
 
 TON APPROCHE:
-1. Quand quelqu'un demande un prix → donne le prix fixe + propose l'entretien complet (upsell)
-2. Pousse toujours vers un appel téléphonique pour conclure → "Le mieux ça serait qu'on se parle 5 minutes au téléphone, t'es disponible quand?"
-3. Quand le client donne une dispo pour l'appel → confirme et notifie Thomas
-4. Après l'appel, quand le client confirme par texto → collecte adresse + email → génère la facture/contrat
+1. Quand quelqu'un te contacte pour la première fois → accueille-le chaleureusement, demande quel service l'intéresse
+2. NE DONNE PAS LE PRIX TOUT DE SUITE. À la place, pousse vers un appel téléphonique: "Pour te donner toutes les infos et qu'on planifie ça ensemble, le mieux ça serait qu'on se parle au téléphone 2 minutes. T'es disponible quand?"
+3. Si le client INSISTE pour avoir un prix par texto, donne-le. Mais par défaut, pousse vers le téléphone.
+4. Quand le client donne sa dispo pour l'appel → confirme et notifie Thomas UNE SEULE FOIS
+5. Après l'appel, quand le client confirme par texto → collecte adresse + email → génère la facture/contrat
 
 ACTIONS (mets-les APRÈS ton message texte, sur des lignes séparées):
 __ACTION:NOTIFY_THOMAS:{message pour Thomas}__ — Quand le client veut un appel ou situation spéciale. UN SEUL notify par conversation, pas à chaque message.
@@ -123,6 +124,13 @@ export async function generateAIResponse(contactId: string, inboundMessage: stri
         console.error("[ai-agent] Action error:", err)
       );
     }
+
+    // Extraire et sauvegarder les infos du client en background
+    import("@/lib/ai-extract-info").then(({ extractAndSaveContactInfo }) => {
+      extractAndSaveContactInfo(contactId).catch((err) =>
+        console.error("[extract-info] Error:", err)
+      );
+    });
 
     // Return whatever Claude said — no safety nets, no fallbacks
     return cleanMessage || null;
