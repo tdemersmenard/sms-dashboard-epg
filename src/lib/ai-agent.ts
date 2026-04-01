@@ -254,6 +254,7 @@ export async function generateAIResponse(contactId: string, inboundMessage: stri
     });
 
     const aiText = response.content[0]?.type === "text" ? response.content[0].text : null;
+    console.log("[ai-agent] Raw AI response:", JSON.stringify(aiText));
 
     if (!aiText) {
       return "Désolé j'ai mal reçu ton message, peux-tu me le renvoyer?";
@@ -274,24 +275,16 @@ export async function generateAIResponse(contactId: string, inboundMessage: stri
 
     // 7. Safety net — never return empty
     if (!cleanMessage || cleanMessage.trim().length === 0) {
-      // L'AI a généré des actions mais pas de message — on doit quand même répondre quelque chose de contextuel
-      // Regarde le dernier message du client pour répondre intelligemment
-      const lastMsg = inboundMessage.toLowerCase();
-
-      if (lastMsg.includes("@") || lastMsg.includes("courriel") || lastMsg.includes("email")) {
-        return "Parfait, j'ai noté ton courriel! Je t'envoie la facture sous peu.";
+      if (actions.length > 0) {
+        // Contextual response based on action type
+        const actionTypes = actions.map(a => a.type);
+        if (actionTypes.includes("GENERATE_INVOICE")) return "Parfait, je te prépare la facture et je te l'envoie par courriel!";
+        if (actionTypes.includes("GENERATE_CONTRACT")) return "Super, je te prépare le contrat et je te l'envoie par courriel!";
+        if (actionTypes.includes("BOOK_JOB")) return "C'est booké! Je t'envoie une confirmation.";
+        if (actionTypes.includes("NOTIFY_THOMAS")) return "Laisse-moi vérifier ça, je te reviens rapidement!";
+        return "C'est noté, je m'en occupe!";
       }
-      if (lastMsg.includes("rue") || lastMsg.includes("adresse") || lastMsg.includes("chemin") || lastMsg.includes("boul")) {
-        return "Parfait, j'ai noté ton adresse! C'est quoi ton courriel pour la facture?";
-      }
-      if (lastMsg.includes("facture") || lastMsg.includes("envoie") || lastMsg.includes("envoi")) {
-        return "Je te prépare ça! C'est quoi ton adresse courriel?";
-      }
-      if (lastMsg.includes("oui") || lastMsg.includes("go") || lastMsg.includes("ok") || lastMsg.includes("correct") || lastMsg.includes("deal")) {
-        return "Super! Pour aller de l'avant j'aurais besoin de ton adresse et ton courriel. Tu peux m'envoyer ça?";
-      }
-
-      return "Parfait! Est-ce que tu peux me donner ton adresse et ton courriel pour que je finalise le tout?";
+      return "Hey! Peux-tu me donner plus de détails? Je suis pas sûr de comprendre ta demande.";
     }
 
     return cleanMessage.trim();

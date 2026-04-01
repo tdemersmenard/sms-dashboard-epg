@@ -50,54 +50,56 @@ export function parseActions(aiResponse: string): { cleanMessage: string; action
 
   for (const line of lines) {
     const trimmed = line.trim();
-    console.log("[parseActions] Line:", JSON.stringify(trimmed), "isAction:", trimmed.startsWith("__ACTION:"));
-
+    if (!trimmed) continue;
     if (trimmed === "__NO_REPLY__") continue;
 
-    // NOTIFY_THOMAS
-    const notifyMatch = trimmed.match(/^__ACTION:NOTIFY_THOMAS:(.+)__$/);
-    if (notifyMatch) {
-      actions.push({ type: "NOTIFY_THOMAS", message: notifyMatch[1] });
-      continue;
+    // Check if line contains an action anywhere
+    const actionRegex = /__ACTION:([A-Z_]+):(.+?)__/g;
+    let match;
+    let lineHasAction = false;
+    let remainingText = trimmed;
+
+    while ((match = actionRegex.exec(trimmed)) !== null) {
+      lineHasAction = true;
+      const fullMatch = match[0];
+      const actionType = match[1];
+      const actionParams = match[2];
+
+      // Remove the action tag from the text
+      remainingText = remainingText.replace(fullMatch, "").trim();
+
+      // Parse action based on type
+      if (actionType === "NOTIFY_THOMAS") {
+        actions.push({ type: "NOTIFY_THOMAS", message: actionParams });
+      } else if (actionType === "BOOK_JOB") {
+        const parts = actionParams.split(":");
+        if (parts.length >= 3) {
+          actions.push({ type: "BOOK_JOB", jobType: parts[0], date: parts[1], time: parts[2] });
+        }
+      } else if (actionType === "GENERATE_INVOICE") {
+        const parts = actionParams.split(":");
+        if (parts.length >= 2) {
+          actions.push({ type: "GENERATE_INVOICE", service: parts.slice(0, -1).join(":"), amount: parseInt(parts[parts.length - 1]) });
+        }
+      } else if (actionType === "GENERATE_CONTRACT") {
+        const parts = actionParams.split(":");
+        if (parts.length >= 2) {
+          actions.push({ type: "GENERATE_CONTRACT", service: parts.slice(0, -1).join(":"), amount: parseInt(parts[parts.length - 1]) });
+        }
+      } else if (actionType === "UPDATE_STAGE") {
+        actions.push({ type: "UPDATE_STAGE", stage: actionParams });
+      } else if (actionType === "REMINDER") {
+        const parts = actionParams.split(":");
+        if (parts.length >= 3) {
+          actions.push({ type: "REMINDER", date: parts[0], time: parts[1], description: parts.slice(2).join(":") });
+        }
+      }
     }
 
-    // BOOK_JOB
-    const bookMatch = trimmed.match(/^__ACTION:BOOK_JOB:(.+?):(\d{4}-\d{2}-\d{2}):(\d{2}:\d{2})__$/);
-    if (bookMatch) {
-      actions.push({ type: "BOOK_JOB", jobType: bookMatch[1], date: bookMatch[2], time: bookMatch[3] });
-      continue;
+    // Keep any remaining text from the line
+    if (remainingText) {
+      messageLines.push(remainingText);
     }
-
-    // GENERATE_INVOICE
-    const invoiceMatch = trimmed.match(/^__ACTION:GENERATE_INVOICE:(.+?):(\d+)__$/);
-    if (invoiceMatch) {
-      actions.push({ type: "GENERATE_INVOICE", service: invoiceMatch[1], amount: parseInt(invoiceMatch[2]) });
-      continue;
-    }
-
-    // GENERATE_CONTRACT
-    const contractMatch = trimmed.match(/^__ACTION:GENERATE_CONTRACT:(.+?):(\d+)__$/);
-    if (contractMatch) {
-      actions.push({ type: "GENERATE_CONTRACT", service: contractMatch[1], amount: parseInt(contractMatch[2]) });
-      continue;
-    }
-
-    // UPDATE_STAGE
-    const stageMatch = trimmed.match(/^__ACTION:UPDATE_STAGE:(.+)__$/);
-    if (stageMatch) {
-      actions.push({ type: "UPDATE_STAGE", stage: stageMatch[1] });
-      continue;
-    }
-
-    // REMINDER
-    const reminderMatch = trimmed.match(/^__ACTION:REMINDER:(\d{4}-\d{2}-\d{2}):(\d{2}:\d{2}):(.+)__$/);
-    if (reminderMatch) {
-      actions.push({ type: "REMINDER", date: reminderMatch[1], time: reminderMatch[2], description: reminderMatch[3] });
-      continue;
-    }
-
-    // Not an action — keep as message
-    messageLines.push(line);
   }
 
   return {
