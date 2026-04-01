@@ -1,6 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {},
+  experimental: {
+    serverComponentsExternalPackages: ["docusign-esign"],
+  },
 };
 
 module.exports = nextConfig;

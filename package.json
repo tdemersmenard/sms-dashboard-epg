@@ -15,6 +15,7 @@
     "@supabase/supabase-js": "^2.39.0",
     "date-fns": "^3.3.0",
     "date-fns-tz": "^3.0.0",
+    "docusign-esign": "^8.7.0",
     "google-auth-library": "^10.6.2",
     "googleapis": "^171.4.0",
     "lucide-react": "^1.7.0",

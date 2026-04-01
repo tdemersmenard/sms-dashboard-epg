@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { MessageSquare, CalendarPlus, ChevronDown, Upload, Download, Trash2, CheckCircle } from "lucide-react";
+import { MessageSquare, CalendarPlus, ChevronDown, Upload, Download, Trash2, CheckCircle, PenLine } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import type { Contact, Job, Document, Payment, Message } from "@/lib/types";
 
@@ -160,7 +160,12 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
     scheduled_date: new Date().toISOString().slice(0, 10),
     scheduled_time: "08:00",
     notes: "",
+    sendDocuSign: true,
   });
+
+  // DocuSign
+  const [sendingDocuSign, setSendingDocuSign] = useState<string | null>(null);
+  const [docuSignToast, setDocuSignToast] = useState<string | null>(null);
 
   const handleCloseClient = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -238,6 +243,15 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
         }
       }
 
+      // 6. Send to DocuSign if it's a contract and checkbox is checked
+      if (newDoc && svc.docType === "contrat" && closeForm.sendDocuSign) {
+        await fetch("/api/docusign/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ documentId: newDoc.id }),
+        }).catch(console.error);
+      }
+
       // 6. Reload data + show toast
       await load();
       setShowCloseModal(false);
@@ -248,6 +262,33 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
       alert("Erreur lors du closing. Réessaie.");
     }
     setSavingClose(false);
+  };
+
+  const handleDocuSign = async (docId: string) => {
+    if (!contact?.email) {
+      setDocuSignToast("error:email");
+      setTimeout(() => setDocuSignToast(null), 4000);
+      return;
+    }
+    setSendingDocuSign(docId);
+    try {
+      const res = await fetch("/api/docusign/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ documentId: docId }),
+      });
+      if (res.ok) {
+        setDocuSignToast("success");
+        await load();
+      } else {
+        const data = await res.json();
+        setDocuSignToast(`error:${data.error || "unknown"}`);
+      }
+    } catch (err) {
+      setDocuSignToast(`error:${String(err)}`);
+    }
+    setSendingDocuSign(null);
+    setTimeout(() => setDocuSignToast(null), 4000);
   };
 
   // Payment form
@@ -701,6 +742,17 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
                         >
                           Voir
                         </button>
+                        {d.doc_type === "contrat" && (
+                          <button
+                            onClick={() => handleDocuSign(d.id)}
+                            disabled={sendingDocuSign === d.id}
+                            className="flex items-center gap-1 px-2 py-0.5 bg-purple-600 text-white text-[10px] font-medium rounded hover:bg-purple-700 disabled:opacity-50 transition"
+                            title="Envoyer pour signature DocuSign"
+                          >
+                            <PenLine size={10} />
+                            {sendingDocuSign === d.id ? "..." : "Signer"}
+                          </button>
+                        )}
                         {d.pdf_url && (
                           <a
                             href={d.pdf_url}
@@ -853,6 +905,20 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
         </div>
       )}
 
+      {/* DocuSign toast */}
+      {docuSignToast && (
+        <div className={`fixed bottom-20 right-6 z-50 px-5 py-3 rounded-xl shadow-xl text-sm font-medium flex items-center gap-2 ${
+          docuSignToast === "success" ? "bg-purple-600 text-white" : "bg-red-600 text-white"
+        }`}>
+          <PenLine size={16} />
+          {docuSignToast === "success"
+            ? "Contrat envoyé pour signature via DocuSign!"
+            : docuSignToast === "error:email"
+            ? "Le client n'a pas d'adresse courriel"
+            : "Erreur DocuSign — vérifie la connexion"}
+        </div>
+      )}
+
       {/* Close client modal */}
       {showCloseModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
@@ -932,6 +998,20 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
                 <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">
                   ⚠️ Pas d&apos;email enregistré — la facture ne sera pas envoyée automatiquement.
                 </p>
+              )}
+              {CLOSE_SERVICES.find((s) => s.value === closeForm.service)?.docType === "contrat" && (
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={closeForm.sendDocuSign}
+                    onChange={(e) => setCloseForm((p) => ({ ...p, sendDocuSign: e.target.checked }))}
+                    className="rounded"
+                  />
+                  <span className="text-sm text-gray-700 flex items-center gap-1.5">
+                    <PenLine size={14} className="text-purple-600" />
+                    Envoyer pour signature DocuSign
+                  </span>
+                </label>
               )}
               <div className="flex justify-end gap-2 pt-2">
                 <button type="button" onClick={() => setShowCloseModal(false)} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition">

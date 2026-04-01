@@ -57,23 +57,27 @@ function formatTime(d: string) {
 
 // ── Page ────────────────────────────────────────────────────
 // Separate component for search-params-based toast (requires Suspense)
-function GmailToastHandler({
-  onToast,
-  onStatusConnected,
+function OAuthToastHandler({
+  onGmailToast,
+  onGmailConnected,
+  onDocuSignToast,
+  onDocuSignConnected,
 }: {
-  onToast: (t: "connected" | "error") => void;
-  onStatusConnected: () => void;
+  onGmailToast: (t: "connected" | "error") => void;
+  onGmailConnected: () => void;
+  onDocuSignToast: (t: "connected" | "error") => void;
+  onDocuSignConnected: () => void;
 }) {
   const searchParams = useSearchParams();
   useEffect(() => {
     const gmail = searchParams.get("gmail");
-    if (gmail === "connected") {
-      onToast("connected");
-      onStatusConnected();
-    } else if (gmail === "error") {
-      onToast("error");
-    }
-  }, [searchParams, onToast, onStatusConnected]);
+    if (gmail === "connected") { onGmailToast("connected"); onGmailConnected(); }
+    else if (gmail === "error") { onGmailToast("error"); }
+
+    const ds = searchParams.get("docusign");
+    if (ds === "connected") { onDocuSignToast("connected"); onDocuSignConnected(); }
+    else if (ds === "error") { onDocuSignToast("error"); }
+  }, [searchParams, onGmailToast, onGmailConnected, onDocuSignToast, onDocuSignConnected]);
   return null;
 }
 
@@ -88,6 +92,8 @@ export default function DashboardPage() {
   const [auditLoading, setAuditLoading] = useState(false);
   const [gmailStatus, setGmailStatus] = useState<"connected" | "disconnected" | "loading">("loading");
   const [gmailToast, setGmailToast] = useState<"connected" | "error" | null>(null);
+  const [docuSignStatus, setDocuSignStatus] = useState<"connected" | "disconnected" | "loading">("loading");
+  const [docuSignToast, setDocuSignToast] = useState<"connected" | "error" | null>(null);
 
   // Load contacts with season_price > 0 + their received payments
   const loadClients = async () => {
@@ -173,6 +179,18 @@ export default function DashboardPage() {
 
   useEffect(() => { checkGmail(); }, [checkGmail]);
 
+  const checkDocuSign = useCallback(async () => {
+    try {
+      const res = await fetch("/api/docusign/status");
+      const data = await res.json();
+      setDocuSignStatus(data.connected ? "connected" : "disconnected");
+    } catch {
+      setDocuSignStatus("disconnected");
+    }
+  }, []);
+
+  useEffect(() => { checkDocuSign(); }, [checkDocuSign]);
+
   const runAudit = async () => {
     setAuditLoading(true);
     setAuditActions(null);
@@ -199,20 +217,19 @@ export default function DashboardPage() {
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
-      {/* Gmail search-params handler (needs Suspense) */}
+      {/* OAuth search-params handler (needs Suspense) */}
       <Suspense fallback={null}>
-        <GmailToastHandler
-          onToast={(t) => {
-            setGmailToast(t);
-            setTimeout(() => setGmailToast(null), 4000);
-          }}
-          onStatusConnected={() => setGmailStatus("connected")}
+        <OAuthToastHandler
+          onGmailToast={(t) => { setGmailToast(t); setTimeout(() => setGmailToast(null), 4000); }}
+          onGmailConnected={() => setGmailStatus("connected")}
+          onDocuSignToast={(t) => { setDocuSignToast(t); setTimeout(() => setDocuSignToast(null), 4000); }}
+          onDocuSignConnected={() => setDocuSignStatus("connected")}
         />
       </Suspense>
 
       {/* Gmail OAuth toast */}
       {gmailToast && (
-        <div className={`fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg text-sm font-medium transition-all ${
+        <div className={`fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg text-sm font-medium ${
           gmailToast === "connected" ? "bg-green-500 text-white" : "bg-red-500 text-white"
         }`}>
           <Mail size={16} />
@@ -220,23 +237,47 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* DocuSign OAuth toast */}
+      {docuSignToast && (
+        <div className={`fixed top-16 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg text-sm font-medium ${
+          docuSignToast === "connected" ? "bg-green-500 text-white" : "bg-red-500 text-white"
+        }`}>
+          {docuSignToast === "connected" ? "DocuSign connecté avec succès!" : "Erreur de connexion DocuSign"}
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-bold text-gray-900">Dashboard</h1>
-        {/* Gmail connection button */}
-        {gmailStatus === "loading" ? null : gmailStatus === "connected" ? (
-          <div className="flex items-center gap-1.5 text-xs font-medium text-green-600 bg-green-50 border border-green-200 px-3 py-1.5 rounded-lg">
-            <Mail size={13} />
-            Gmail connecté ✓
-          </div>
-        ) : (
-          <a
-            href="/api/auth/google"
-            className="flex items-center gap-1.5 text-xs font-medium text-white bg-[#0a1f3f] hover:bg-[#0f2855] px-3 py-1.5 rounded-lg transition"
-          >
-            <Mail size={13} />
-            Connecter Gmail
-          </a>
-        )}
+        <div className="flex items-center gap-2">
+          {/* Gmail connection button */}
+          {gmailStatus !== "loading" && (gmailStatus === "connected" ? (
+            <div className="flex items-center gap-1.5 text-xs font-medium text-green-600 bg-green-50 border border-green-200 px-3 py-1.5 rounded-lg">
+              <Mail size={13} />
+              Gmail ✓
+            </div>
+          ) : (
+            <a
+              href="/api/auth/google"
+              className="flex items-center gap-1.5 text-xs font-medium text-white bg-[#0a1f3f] hover:bg-[#0f2855] px-3 py-1.5 rounded-lg transition"
+            >
+              <Mail size={13} />
+              Connecter Gmail
+            </a>
+          ))}
+          {/* DocuSign connection button */}
+          {docuSignStatus !== "loading" && (docuSignStatus === "connected" ? (
+            <div className="flex items-center gap-1.5 text-xs font-medium text-purple-600 bg-purple-50 border border-purple-200 px-3 py-1.5 rounded-lg">
+              DocuSign ✓
+            </div>
+          ) : (
+            <a
+              href="/api/auth/docusign"
+              className="flex items-center gap-1.5 text-xs font-medium text-white bg-purple-600 hover:bg-purple-700 px-3 py-1.5 rounded-lg transition"
+            >
+              Connecter DocuSign
+            </a>
+          ))}
+        </div>
       </div>
 
       {/* Stat cards */}
