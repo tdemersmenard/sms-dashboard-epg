@@ -274,10 +274,24 @@ export async function generateAIResponse(contactId: string, inboundMessage: stri
 
     // 7. Safety net — never return empty
     if (!cleanMessage || cleanMessage.trim().length === 0) {
-      if (actions.length > 0) {
-        return "Ça marche, je m'en occupe!";
+      // L'AI a généré des actions mais pas de message — on doit quand même répondre quelque chose de contextuel
+      // Regarde le dernier message du client pour répondre intelligemment
+      const lastMsg = inboundMessage.toLowerCase();
+
+      if (lastMsg.includes("@") || lastMsg.includes("courriel") || lastMsg.includes("email")) {
+        return "Parfait, j'ai noté ton courriel! Je t'envoie la facture sous peu.";
       }
-      return "Désolé j'ai mal reçu ton message, peux-tu me le renvoyer?";
+      if (lastMsg.includes("rue") || lastMsg.includes("adresse") || lastMsg.includes("chemin") || lastMsg.includes("boul")) {
+        return "Parfait, j'ai noté ton adresse! C'est quoi ton courriel pour la facture?";
+      }
+      if (lastMsg.includes("facture") || lastMsg.includes("envoie") || lastMsg.includes("envoi")) {
+        return "Je te prépare ça! C'est quoi ton adresse courriel?";
+      }
+      if (lastMsg.includes("oui") || lastMsg.includes("go") || lastMsg.includes("ok") || lastMsg.includes("correct") || lastMsg.includes("deal")) {
+        return "Super! Pour aller de l'avant j'aurais besoin de ton adresse et ton courriel. Tu peux m'envoyer ça?";
+      }
+
+      return "Parfait! Est-ce que tu peux me donner ton adresse et ton courriel pour que je finalise le tout?";
     }
 
     return cleanMessage.trim();

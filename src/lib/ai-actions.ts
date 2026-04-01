@@ -50,6 +50,7 @@ export function parseActions(aiResponse: string): { cleanMessage: string; action
 
   for (const line of lines) {
     const trimmed = line.trim();
+    console.log("[parseActions] Line:", JSON.stringify(trimmed), "isAction:", trimmed.startsWith("__ACTION:"));
 
     if (trimmed === "__NO_REPLY__") continue;
 
