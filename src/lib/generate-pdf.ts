@@ -113,6 +113,22 @@ function InvoicePDF({ data }: { data: DocData }) {
 }
 
 export async function generatePDFBuffer(data: DocData): Promise<Buffer> {
+  // Nettoyer les données
+  if (data.clientAddress) {
+    data.clientAddress = data.clientAddress.replace(/\+?\d{10,}/g, "").replace(/[\w.-]+@[\w.-]+\.\w+/g, "").replace(/\s{2,}/g, " ").trim();
+    if (data.clientAddress.length < 5) data.clientAddress = undefined;
+  }
+  if (data.clientEmail) {
+    const emailOnly = data.clientEmail.match(/[\w.-]+@[\w.-]+\.\w{2,}/);
+    data.clientEmail = emailOnly ? emailOnly[0].toLowerCase() : undefined;
+  }
+  if (data.clientPhone) {
+    const digits = data.clientPhone.replace(/\D/g, "").slice(-10);
+    if (digits.length === 10) {
+      data.clientPhone = `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+    }
+  }
+
   const doc = React.createElement(InvoicePDF, { data });
   const pdfStream = await ReactPDF.renderToStream(doc as React.ReactElement);
 

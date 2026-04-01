@@ -24,10 +24,11 @@ export async function extractAndSaveContactInfo(contactId: string) {
 
   // Email
   if (!contact.email) {
+    const ignoredEmails = ["service@entretienpiscinegranby.com", "thomasdemersmenard@hotmail.com", "tdemersmenard@agencetdm.com"];
     const emailMatch = allText.match(/[\w.-]+@[\w.-]+\.\w+/);
     if (emailMatch) {
       const email = emailMatch[0].toLowerCase();
-      if (!email.includes("entretienpiscinegranby") && !email.includes("service@") && email !== "thomasdemersmenard@hotmail.com") {
+      if (!ignoredEmails.includes(email) && !email.includes("entretienpiscinegranby")) {
         updates.email = email;
       }
     }
@@ -37,9 +38,10 @@ export async function extractAndSaveContactInfo(contactId: string) {
   if (!contact.address) {
     const addrMatch = allText.match(/(\d+[\s,]+(?:rue|chemin|boul|boulevard|avenue|av\.|ch\.|rang|impasse|place|croissant|montée|côte|route)[^,\n]{3,60})/i);
     if (addrMatch) {
-      const addr = addrMatch[1].trim();
+      let addr = addrMatch[1].trim();
       if (!addr.toLowerCase().includes("windsor") && !addr.toLowerCase().includes("86 rue")) {
-        updates.address = addr;
+        addr = addr.replace(/\+?\d{10,}/g, "").replace(/[\w.-]+@[\w.-]+\.\w+/g, "").replace(/\s{2,}/g, " ").trim();
+        if (addr.length >= 5) updates.address = addr;
       }
     }
   }
