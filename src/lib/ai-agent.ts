@@ -65,12 +65,28 @@ export async function generateAIResponse(contactId: string, inboundMessage: stri
       .select("body, direction, created_at")
       .eq("contact_id", contactId)
       .order("created_at", { ascending: true })
-      .limit(10);
+      .limit(20);
 
-    const conversationHistory = (messages || []).map((msg) => ({
-      role: msg.direction === "outbound" ? "assistant" as const : "user" as const,
-      content: msg.body,
-    }));
+    // Nettoyer les messages outbound: enlever les tags __ACTION:...__ du texte
+    const cleanMessages = (messages || []).map(msg => {
+      if (msg.direction === "outbound") {
+        // Enlever toutes les lignes qui contiennent __ACTION: ou __NO_REPLY__
+        const cleanBody = msg.body
+          .split("\n")
+          .filter((line: string) => !line.includes("__ACTION:") && !line.includes("__NO_REPLY__"))
+          .join("\n")
+          .trim();
+        return { ...msg, body: cleanBody || msg.body };
+      }
+      return msg;
+    });
+
+    const conversationHistory = cleanMessages
+      .filter(msg => msg.body && msg.body.trim().length > 0)
+      .map((msg) => ({
+        role: msg.direction === "outbound" ? "assistant" as const : "user" as const,
+        content: msg.body,
+      }));
 
     let clientContext = "\n\nINFOS CONNUES SUR CE CLIENT:\n";
     if (contact) {
