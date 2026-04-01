@@ -27,65 +27,61 @@ export async function POST(req: NextRequest) {
     const docData = (doc.data || {}) as Record<string, string>;
     const clientEmail = contact.email || docData?.client_email;
     const clientName = [contact.first_name, contact.last_name].filter(Boolean).join(" ") || "Client";
-    const docType = doc.doc_type === "facture" ? "Facture" : "Contrat";
-    const paymentTerms = docData?.payment_terms || "";
+    const docTypeLabel = doc.doc_type === "facture" ? "Facture" : "Contrat";
 
     if (!clientEmail) {
       return NextResponse.json({ sent: false, reason: "no_email" });
     }
 
-    const subject = `${docType} ${doc.doc_number} — Entretien Piscine Granby`;
-    const htmlBody = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <div style="background: #0a1f3f; color: white; padding: 20px; text-align: center;">
-          <h1 style="margin: 0; font-size: 22px;">Entretien Piscine Granby</h1>
-        </div>
-        <div style="padding: 24px; border: 1px solid #e5e5e5; border-top: none;">
-          <p>Bonjour ${clientName},</p>
-          <p>Voici votre ${docType.toLowerCase()} pour le service d'entretien de piscine:</p>
-          <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
-            <tr style="background: #f5f5f5;">
-              <td style="padding: 12px; border: 1px solid #ddd; font-weight: bold;">Document</td>
-              <td style="padding: 12px; border: 1px solid #ddd;">${doc.doc_number}</td>
-            </tr>
-            <tr>
-              <td style="padding: 12px; border: 1px solid #ddd; font-weight: bold;">Service</td>
-              <td style="padding: 12px; border: 1px solid #ddd;">${docData?.service || "Entretien de piscine"}</td>
-            </tr>
-            <tr style="background: #f5f5f5;">
-              <td style="padding: 12px; border: 1px solid #ddd; font-weight: bold;">Montant</td>
-              <td style="padding: 12px; border: 1px solid #ddd; font-size: 18px; font-weight: bold;">${doc.amount}$</td>
-            </tr>
-            <tr>
-              <td style="padding: 12px; border: 1px solid #ddd; font-weight: bold;">Modalités</td>
-              <td style="padding: 12px; border: 1px solid #ddd;">${paymentTerms}</td>
-            </tr>
-          </table>
-          <div style="background: #f0f7ff; border: 1px solid #b3d4fc; border-radius: 8px; padding: 16px; margin: 20px 0;">
-            <p style="margin: 0; font-weight: bold;">Paiement par virement Interac:</p>
-            <p style="margin: 8px 0 0; font-size: 16px;">service@entretienpiscinegranby.com</p>
-          </div>
-          <p>Si vous avez des questions, n'hésitez pas à me contacter au <strong>1 450-915-9650</strong>.</p>
-          <p>Merci de votre confiance!</p>
-          <p>Thomas Demers-Ménard<br>Entretien Piscine Granby</p>
-        </div>
-        <div style="background: #0a1f3f; color: #94a3b8; padding: 12px; text-align: center; font-size: 12px;">
-          Entretien Piscine Granby — 1 450-915-9650 — service@entretienpiscinegranby.com
-        </div>
-      </div>
-    `;
+    // Générer le PDF
+    const { generatePDFBuffer } = await import("@/lib/generate-pdf");
+    const pdfBuffer = await generatePDFBuffer({
+      docNumber: doc.doc_number,
+      docType: doc.doc_type as "facture" | "contrat",
+      clientName,
+      clientAddress: contact.address || docData.client_address,
+      clientPhone: contact.phone || docData.client_phone,
+      clientEmail: contact.email || docData.client_email,
+      service: docData.service || doc.doc_type,
+      amount: doc.amount,
+      paymentTerms: docData.payment_terms || "",
+    });
+
+    const pdfBase64 = pdfBuffer.toString("base64");
 
     try {
       const gmail = await getAuthedGmail();
 
+      const boundary = "boundary_chlore_" + Date.now();
+      const subject = `${docTypeLabel} ${doc.doc_number} — Entretien Piscine Granby`;
+
       const rawEmail = [
-        `From: "Entretien Piscine Granby" <service@entretienpiscinegranby.com>`,
+        `From: "Entretien Piscine Granby" <me>`,
         `To: ${clientEmail}`,
         `Subject: ${subject}`,
         `MIME-Version: 1.0`,
+        `Content-Type: multipart/mixed; boundary="${boundary}"`,
+        ``,
+        `--${boundary}`,
         `Content-Type: text/html; charset=utf-8`,
         ``,
-        htmlBody,
+        `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">`,
+        `<p>Bonjour ${clientName},</p>`,
+        `<p>Veuillez trouver ci-joint votre ${docTypeLabel.toLowerCase()} pour les services d'entretien de piscine.</p>`,
+        `<p><strong>Document:</strong> ${doc.doc_number}<br>`,
+        `<strong>Service:</strong> ${docData.service || ""}<br>`,
+        `<strong>Montant:</strong> ${doc.amount}$</p>`,
+        `<p><strong>Paiement par virement Interac:</strong> service@entretienpiscinegranby.com</p>`,
+        `<p>Merci de votre confiance!</p>`,
+        `<p>Thomas Demers-Ménard<br>Entretien Piscine Granby<br>450-994-2215</p>`,
+        `</div>`,
+        `--${boundary}`,
+        `Content-Type: application/pdf; name="${doc.doc_number}.pdf"`,
+        `Content-Disposition: attachment; filename="${doc.doc_number}.pdf"`,
+        `Content-Transfer-Encoding: base64`,
+        ``,
+        pdfBase64,
+        `--${boundary}--`,
       ].join("\r\n");
 
       const encodedMessage = Buffer.from(rawEmail)

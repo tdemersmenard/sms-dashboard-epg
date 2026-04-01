@@ -233,10 +233,8 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
           body: JSON.stringify({ documentId: newDoc.id }),
         });
         if (res.ok) {
-          const html = await res.text();
-          const blob = new Blob([html], { type: "text/html" });
-          const url = URL.createObjectURL(blob);
-          window.open(url, "_blank");
+          const blob = await res.blob();
+          window.open(URL.createObjectURL(blob), "_blank");
         }
       }
 
@@ -684,15 +682,18 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
                         </span>
                         <button
                           onClick={async () => {
-                            const res = await fetch("/api/documents/generate-pdf", {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ documentId: d.id }),
-                            });
-                            if (res.ok) {
-                              const html = await res.text();
-                              const blob = new Blob([html], { type: "text/html" });
-                              window.open(URL.createObjectURL(blob), "_blank");
+                            if (d.pdf_url) {
+                              window.open(d.pdf_url, "_blank");
+                            } else {
+                              const res = await fetch("/api/documents/generate-pdf", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ documentId: d.id }),
+                              });
+                              if (res.ok) {
+                                const blob = await res.blob();
+                                window.open(URL.createObjectURL(blob), "_blank");
+                              }
                             }
                           }}
                           className="text-blue-500 hover:text-blue-700 text-[10px] font-medium underline"
