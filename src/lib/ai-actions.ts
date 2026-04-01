@@ -210,6 +210,48 @@ export async function executeActions(actions: AIAction[], contactId: string) {
             .eq("id", contactId)
             .single();
 
+          // Extract email from recent inbound messages if not on contact
+          let clientEmail = contact?.email || null;
+          if (!clientEmail) {
+            const { data: recentMsgs } = await supabaseAdmin
+              .from("messages")
+              .select("body")
+              .eq("contact_id", contactId)
+              .eq("direction", "inbound")
+              .order("created_at", { ascending: false })
+              .limit(10);
+            for (const msg of recentMsgs || []) {
+              const emailMatch = msg.body.match(/[\w.-]+@[\w.-]+\.\w+/);
+              if (emailMatch) {
+                clientEmail = emailMatch[0];
+                await supabaseAdmin.from("contacts").update({ email: clientEmail }).eq("id", contactId);
+                console.log("[ai-actions] Found email in messages:", clientEmail);
+                break;
+              }
+            }
+          }
+
+          // Extract address from recent inbound messages if not on contact
+          let clientAddress = contact?.address || null;
+          if (!clientAddress) {
+            const { data: recentMsgs } = await supabaseAdmin
+              .from("messages")
+              .select("body")
+              .eq("contact_id", contactId)
+              .eq("direction", "inbound")
+              .order("created_at", { ascending: false })
+              .limit(10);
+            for (const msg of recentMsgs || []) {
+              const addrMatch = msg.body.match(/\d+\s+(?:rue|chemin|boul|avenue|ch\.|rang|impasse|place|croissant).+/i);
+              if (addrMatch) {
+                clientAddress = addrMatch[0].trim();
+                await supabaseAdmin.from("contacts").update({ address: clientAddress }).eq("id", contactId);
+                console.log("[ai-actions] Found address in messages:", clientAddress);
+                break;
+              }
+            }
+          }
+
           const { data: doc, error: docError } = await supabaseAdmin.from("documents").insert({
             contact_id: contactId,
             doc_type: "facture",
@@ -219,9 +261,9 @@ export async function executeActions(actions: AIAction[], contactId: string) {
             data: {
               service: action.service,
               client_name: contact ? [contact.first_name, contact.last_name].filter(Boolean).join(" ") : "",
-              client_email: contact?.email,
+              client_email: clientEmail,
               client_phone: contact?.phone,
-              client_address: contact?.address,
+              client_address: clientAddress,
               payment_terms: `Paiement complet de ${action.amount}$ requis avant le service.`,
             },
           }).select().single();
@@ -232,13 +274,16 @@ export async function executeActions(actions: AIAction[], contactId: string) {
             console.log("[ai-actions] INVOICE CREATED:", doc.doc_number, doc.id);
           }
 
-          if (contact?.email && doc) {
+          if (clientEmail && doc) {
             await supabaseAdmin.from("documents").update({ status: "envoyé" }).eq("id", doc.id);
             await fetch(`${baseUrl}/api/email/send-document`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ documentId: doc.id, contactId }),
             }).catch(err => console.error("[ai-actions] Email error:", err));
+            console.log("[ai-actions] Invoice sent to:", clientEmail);
+          } else {
+            console.log("[ai-actions] No email found — invoice stays as brouillon");
           }
 
           await supabaseAdmin.from("contacts").update({
@@ -266,6 +311,48 @@ export async function executeActions(actions: AIAction[], contactId: string) {
             .eq("id", contactId)
             .single();
 
+          // Extract email from recent inbound messages if not on contact
+          let clientEmail = contact?.email || null;
+          if (!clientEmail) {
+            const { data: recentMsgs } = await supabaseAdmin
+              .from("messages")
+              .select("body")
+              .eq("contact_id", contactId)
+              .eq("direction", "inbound")
+              .order("created_at", { ascending: false })
+              .limit(10);
+            for (const msg of recentMsgs || []) {
+              const emailMatch = msg.body.match(/[\w.-]+@[\w.-]+\.\w+/);
+              if (emailMatch) {
+                clientEmail = emailMatch[0];
+                await supabaseAdmin.from("contacts").update({ email: clientEmail }).eq("id", contactId);
+                console.log("[ai-actions] Found email in messages:", clientEmail);
+                break;
+              }
+            }
+          }
+
+          // Extract address from recent inbound messages if not on contact
+          let clientAddress = contact?.address || null;
+          if (!clientAddress) {
+            const { data: recentMsgs } = await supabaseAdmin
+              .from("messages")
+              .select("body")
+              .eq("contact_id", contactId)
+              .eq("direction", "inbound")
+              .order("created_at", { ascending: false })
+              .limit(10);
+            for (const msg of recentMsgs || []) {
+              const addrMatch = msg.body.match(/\d+\s+(?:rue|chemin|boul|avenue|ch\.|rang|impasse|place|croissant).+/i);
+              if (addrMatch) {
+                clientAddress = addrMatch[0].trim();
+                await supabaseAdmin.from("contacts").update({ address: clientAddress }).eq("id", contactId);
+                console.log("[ai-actions] Found address in messages:", clientAddress);
+                break;
+              }
+            }
+          }
+
           const firstPayment = Math.ceil(action.amount / 2);
           const secondPayment = action.amount - firstPayment;
 
@@ -278,9 +365,9 @@ export async function executeActions(actions: AIAction[], contactId: string) {
             data: {
               service: action.service,
               client_name: contact ? [contact.first_name, contact.last_name].filter(Boolean).join(" ") : "",
-              client_email: contact?.email,
+              client_email: clientEmail,
               client_phone: contact?.phone,
-              client_address: contact?.address,
+              client_address: clientAddress,
               payment_terms: `Versement 1: ${firstPayment}$ à la signature. Versement 2: ${secondPayment}$ mi-juillet 2026.`,
             },
           }).select().single();
@@ -291,13 +378,16 @@ export async function executeActions(actions: AIAction[], contactId: string) {
             console.log("[ai-actions] CONTRACT CREATED:", doc.doc_number, doc.id);
           }
 
-          if (contact?.email && doc) {
+          if (clientEmail && doc) {
             await supabaseAdmin.from("documents").update({ status: "envoyé" }).eq("id", doc.id);
             await fetch(`${baseUrl}/api/email/send-document`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ documentId: doc.id, contactId }),
             }).catch(err => console.error("[ai-actions] Email error:", err));
+            console.log("[ai-actions] Contract sent to:", clientEmail);
+          } else {
+            console.log("[ai-actions] No email found — contract stays as brouillon");
           }
 
           await supabaseAdmin.from("contacts").update({
