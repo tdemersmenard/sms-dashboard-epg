@@ -18,11 +18,6 @@ export async function GET(req: NextRequest) {
     const succeeded = results.filter((r) => r.status === "success").length;
     const failed    = results.filter((r) => r.status === "error").length;
 
-    // Advanced automations
-    const { runAdvancedAutomations } = await import("@/lib/automations/advanced");
-    const advancedResults = await runAdvancedAutomations();
-    console.log("[cron] Advanced automations:", advancedResults);
-
     return NextResponse.json({
       ok: true,
       ran_at: new Date().toISOString(),
@@ -30,7 +25,6 @@ export async function GET(req: NextRequest) {
       succeeded,
       failed,
       results,
-      advancedResults,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
