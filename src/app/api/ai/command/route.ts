@@ -79,6 +79,26 @@ Réponds UNIQUEMENT en JSON valide:
   ]
 }
 
+IMPORTANT: Quand Thomas dit 'relance' ou 'relancer', ça veut dire envoyer un SMS au contact. Tu dois:
+1. Si c'est pour maintenant ou aujourd'hui → type SEND_SMS avec un message de relance approprié
+2. Si c'est pour plus tard (demain, vendredi, etc.) → type SEND_SMS_LATER avec la date, l'heure, le message et le contactId
+
+Pour SEND_SMS_LATER, retourne:
+{
+  "type": "SEND_SMS_LATER",
+  "contactId": "uuid",
+  "contactName": "nom",
+  "date": "YYYY-MM-DD",
+  "time": "HH:MM",
+  "message": "le SMS de relance à envoyer",
+  "description": "description du rappel"
+}
+
+Pour le contenu du message de relance, adapte selon le contexte que Thomas donne. Exemples:
+- 'relance Caleb pour le paiement' → 'Bonjour Caleb! Je fais un petit suivi concernant votre paiement. Avez-vous eu le temps de faire le virement? N'hésitez pas si vous avez des questions!'
+- 'relance Marc-André pour la soumission' → 'Bonjour Marc-André! Je voulais faire un suivi concernant notre discussion pour l'entretien de piscine. Avez-vous eu le temps d'y réfléchir?'
+- 'relance Philippe pour confirmer le RDV' → 'Bonjour Philippe! Je voulais confirmer votre rendez-vous prévu prochainement. Est-ce que ça tient toujours?'
+
 Si tu ne trouves pas le contact mentionné, retourne:
 {"understood": false, "summary": "Je n'ai pas trouvé le contact [nom]. Peux-tu préciser?", "actions": []}
 
@@ -173,6 +193,18 @@ Aujourd'hui = ${new Date().toISOString().split("T")[0]}`,
               .update({ stage: action.stage })
               .eq("id", action.contactId);
             results.push(`${action.contactName} passé à "${action.stage}"`);
+            break;
+          }
+          case "SEND_SMS_LATER": {
+            await supabaseAdmin.from("jobs").insert({
+              contact_id: action.contactId,
+              job_type: "autre",
+              scheduled_date: action.date,
+              scheduled_time_start: action.time || "09:00",
+              notes: `AUTO_SMS:${action.message}`,
+              status: "planifié",
+            });
+            results.push(`Relance programmée pour ${action.contactName} le ${action.date} à ${action.time || "09:00"}`);
             break;
           }
         }

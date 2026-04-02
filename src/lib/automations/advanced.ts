@@ -297,10 +297,51 @@ export async function alertePaiementRecu() {
   }
 }
 
+// ─── 8. Envoyer les SMS programmés (jobs avec notes AUTO_SMS:) ───
+export async function envoyerSMSProgrammes() {
+  const now = new Date();
+  const today = now.toISOString().split("T")[0];
+  const currentHour = now.toLocaleString("en-US", { timeZone: "America/Montreal", hour: "2-digit", hour12: false, minute: "2-digit" });
+
+  // Chercher les jobs d'aujourd'hui avec AUTO_SMS dans les notes
+  const { data: jobs } = await supabaseAdmin
+    .from("jobs")
+    .select("id, contact_id, notes, scheduled_time_start")
+    .eq("scheduled_date", today)
+    .eq("status", "planifié")
+    .like("notes", "AUTO_SMS:%");
+
+  for (const job of jobs || []) {
+    // Vérifier si c'est l'heure (à 15 min près)
+    const scheduledTime = job.scheduled_time_start?.slice(0, 5) || "09:00";
+    const [schedH, schedM] = scheduledTime.split(":").map(Number);
+    const [nowH, nowM] = currentHour.split(":").map(Number);
+    const schedMinutes = schedH * 60 + schedM;
+    const nowMinutes = nowH * 60 + nowM;
+
+    // Envoie si on est dans les 15 minutes du scheduled time
+    if (nowMinutes >= schedMinutes && nowMinutes <= schedMinutes + 15) {
+      if (await wasAlreadySent("auto_sms_" + job.id, job.contact_id)) continue;
+
+      // Extraire le message du notes
+      const message = job.notes!.replace("AUTO_SMS:", "");
+
+      await sendSMS(job.contact_id, message);
+      await logAction("auto_sms_" + job.id, job.contact_id, { message });
+
+      // Marquer le job comme complété
+      await supabaseAdmin.from("jobs")
+        .update({ status: "complété", completed_at: new Date().toISOString() })
+        .eq("id", job.id);
+    }
+  }
+}
+
 // ─── RUNNER: exécute toutes les automations avancées ───
 export async function runAdvancedAutomations() {
   const results: string[] = [];
 
+  try { await envoyerSMSProgrammes(); results.push("envoyerSMSProgrammes OK"); } catch (e) { results.push("envoyerSMSProgrammes ERROR: " + e); }
   try { await confirmRDVVeille(); results.push("confirmRDVVeille OK"); } catch (e) { results.push("confirmRDVVeille ERROR: " + e); }
   try { await suiviPostOuverture(); results.push("suiviPostOuverture OK"); } catch (e) { results.push("suiviPostOuverture ERROR: " + e); }
   try { await demandeAvisGoogle(); results.push("demandeAvisGoogle OK"); } catch (e) { results.push("demandeAvisGoogle ERROR: " + e); }
