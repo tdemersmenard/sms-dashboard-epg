@@ -94,6 +94,10 @@ export default function DashboardPage() {
   const [gmailToast, setGmailToast] = useState<"connected" | "error" | null>(null);
   const [docuSignStatus, setDocuSignStatus] = useState<"connected" | "disconnected" | "loading">("loading");
   const [docuSignToast, setDocuSignToast] = useState<"connected" | "error" | null>(null);
+  const [command, setCommand] = useState("");
+  const [commandLoading, setCommandLoading] = useState(false);
+  const [commandResult, setCommandResult] = useState<{ understood: boolean; summary: string; results?: string[] } | null>(null);
+  const commandResultTimer = useState<ReturnType<typeof setTimeout> | null>(null);
 
   // Load contacts with season_price > 0 + their received payments
   const loadClients = async () => {
@@ -191,6 +195,27 @@ export default function DashboardPage() {
 
   useEffect(() => { checkDocuSign(); }, [checkDocuSign]);
 
+  const runCommand = async () => {
+    if (!command.trim() || commandLoading) return;
+    setCommandLoading(true);
+    setCommandResult(null);
+    if (commandResultTimer[0]) clearTimeout(commandResultTimer[0]);
+    try {
+      const res = await fetch("/api/ai/command", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ command }),
+      });
+      const data = await res.json();
+      setCommandResult({ understood: data.understood, summary: data.summary, results: data.results });
+      const timer = setTimeout(() => setCommandResult(null), 10000);
+      commandResultTimer[1](timer);
+    } catch {
+      setCommandResult({ understood: false, summary: "Erreur de connexion. Réessaie." });
+    }
+    setCommandLoading(false);
+  };
+
   const runAudit = async () => {
     setAuditLoading(true);
     setAuditActions(null);
@@ -278,6 +303,50 @@ export default function DashboardPage() {
             </a>
           ))}
         </div>
+      </div>
+
+      {/* Command field */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
+        <p className="text-sm font-medium text-gray-500 mb-2">Commandes CHLORE</p>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={command}
+            onChange={(e) => { setCommand(e.target.value); setCommandResult(null); }}
+            onKeyDown={(e) => { if (e.key === "Enter") runCommand(); }}
+            placeholder="Ex: Relance Caleb demain pour le paiement, Envoie la facture à Marc-André..."
+            className="flex-1 bg-gray-50 rounded-lg border border-gray-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#0a1f3f]/20 focus:border-[#0a1f3f]"
+          />
+          <button
+            onClick={runCommand}
+            disabled={commandLoading || !command.trim()}
+            className="flex items-center gap-2 px-4 py-2 bg-[#0a1f3f] text-white text-sm font-medium rounded-lg hover:bg-[#0f2855] disabled:opacity-50 transition flex-shrink-0"
+          >
+            {commandLoading ? (
+              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            ) : (
+              <Sparkles size={14} />
+            )}
+            Exécuter
+          </button>
+        </div>
+        <p className="text-xs text-gray-400 mt-2">
+          Exemples: &apos;Relance Caleb demain pour le paiement&apos; • &apos;Envoie la facture de 180$ à Karine&apos; • &apos;Rappelle Philippe vendredi matin&apos;
+        </p>
+        {commandResult && (
+          <div className={`mt-3 rounded-lg p-3 ${commandResult.understood ? "bg-green-50 border border-green-200" : "bg-orange-50 border border-orange-200"}`}>
+            <p className={`text-sm font-medium ${commandResult.understood ? "text-green-800" : "text-orange-800"}`}>
+              {commandResult.summary}
+            </p>
+            {commandResult.results && commandResult.results.length > 0 && (
+              <ul className="mt-1.5 space-y-0.5">
+                {commandResult.results.map((r, i) => (
+                  <li key={i} className="text-xs text-green-700">• {r}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Stat cards */}
