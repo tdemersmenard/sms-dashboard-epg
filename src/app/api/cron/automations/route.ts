@@ -18,6 +18,16 @@ export async function GET(req: NextRequest) {
     const succeeded = results.filter((r) => r.status === "success").length;
     const failed    = results.filter((r) => r.status === "error").length;
 
+    // Job reminders (1 day before + 1 hour before)
+    let reminderResults: string[] = [];
+    try {
+      const { sendJobReminders } = await import("@/lib/automations/reminders");
+      reminderResults = await sendJobReminders();
+      console.log("[cron] Reminders:", reminderResults);
+    } catch (e) {
+      console.error("[cron] Reminder error:", e);
+    }
+
     return NextResponse.json({
       ok: true,
       ran_at: new Date().toISOString(),
@@ -25,6 +35,7 @@ export async function GET(req: NextRequest) {
       succeeded,
       failed,
       results,
+      reminders: reminderResults,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

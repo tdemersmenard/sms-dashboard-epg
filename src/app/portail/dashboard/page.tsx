@@ -2,7 +2,7 @@
 
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { FileText, Calendar, DollarSign, Phone, Mail, Send, CreditCard } from "lucide-react";
+import { FileText, Calendar, DollarSign, Phone, Mail, Send } from "lucide-react";
 
 interface PortailClient {
   id: string;
@@ -91,8 +91,8 @@ export default function PortailDashboard() {
   const [sendingMsg, setSendingMsg] = useState(false);
   const [msgSent, setMsgSent] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [payingId, setPayingId] = useState<string | null>(null);
-  const [interacOpenId, setInteracOpenId] = useState<string | null>(null);
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [showInterac, setShowInterac] = useState(false);
   const [showAllJobs, setShowAllJobs] = useState(false);
 
   useEffect(() => {
@@ -125,18 +125,31 @@ export default function PortailDashboard() {
   const firstName = client?.first_name || "client";
 
 
-  const handleStripeCheckout = async (paymentId: string) => {
-    setPayingId(paymentId);
+  const handleStripeCheckout = async () => {
+    setPaymentLoading(true);
     try {
+      const pendingPayment = payments.find(p => p.status === "en_attente");
+      if (!pendingPayment) {
+        alert("Aucun paiement en attente trouvé");
+        setPaymentLoading(false);
+        return;
+      }
+      const token = localStorage.getItem("portail_token");
       const res = await fetch("/api/portail/checkout", {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({ paymentId }),
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({ paymentId: pendingPayment.id }),
       });
       const data = await res.json();
-      if (data.url) window.location.href = data.url;
-    } catch { /* ignore */ }
-    setPayingId(null);
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        alert(data.error || "Erreur lors de la création du paiement");
+      }
+    } catch {
+      alert("Erreur de connexion");
+    }
+    setPaymentLoading(false);
   };
 
   const handleSendMessage = async () => {
@@ -278,11 +291,43 @@ export default function PortailDashboard() {
           </div>
         </div>
 
+        {/* Pay buttons — shown only if balance > 0 */}
+        {balance > 0 && (
+          <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-200 mb-4">
+            <p className="font-medium text-blue-900 mb-3">Payer votre solde de {fmt(balance)}</p>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button
+                onClick={handleStripeCheckout}
+                disabled={paymentLoading}
+                className="flex-1 bg-blue-600 text-white rounded-lg py-3 px-4 font-medium hover:bg-blue-700 disabled:opacity-50 transition"
+              >
+                {paymentLoading ? "Chargement..." : "Payer par carte de crédit"}
+              </button>
+              <button
+                onClick={() => setShowInterac(v => !v)}
+                className="flex-1 bg-green-600 text-white rounded-lg py-3 px-4 font-medium hover:bg-green-700 transition"
+              >
+                Payer par Interac
+              </button>
+            </div>
+            {showInterac && (
+              <div className="mt-3 p-4 bg-white rounded-lg border border-gray-200">
+                <p className="font-medium mb-2 text-gray-900">Instructions pour le virement Interac:</p>
+                <p className="text-sm text-gray-700">1. Ouvrez votre application bancaire</p>
+                <p className="text-sm text-gray-700">2. Envoyez un virement Interac à:</p>
+                <p className="text-lg font-bold text-blue-600 my-2">service@entretienpiscinegranby.com</p>
+                <p className="text-sm text-gray-700">3. Montant: <strong>{fmt(balance)}</strong></p>
+                <p className="text-sm text-gray-500 mt-2">Votre paiement sera confirmé manuellement dans les heures qui suivent.</p>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Payment list */}
         {payments.length === 0 ? (
           <p className="text-sm text-gray-400">Aucun paiement enregistré</p>
         ) : (
-          <div className="space-y-2 mb-4">
+          <div className="space-y-2">
             {payments.map(p => (
               <div key={p.id} className="flex items-center gap-3 py-2 border-b border-gray-50 last:border-0">
                 <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full flex-shrink-0 ${STATUS_COLORS[p.status] ?? "bg-gray-100 text-gray-500"}`}>
@@ -294,42 +339,6 @@ export default function PortailDashboard() {
                   <span className="text-xs text-gray-400 ml-auto flex-shrink-0">
                     {new Date(p.received_date).toLocaleDateString("fr-CA", { day: "numeric", month: "short" })}
                   </span>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Pay buttons — shown only if balance > 0 */}
-        {balance > 0 && (
-          <div className="pt-3 border-t border-gray-100">
-            <p className="text-xs font-medium text-gray-600 mb-2">Payer le solde restant ({fmt(balance)})</p>
-            {payments.filter(p => p.status === "en_attente").map(p => (
-              <div key={p.id} className="mb-3">
-                <p className="text-xs text-gray-500 mb-1.5">{p.notes?.replace(" — Payé par Stripe", "") || `Paiement ${fmt(p.amount)}`}</p>
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <button
-                    onClick={() => handleStripeCheckout(p.id)}
-                    disabled={payingId === p.id}
-                    className="flex items-center justify-center gap-1.5 px-4 py-2.5 w-full sm:w-auto bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition"
-                  >
-                    <CreditCard size={15} />
-                    {payingId === p.id ? "Redirection..." : "Payer par carte"}
-                  </button>
-                  <button
-                    onClick={() => setInteracOpenId(interacOpenId === p.id ? null : p.id)}
-                    className="flex items-center justify-center gap-1.5 px-4 py-2.5 w-full sm:w-auto bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition"
-                  >
-                    Payer par Interac
-                  </button>
-                </div>
-                {interacOpenId === p.id && (
-                  <div className="mt-2 bg-green-50 border border-green-200 rounded-lg p-3 text-sm">
-                    <p className="font-medium text-green-900 mb-1">Virement Interac</p>
-                    <p className="text-green-800">Envoyez <strong>{fmt(p.amount)}</strong> à:</p>
-                    <p className="font-mono text-green-700 mt-0.5">service@entretienpiscinegranby.com</p>
-                    <p className="text-xs text-green-600 mt-1">Mentionnez votre nom dans le message. Votre paiement sera confirmé manuellement.</p>
-                  </div>
                 )}
               </div>
             ))}
