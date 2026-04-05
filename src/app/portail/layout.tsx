@@ -74,7 +74,7 @@ export default function PortailLayout({ children }: { children: React.ReactNode 
           )}
         </header>
       )}
-      <main className={!isLoginPage ? "pt-16" : ""}>{children}</main>
+      <main className={!isLoginPage ? "pt-16 pb-20" : ""}>{children}</main>
     </div>
   );
 }

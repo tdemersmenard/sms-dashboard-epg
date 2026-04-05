@@ -83,6 +83,9 @@ export default function PortailDashboard() {
   const [docs, setDocs] = useState<PortailDoc[]>([]);
   const [jobs, setJobs] = useState<PortailJob[]>([]);
   const [payments, setPayments] = useState<PortailPayment[]>([]);
+  const [seasonPrice, setSeasonPrice] = useState(0);
+  const [totalPaid, setTotalPaid] = useState(0);
+  const [balance, setBalance] = useState(0);
   const [contactMsg, setContactMsg] = useState("");
   const [sendingMsg, setSendingMsg] = useState(false);
   const [msgSent, setMsgSent] = useState(false);
@@ -104,7 +107,12 @@ export default function PortailDashboard() {
     ]).then(([d, j, p]) => {
       if (Array.isArray(d)) setDocs(d);
       if (Array.isArray(j)) setJobs(j);
-      if (Array.isArray(p)) setPayments(p);
+      if (p && Array.isArray(p.payments)) {
+        setPayments(p.payments);
+        setSeasonPrice(p.season_price ?? 0);
+        setTotalPaid(p.total_paid ?? 0);
+        setBalance(p.balance ?? 0);
+      }
       setLoading(false);
     }).catch(() => setLoading(false));
   }, [router]);
@@ -114,10 +122,6 @@ export default function PortailDashboard() {
 
   const upcomingJobs = jobs.filter(j => j.scheduled_date >= new Date().toISOString().split("T")[0] && j.status !== "annulé");
   const pastJobs = jobs.filter(j => j.scheduled_date < new Date().toISOString().split("T")[0] || j.status === "complété");
-
-  const totalDue = client?.season_price ?? payments.reduce((s, p) => s + (p.amount ?? 0), 0);
-  const totalPaid = payments.filter(p => p.status === "reçu").reduce((s, p) => s + (p.amount ?? 0), 0);
-  const totalOwed = totalDue - totalPaid;
 
   const handleStripeCheckout = async (paymentId: string) => {
     setPayingId(paymentId);
@@ -158,7 +162,7 @@ export default function PortailDashboard() {
   }
 
   return (
-    <div className="p-4 md:p-6 max-w-3xl mx-auto">
+    <div className="p-4 md:p-6 max-w-3xl mx-auto pb-8">
       <Suspense fallback={null}>
         <PaymentBanner />
       </Suspense>
@@ -255,55 +259,68 @@ export default function PortailDashboard() {
           <DollarSign size={18} className="text-[#0a1f3f]" />
           <h2 className="text-sm font-bold text-gray-800">Mes paiements</h2>
         </div>
-        {/* Summary */}
+
+        {/* 3 stat cards */}
         <div className="grid grid-cols-3 gap-3 mb-4">
-          {[
-            { label: "Total", value: fmt(totalDue), color: "text-gray-900" },
-            { label: "Payé", value: fmt(totalPaid), color: "text-green-600" },
-            { label: "Restant", value: fmt(Math.max(0, totalOwed)), color: totalOwed > 0 ? "text-red-600" : "text-green-600" },
-          ].map(s => (
-            <div key={s.label} className="bg-gray-50 rounded-lg p-3 text-center">
-              <p className={`text-lg font-bold ${s.color}`}>{s.value}</p>
-              <p className="text-xs text-gray-500">{s.label}</p>
-            </div>
-          ))}
+          <div className="bg-gray-50 rounded-lg p-3 text-center">
+            <p className="text-base font-bold text-gray-900">{fmt(seasonPrice)}</p>
+            <p className="text-xs text-gray-500 mt-0.5">Total</p>
+          </div>
+          <div className="bg-green-50 rounded-lg p-3 text-center">
+            <p className="text-base font-bold text-green-600">{fmt(totalPaid)}</p>
+            <p className="text-xs text-gray-500 mt-0.5">Payé</p>
+          </div>
+          <div className={`rounded-lg p-3 text-center ${balance > 0 ? "bg-red-50" : "bg-green-50"}`}>
+            <p className={`text-base font-bold ${balance > 0 ? "text-red-600" : "text-green-600"}`}>{fmt(Math.max(0, balance))}</p>
+            <p className="text-xs text-gray-500 mt-0.5">Restant</p>
+          </div>
         </div>
+
+        {/* Payment list */}
         {payments.length === 0 ? (
           <p className="text-sm text-gray-400">Aucun paiement enregistré</p>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2 mb-4">
             {payments.map(p => (
-              <div key={p.id} className="border border-gray-100 rounded-xl p-3">
-                <div className="flex items-center gap-3 mb-2">
-                  <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${STATUS_COLORS[p.status] ?? "bg-gray-100 text-gray-500"}`}>
-                    {p.status}
+              <div key={p.id} className="flex items-center gap-3 py-2 border-b border-gray-50 last:border-0">
+                <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full flex-shrink-0 ${STATUS_COLORS[p.status] ?? "bg-gray-100 text-gray-500"}`}>
+                  {p.status}
+                </span>
+                <span className="text-sm font-bold text-gray-900">{fmt(p.amount)}</span>
+                {p.notes && <span className="text-xs text-gray-500 truncate">{p.notes.replace(" — Payé par Stripe", "")}</span>}
+                {p.received_date && (
+                  <span className="text-xs text-gray-400 ml-auto flex-shrink-0">
+                    {new Date(p.received_date).toLocaleDateString("fr-CA", { day: "numeric", month: "short" })}
                   </span>
-                  <span className="text-sm font-bold text-gray-900">{fmt(p.amount)}</span>
-                  {p.notes && <span className="text-xs text-gray-500 truncate">{p.notes.replace(" — Payé par Stripe", "")}</span>}
-                  {(p.received_date || p.status === "reçu") && (
-                    <span className="text-xs text-gray-400 ml-auto">
-                      {p.received_date ? new Date(p.received_date).toLocaleDateString("fr-CA", { day: "numeric", month: "short" }) : ""}
-                    </span>
-                  )}
-                </div>
-                {p.status === "en_attente" && (
-                  <div className="flex flex-col sm:flex-row gap-2 mt-2">
-                    <button
-                      onClick={() => handleStripeCheckout(p.id)}
-                      disabled={payingId === p.id}
-                      className="flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 w-full sm:w-auto bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition"
-                    >
-                      <CreditCard size={13} />
-                      {payingId === p.id ? "Redirection..." : "Payer par carte"}
-                    </button>
-                    <button
-                      onClick={() => setInteracOpenId(interacOpenId === p.id ? null : p.id)}
-                      className="flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 w-full sm:w-auto bg-green-600 text-white text-xs font-medium rounded-lg hover:bg-green-700 transition"
-                    >
-                      Payer par Interac
-                    </button>
-                  </div>
                 )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Pay buttons — shown only if balance > 0 */}
+        {balance > 0 && (
+          <div className="pt-3 border-t border-gray-100">
+            <p className="text-xs font-medium text-gray-600 mb-2">Payer le solde restant ({fmt(balance)})</p>
+            {payments.filter(p => p.status === "en_attente").map(p => (
+              <div key={p.id} className="mb-3">
+                <p className="text-xs text-gray-500 mb-1.5">{p.notes?.replace(" — Payé par Stripe", "") || `Paiement ${fmt(p.amount)}`}</p>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <button
+                    onClick={() => handleStripeCheckout(p.id)}
+                    disabled={payingId === p.id}
+                    className="flex items-center justify-center gap-1.5 px-4 py-2.5 w-full sm:w-auto bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition"
+                  >
+                    <CreditCard size={15} />
+                    {payingId === p.id ? "Redirection..." : "Payer par carte"}
+                  </button>
+                  <button
+                    onClick={() => setInteracOpenId(interacOpenId === p.id ? null : p.id)}
+                    className="flex items-center justify-center gap-1.5 px-4 py-2.5 w-full sm:w-auto bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition"
+                  >
+                    Payer par Interac
+                  </button>
+                </div>
                 {interacOpenId === p.id && (
                   <div className="mt-2 bg-green-50 border border-green-200 rounded-lg p-3 text-sm">
                     <p className="font-medium text-green-900 mb-1">Virement Interac</p>
@@ -319,7 +336,7 @@ export default function PortailDashboard() {
       </div>
 
       {/* Contact */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mt-4 mb-8">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mt-4">
         <h2 className="text-sm font-bold text-gray-800 mb-4">Nous contacter</h2>
         <div className="flex flex-wrap gap-4 mb-4">
           <a
