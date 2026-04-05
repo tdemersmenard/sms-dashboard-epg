@@ -91,6 +91,7 @@ export default function PortailDashboard() {
   const [pastJobs, setPastJobs] = useState<PortailJob[]>([]);
   const [payments, setPayments] = useState<PortailPayment[]>([]);
   const [seasonPrice, setSeasonPrice] = useState(0);
+  const [total, setTotal] = useState(0);
   const [totalPaid, setTotalPaid] = useState(0);
   const [balance, setBalance] = useState(0);
   const [services, setServices] = useState<string[]>([]);
@@ -122,6 +123,7 @@ export default function PortailDashboard() {
       if (p && Array.isArray(p.payments)) {
         setPayments(p.payments);
         setSeasonPrice(p.season_price ?? 0);
+        setTotal(p.total ?? p.season_price ?? 0);
         setTotalPaid(p.total_paid ?? 0);
         setBalance(p.balance ?? 0);
         setServices(p.services ?? []);
@@ -311,7 +313,7 @@ export default function PortailDashboard() {
         {/* 3 stat cards */}
         <div className="grid grid-cols-3 gap-3 mb-4">
           <div className="bg-gray-50 rounded-lg p-3 text-center">
-            <p className="text-base font-bold text-gray-900">{fmt(seasonPrice)}</p>
+            <p className="text-base font-bold text-gray-900">{fmt(total)}</p>
             <p className="text-xs text-gray-500 mt-0.5">Total</p>
           </div>
           <div className="bg-green-50 rounded-lg p-3 text-center">

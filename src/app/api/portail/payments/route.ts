@@ -31,16 +31,26 @@ export async function GET(req: NextRequest) {
   // Keep manually-created pending (method=en_attente) so the client can pay them
   const payments = (allPayments || []).filter(p => !(p.status === "en_attente" && p.method === "stripe"));
 
-  const totalPaid = payments
+  const totalReceived = payments
     .filter(p => p.status === "reçu")
     .reduce((sum, p) => sum + (p.amount || 0), 0);
 
+  const totalPending = payments
+    .filter(p => p.status === "en_attente")
+    .reduce((sum, p) => sum + (p.amount || 0), 0);
+
+  const totalDemanded = totalReceived + totalPending;
+  const seasonPrice = contact.season_price || 0;
+  const total = Math.max(seasonPrice, totalDemanded);
+  const balance = total - totalReceived;
+
   return NextResponse.json({
-    payments: payments || [],
-    season_price: contact.season_price || 0,
+    payments,
+    season_price: seasonPrice,
     services: contact.services || [],
-    total_paid: totalPaid,
-    balance: (contact.season_price || 0) - totalPaid,
+    total_paid: totalReceived,
+    total,
+    balance,
   }, {
     headers: {
       "Cache-Control": "no-store, no-cache, must-revalidate",
