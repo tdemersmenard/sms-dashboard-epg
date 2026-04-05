@@ -45,7 +45,13 @@ interface UpdateNotesAction extends BaseAction {
   info: string;
 }
 
-type AIAction = GenerateInvoiceAction | GenerateContractAction | BookJobAction | ReminderAction | NotifyThomasAction | UpdateStageAction | UpdateNotesAction;
+interface CreatePaymentAction extends BaseAction {
+  type: "CREATE_PAYMENT";
+  amount: number;
+  description: string;
+}
+
+type AIAction = GenerateInvoiceAction | GenerateContractAction | BookJobAction | ReminderAction | NotifyThomasAction | UpdateStageAction | UpdateNotesAction | CreatePaymentAction;
 
 export function parseActions(aiResponse: string): { cleanMessage: string; actions: AIAction[] } {
   const actions: AIAction[] = [];
@@ -102,6 +108,17 @@ export function parseActions(aiResponse: string): { cleanMessage: string; action
       case "UPDATE_NOTES":
         actions.push({ type: "UPDATE_NOTES", info: actionParams } as AIAction);
         break;
+      case "CREATE_PAYMENT": {
+        const parts = actionParams.split(":");
+        if (parts.length >= 2) {
+          actions.push({
+            type: "CREATE_PAYMENT",
+            amount: parseInt(parts[0]),
+            description: parts.slice(1).join(":"),
+          } as AIAction);
+        }
+        break;
+      }
     }
   }
 
@@ -512,6 +529,80 @@ export async function executeActions(actions: AIAction[], contactId: string) {
             status: "planifié",
           });
           console.log(`[ai-actions] Reminder: ${action.date} ${action.time} — ${action.description}`);
+          break;
+        }
+
+        case "CREATE_PAYMENT": {
+          // Anti-doublon
+          const { data: existing } = await supabaseAdmin
+            .from("payments")
+            .select("id")
+            .eq("contact_id", contactId)
+            .eq("amount", action.amount)
+            .eq("status", "en_attente")
+            .eq("notes", action.description)
+            .limit(1);
+
+          if (existing && existing.length > 0) {
+            console.log("[ai-actions] Payment already exists, skipping");
+            break;
+          }
+
+          const isSecondInstalment = action.description.toLowerCase().includes("2/2") || action.description.toLowerCase().includes("mi-juillet");
+          const dueDate = isSecondInstalment
+            ? "2026-07-15"
+            : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+
+          await supabaseAdmin.from("payments").insert({
+            contact_id: contactId,
+            amount: action.amount,
+            method: "interac",
+            status: "en_attente",
+            due_date: dueDate,
+            notes: action.description,
+          });
+
+          // Notifier Thomas
+          const { data: payContact } = await supabaseAdmin
+            .from("contacts")
+            .select("first_name, last_name")
+            .eq("id", contactId)
+            .single();
+
+          const clientName = payContact ? [payContact.first_name, payContact.last_name].filter(Boolean).join(" ") : "Client";
+
+          const { data: thomas } = await supabaseAdmin
+            .from("contacts")
+            .select("id")
+            .eq("phone", "+14509942215")
+            .single();
+
+          if (thomas) {
+            const { data: alreadyNotified } = await supabaseAdmin
+              .from("automation_logs")
+              .select("id")
+              .eq("action", `payment_created_${contactId}_${action.amount}`)
+              .limit(1);
+
+            if (!alreadyNotified || alreadyNotified.length === 0) {
+              await fetch(`${baseUrl}/api/sms/send`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  contactId: thomas.id,
+                  body: `CHLORE: Paiement créé — ${clientName}: ${action.amount}$ (${action.description})`,
+                }),
+              });
+
+              await supabaseAdmin.from("automation_logs").insert({
+                action: `payment_created_${contactId}_${action.amount}`,
+                contact_id: contactId,
+                status: "success",
+              });
+            }
+          }
+
+          console.log("[ai-actions] Payment created:", action.amount, action.description);
           break;
         }
       }

@@ -68,7 +68,19 @@ __ACTION:BOOK_JOB:{type}:{YYYY-MM-DD}:{HH:MM}__ — Réserver un rendez-vous
 __ACTION:GENERATE_INVOICE:{service}:{montant}__ — Créer une facture (ouvertures/fermetures)
 __ACTION:GENERATE_CONTRACT:{service}:{montant}__ — Créer un contrat (entretiens)
 __ACTION:UPDATE_STAGE:{stage}__ — Mettre à jour le stage (nouveau/contacté/soumission_envoyée/closé/planifié/complété)
+__ACTION:CREATE_PAYMENT:{montant}:{description}__ — Créer une demande de paiement pour le client
 __NO_REPLY__ — Seulement si le message est un simple "ok"/"merci"
+
+QUAND UN CLIENT CONFIRME ET VEUT PAYER:
+- Pour une ouverture/fermeture: crée UN paiement avec le montant complet
+  Exemple: __ACTION:CREATE_PAYMENT:180:Ouverture piscine hors-terre__
+- Pour un entretien: crée DEUX paiements (50% chacun)
+  Exemple:
+  __ACTION:CREATE_PAYMENT:1000:Versement 1/2 — Entretien hebdomadaire hors-terre__
+  __ACTION:CREATE_PAYMENT:1000:Versement 2/2 — Entretien hebdomadaire (mi-juillet)__
+- Après la création, dis au client comment payer: carte de crédit sur le portail ou Interac à service@entretienpiscinegranby.com
+- Si le client a un email, mentionne qu'il peut payer depuis son portail client
+- Crée AUSSI la facture/contrat comme avant avec GENERATE_INVOICE ou GENERATE_CONTRACT
 
 MÉTÉO ET REPORTS:
 - Si un client demande si on reporte à cause de la pluie ou d'une tempête: "On travaille beau temps mauvais temps! La seule exception c'est en cas de tempête violente ou d'orage. Si on doit reporter, on vous contacte la veille pour reprogrammer."
