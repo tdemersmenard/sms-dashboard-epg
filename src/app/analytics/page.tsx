@@ -17,7 +17,7 @@ interface Contact {
   stage: string | null;
   season_price: number | null;
   services: string[] | null;
-  source: string | null;
+  lead_source: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -67,50 +67,53 @@ const FR_MONTHS = ["Jan", "Fév", "Mar", "Avr", "Mai", "Jun", "Jul", "Aoû", "Se
 
 // ── Page ──────────────────────────────────────────────────────────────────
 export default function AnalyticsPage() {
-  const [period, setPeriod] = useState<Period>("year");
-  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [period, setPeriod] = useState<Period>("all");
+  // allContacts = no period filter (used for pipeline, sources, conversions)
+  const [allContacts, setAllContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      let query = supabase
+      const { data } = await supabase
         .from("contacts")
-        .select("id, first_name, last_name, phone, stage, season_price, services, source, created_at, updated_at")
+        .select("id, first_name, last_name, phone, stage, season_price, services, lead_source, created_at, updated_at")
         .order("created_at", { ascending: false });
-
-      const start = getPeriodStart(period);
-      if (start) query = query.gte("created_at", start.toISOString());
-
-      const { data } = await query;
-      setContacts((data as Contact[]) || []);
+      setAllContacts((data as Contact[]) || []);
       setLoading(false);
     };
     load();
-  }, [period]);
+  }, []);
+
+  // contacts filtered by period (for stats, revenue chart, leads chart)
+  const contacts = (() => {
+    const start = getPeriodStart(period);
+    if (!start) return allContacts;
+    return allContacts.filter((c) => new Date(c.created_at) >= start);
+  })();
 
   // ── Derived stats ────────────────────────────────────────────────────────
-  const closedContacts = contacts.filter((c) => CLOSED_STAGES.includes(c.stage ?? ""));
+  const closedContacts = contacts.filter((c) => CLOSED_STAGES.includes(c.stage ?? "") && (c.season_price ?? 0) > 0);
   const totalRevenue   = closedContacts.reduce((s, c) => s + (c.season_price ?? 0), 0);
   const totalLeads     = contacts.length;
-  const convRate       = totalLeads > 0 ? Math.round((closedContacts.length / totalLeads) * 100) : 0;
+  const convRate       = totalLeads > 0 ? Math.round((contacts.filter((c) => CLOSED_STAGES.includes(c.stage ?? "")).length / totalLeads) * 100) : 0;
   const avgRevenue     = closedContacts.length > 0 ? Math.round(totalRevenue / closedContacts.length) : 0;
 
-  // Revenue par mois
+  // Revenue par mois — group by updated_at month of closed contacts
   const revenueByMonth: Record<string, number> = {};
   for (const c of closedContacts) {
     const d = new Date(c.updated_at);
-    const key = `${d.getFullYear()}-${String(d.getMonth()).padStart(2, "0")}`;
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
     revenueByMonth[key] = (revenueByMonth[key] ?? 0) + (c.season_price ?? 0);
   }
   const revenueChartData = Object.entries(revenueByMonth)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([key, value]) => {
       const [yr, mo] = key.split("-");
-      return { month: `${FR_MONTHS[parseInt(mo)]} ${yr}`, revenue: value };
+      return { month: `${FR_MONTHS[parseInt(mo) - 1]} ${yr}`, revenue: value };
     });
 
-  // Leads par semaine
+  // Leads par semaine — all contacts in period
   const leadsByWeek: Record<string, number> = {};
   for (const c of contacts) {
     const d = new Date(c.created_at);
@@ -127,9 +130,9 @@ export default function AnalyticsPage() {
       return { week: label, leads: count };
     });
 
-  // Pipeline par stage
+  // Pipeline par stage — ALL contacts, no period filter
   const stageCount: Record<string, number> = {};
-  for (const c of contacts) {
+  for (const c of allContacts) {
     const s = c.stage ?? "nouveau";
     stageCount[s] = (stageCount[s] ?? 0) + 1;
   }
@@ -137,26 +140,27 @@ export default function AnalyticsPage() {
     .filter((s) => (stageCount[s] ?? 0) > 0)
     .map((s) => ({ stage: s, count: stageCount[s] ?? 0, fill: STAGE_COLORS[s] }));
 
-  // Sources
+  // Sources — ALL contacts, lead_source field, null = "direct"
   const sourceCount: Record<string, number> = {};
-  for (const c of contacts) {
-    const src = c.source ?? "inconnu";
+  for (const c of allContacts) {
+    const src = c.lead_source ?? "direct";
     sourceCount[src] = (sourceCount[src] ?? 0) + 1;
   }
   const sourceData = Object.entries(sourceCount)
     .sort(([, a], [, b]) => b - a)
     .map(([name, value]) => ({ name, value }));
 
-  // Dernières conversions
-  const lastConversions = contacts
+  // Dernières conversions — ALL contacts, sorted by updated_at desc
+  const lastConversions = allContacts
     .filter((c) => c.stage === "closé")
+    .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
     .slice(0, 10)
     .map((c) => ({
       date: new Date(c.updated_at).toLocaleDateString("fr-CA", { day: "numeric", month: "short", year: "numeric" }),
       name: [c.first_name, c.last_name].filter(Boolean).join(" ") || c.phone || "—",
       service: (c.services ?? []).join(", ") || "—",
       amount: c.season_price ?? 0,
-      source: c.source ?? "—",
+      source: c.lead_source ?? "direct",
     }));
 
   const statCards = [
