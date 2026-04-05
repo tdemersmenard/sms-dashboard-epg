@@ -57,28 +57,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Aucun montant à payer" }, { status: 400 });
     }
 
-    // Upsert a pending payment record
-    let pendingPaymentId: string | null = null;
-    const { data: existing } = await supabaseAdmin
+    // Delete any stale pending payments to avoid accumulation
+    await supabaseAdmin
       .from("payments")
-      .select("id")
+      .delete()
       .eq("contact_id", contact.id)
-      .eq("status", "en_attente")
-      .eq("amount", amountToPay)
-      .single();
+      .eq("status", "en_attente");
 
-    if (existing) {
-      pendingPaymentId = existing.id;
-    } else {
-      const { data: created } = await supabaseAdmin.from("payments").insert({
-        contact_id: contact.id,
-        amount: amountToPay,
-        method: "stripe",
-        status: "en_attente",
-        notes: description,
-      }).select("id").single();
-      pendingPaymentId = created?.id ?? null;
-    }
+    // Create fresh pending payment record
+    const { data: created } = await supabaseAdmin.from("payments").insert({
+      contact_id: contact.id,
+      amount: amountToPay,
+      method: "stripe",
+      status: "en_attente",
+      notes: description,
+    }).select("id").single();
+    const pendingPaymentId = created?.id ?? null;
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
 

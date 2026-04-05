@@ -100,10 +100,11 @@ export default function PortailDashboard() {
     const token = localStorage.getItem("portail_token");
     const opts = { cache: "no-store" as const };
     const headers = { Authorization: `Bearer ${token}` };
+    const t = Date.now();
     Promise.all([
-      fetch("/api/portail/documents", { headers, ...opts }).then(r => r.json()),
-      fetch("/api/portail/jobs", { headers, ...opts }).then(r => r.json()),
-      fetch("/api/portail/payments", { headers, ...opts }).then(r => r.json()),
+      fetch(`/api/portail/documents?t=${t}`, { headers, ...opts }).then(r => r.json()),
+      fetch(`/api/portail/jobs?t=${t}`, { headers, ...opts }).then(r => r.json()),
+      fetch(`/api/portail/payments?t=${t}`, { headers, ...opts }).then(r => r.json()),
     ]).then(([d, j, p]) => {
       if (Array.isArray(d)) setDocs(d);
       if (j && Array.isArray(j.upcoming)) {

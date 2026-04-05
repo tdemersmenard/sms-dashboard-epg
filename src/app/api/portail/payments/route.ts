@@ -23,6 +23,7 @@ export async function GET(req: NextRequest) {
     .from("payments")
     .select("id, amount, status, method, received_date, notes, created_at")
     .eq("contact_id", contact.id)
+    .neq("status", "en_attente")
     .order("created_at", { ascending: false });
 
   const totalPaid = (payments || [])
