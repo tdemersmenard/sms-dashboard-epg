@@ -19,5 +19,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Session expirée" }, { status: 401 });
   }
 
-  return NextResponse.json({ client: contact });
+  return NextResponse.json({ client: contact }, {
+    headers: {
+      "Cache-Control": "no-store, no-cache, must-revalidate",
+      "CDN-Cache-Control": "no-store",
+      "Vercel-CDN-Cache-Control": "no-store",
+    },
+  });
 }

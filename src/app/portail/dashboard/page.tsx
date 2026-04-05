@@ -9,6 +9,11 @@ interface PortailClient {
   first_name: string | null;
   last_name: string | null;
   email: string | null;
+  phone: string | null;
+  address: string | null;
+  city: string | null;
+  pool_type: string | null;
+  services: string[] | null;
   season_price: number | null;
 }
 
@@ -102,10 +107,12 @@ export default function PortailDashboard() {
     const headers = { Authorization: `Bearer ${token}` };
     const t = Date.now();
     Promise.all([
+      fetch(`/api/portail/me?t=${t}`, { headers, ...opts }).then(r => r.json()),
       fetch(`/api/portail/documents?t=${t}`, { headers, ...opts }).then(r => r.json()),
       fetch(`/api/portail/jobs?t=${t}`, { headers, ...opts }).then(r => r.json()),
       fetch(`/api/portail/payments?t=${t}`, { headers, ...opts }).then(r => r.json()),
-    ]).then(([d, j, p]) => {
+    ]).then(([me, d, j, p]) => {
+      if (me?.client) setClient(me.client);
       if (Array.isArray(d)) setDocs(d);
       if (j && Array.isArray(j.upcoming)) {
         setUpcomingJobs(j.upcoming);
