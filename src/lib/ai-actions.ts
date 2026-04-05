@@ -49,71 +49,72 @@ type AIAction = GenerateInvoiceAction | GenerateContractAction | BookJobAction |
 
 export function parseActions(aiResponse: string): { cleanMessage: string; actions: AIAction[] } {
   const actions: AIAction[] = [];
-  const messageLines: string[] = [];
 
-  const lines = aiResponse.split("\n");
+  // D'abord, extraire TOUTES les actions du texte complet (pas ligne par ligne)
+  let cleanText = aiResponse;
 
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-    if (trimmed === "__NO_REPLY__") continue;
+  // Extraire toutes les actions avec un regex global
+  const actionRegex = /__ACTION:([A-Z_]+):(.+?)__/g;
+  let match;
 
-    // Check if line contains an action anywhere
-    const actionRegex = /__ACTION:([A-Z_]+):(.+?)__/g;
-    let match;
-    let remainingText = trimmed;
+  while ((match = actionRegex.exec(aiResponse)) !== null) {
+    const actionType = match[1];
+    const actionParams = match[2];
 
-    while ((match = actionRegex.exec(trimmed)) !== null) {
-      const fullMatch = match[0];
-      const actionType = match[1];
-      const actionParams = match[2];
+    // Enlever l'action du texte clean
+    cleanText = cleanText.replace(match[0], "");
 
-      // Remove the action tag from the text
-      remainingText = remainingText.replace(fullMatch, "").trim();
-
-      // Parse action based on type
-      if (actionType === "NOTIFY_THOMAS") {
-        actions.push({ type: "NOTIFY_THOMAS", message: actionParams });
-      } else if (actionType === "BOOK_JOB") {
+    switch (actionType) {
+      case "NOTIFY_THOMAS":
+        actions.push({ type: "NOTIFY_THOMAS", message: actionParams } as AIAction);
+        break;
+      case "BOOK_JOB": {
         const parts = actionParams.split(":");
         if (parts.length >= 3) {
-          actions.push({ type: "BOOK_JOB", jobType: parts[0], date: parts[1], time: parts[2] });
+          actions.push({ type: "BOOK_JOB", jobType: parts[0], date: parts[1], time: parts[2] } as AIAction);
         }
-      } else if (actionType === "GENERATE_INVOICE") {
-        const parts = actionParams.split(":");
-        if (parts.length >= 2) {
-          actions.push({ type: "GENERATE_INVOICE", service: parts.slice(0, -1).join(":"), amount: parseInt(parts[parts.length - 1]) });
-        }
-      } else if (actionType === "GENERATE_CONTRACT") {
-        const parts = actionParams.split(":");
-        if (parts.length >= 2) {
-          actions.push({ type: "GENERATE_CONTRACT", service: parts.slice(0, -1).join(":"), amount: parseInt(parts[parts.length - 1]) });
-        }
-      } else if (actionType === "UPDATE_STAGE") {
-        actions.push({ type: "UPDATE_STAGE", stage: actionParams });
-      } else if (actionType === "UPDATE_NOTES") {
-        actions.push({ type: "UPDATE_NOTES", info: actionParams });
-      } else if (actionType === "REMINDER") {
-        const parts = actionParams.split(":");
-        if (parts.length >= 3) {
-          actions.push({ type: "REMINDER", date: parts[0], time: parts[1], description: parts.slice(2).join(":") });
-        }
+        break;
       }
-    }
-
-    // Keep any remaining text from the line
-    if (remainingText) {
-      messageLines.push(remainingText);
+      case "GENERATE_INVOICE": {
+        const parts = actionParams.split(":");
+        if (parts.length >= 2) {
+          actions.push({ type: "GENERATE_INVOICE", service: parts.slice(0, -1).join(":"), amount: parseInt(parts[parts.length - 1]) } as AIAction);
+        }
+        break;
+      }
+      case "GENERATE_CONTRACT": {
+        const parts = actionParams.split(":");
+        if (parts.length >= 2) {
+          actions.push({ type: "GENERATE_CONTRACT", service: parts.slice(0, -1).join(":"), amount: parseInt(parts[parts.length - 1]) } as AIAction);
+        }
+        break;
+      }
+      case "UPDATE_STAGE":
+        actions.push({ type: "UPDATE_STAGE", stage: actionParams } as AIAction);
+        break;
+      case "REMINDER": {
+        const parts = actionParams.split(":");
+        if (parts.length >= 3) {
+          actions.push({ type: "REMINDER", date: parts[0], time: parts[1], description: parts.slice(2).join(":") } as AIAction);
+        }
+        break;
+      }
+      case "UPDATE_NOTES":
+        actions.push({ type: "UPDATE_NOTES", info: actionParams } as AIAction);
+        break;
     }
   }
 
-  console.log("[parseActions] Found actions:", actions.length, actions.map(a => a.type));
-  console.log("[parseActions] Clean message length:", messageLines.join("").length);
+  // Enlever aussi __NO_REPLY__
+  cleanText = cleanText.replace(/__NO_REPLY__/g, "");
 
-  return {
-    cleanMessage: messageLines.join("\n").trim(),
-    actions,
-  };
+  // Nettoyer le texte: enlever lignes vides multiples, trim
+  cleanText = cleanText.replace(/\n{3,}/g, "\n\n").trim();
+
+  console.log("[parseActions] Found actions:", actions.length, actions.map(a => a.type));
+  console.log("[parseActions] Clean message length:", cleanText.length);
+
+  return { cleanMessage: cleanText, actions };
 }
 
 export async function executeActions(actions: AIAction[], contactId: string) {
