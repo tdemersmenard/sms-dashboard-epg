@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { FileText, Calendar, DollarSign, Phone, Mail, Send } from "lucide-react";
+import { useEffect, useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { FileText, Calendar, DollarSign, Phone, Mail, Send, CreditCard } from "lucide-react";
 
 interface PortailClient {
   id: string;
@@ -87,6 +87,8 @@ export default function PortailDashboard() {
   const [sendingMsg, setSendingMsg] = useState(false);
   const [msgSent, setMsgSent] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [payingId, setPayingId] = useState<string | null>(null);
+  const [interacOpenId, setInteracOpenId] = useState<string | null>(null);
 
   useEffect(() => {
     const stored = localStorage.getItem("portail_client");
@@ -116,6 +118,20 @@ export default function PortailDashboard() {
   const totalPaid = payments.filter(p => p.status === "reçu").reduce((s, p) => s + (p.amount ?? 0), 0);
   const totalOwed = totalDue - totalPaid;
 
+  const handleStripeCheckout = async (paymentId: string) => {
+    setPayingId(paymentId);
+    try {
+      const res = await fetch("/api/portail/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ paymentId }),
+      });
+      const data = await res.json();
+      if (data.url) window.location.href = data.url;
+    } catch { /* ignore */ }
+    setPayingId(null);
+  };
+
   const handleSendMessage = async () => {
     if (!contactMsg.trim()) return;
     setSendingMsg(true);
@@ -142,6 +158,10 @@ export default function PortailDashboard() {
 
   return (
     <div className="p-4 md:p-6 max-w-3xl mx-auto">
+      <Suspense fallback={null}>
+        <PaymentBanner />
+      </Suspense>
+
       {/* Welcome */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Bonjour {firstName}!</h1>
@@ -242,35 +262,49 @@ export default function PortailDashboard() {
         {payments.length === 0 ? (
           <p className="text-sm text-gray-400">Aucun paiement enregistré</p>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {payments.map(p => (
-              <div key={p.id} className="flex items-center justify-between gap-3 py-2 border-b border-gray-50 last:border-0">
-                <div className="flex items-center gap-3">
+              <div key={p.id} className="border border-gray-100 rounded-xl p-3">
+                <div className="flex items-center gap-3 mb-2">
                   <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${STATUS_COLORS[p.status] ?? "bg-gray-100 text-gray-500"}`}>
                     {p.status}
                   </span>
-                  <span className="text-sm font-medium text-gray-900">{fmt(p.amount)}</span>
-                  {p.method && <span className="text-xs text-gray-500">{p.method}</span>}
-                  {(p.received_date || p.created_at) && (
-                    <span className="text-xs text-gray-400">
-                      {new Date(p.received_date ?? p.created_at).toLocaleDateString("fr-CA", { day: "numeric", month: "short" })}
+                  <span className="text-sm font-bold text-gray-900">{fmt(p.amount)}</span>
+                  {p.notes && <span className="text-xs text-gray-500 truncate">{p.notes.replace(" — Payé par Stripe", "")}</span>}
+                  {(p.received_date || p.status === "reçu") && (
+                    <span className="text-xs text-gray-400 ml-auto">
+                      {p.received_date ? new Date(p.received_date).toLocaleDateString("fr-CA", { day: "numeric", month: "short" }) : ""}
                     </span>
                   )}
                 </div>
                 {p.status === "en_attente" && (
-                  <div className="text-xs text-gray-500 flex-shrink-0">
-                    Interac: service@entretienpiscinegranby.com
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    <button
+                      onClick={() => handleStripeCheckout(p.id)}
+                      disabled={payingId === p.id}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition"
+                    >
+                      <CreditCard size={13} />
+                      {payingId === p.id ? "Redirection..." : "Payer par carte"}
+                    </button>
+                    <button
+                      onClick={() => setInteracOpenId(interacOpenId === p.id ? null : p.id)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-lg hover:bg-green-700 transition"
+                    >
+                      Payer par Interac
+                    </button>
+                  </div>
+                )}
+                {interacOpenId === p.id && (
+                  <div className="mt-2 bg-green-50 border border-green-200 rounded-lg p-3 text-sm">
+                    <p className="font-medium text-green-900 mb-1">Virement Interac</p>
+                    <p className="text-green-800">Envoyez <strong>{fmt(p.amount)}</strong> à:</p>
+                    <p className="font-mono text-green-700 mt-0.5">service@entretienpiscinegranby.com</p>
+                    <p className="text-xs text-green-600 mt-1">Mentionnez votre nom dans le message. Votre paiement sera confirmé manuellement.</p>
                   </div>
                 )}
               </div>
             ))}
-          </div>
-        )}
-        {totalOwed > 0 && (
-          <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <p className="text-sm font-medium text-blue-900 mb-1">Paiement par virement Interac</p>
-            <p className="text-sm text-blue-700">service@entretienpiscinegranby.com</p>
-            <p className="text-xs text-blue-600 mt-1">Mentionnez votre nom dans le message</p>
           </div>
         )}
       </div>
@@ -315,6 +349,28 @@ export default function PortailDashboard() {
       </div>
     </div>
   );
+}
+
+function PaymentBanner() {
+  const params = useSearchParams();
+  const payment = params.get("payment");
+  if (payment === "success") {
+    return (
+      <div className="mb-4 bg-green-50 border border-green-200 rounded-xl p-4 text-sm text-green-800">
+        <p className="font-semibold">Paiement reçu!</p>
+        <p className="text-green-700 mt-0.5">Votre paiement par carte a été traité avec succès. Merci!</p>
+      </div>
+    );
+  }
+  if (payment === "cancel") {
+    return (
+      <div className="mb-4 bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-sm text-yellow-800">
+        <p className="font-semibold">Paiement annulé</p>
+        <p className="text-yellow-700 mt-0.5">Votre paiement n&apos;a pas été complété. Vous pouvez réessayer.</p>
+      </div>
+    );
+  }
+  return null;
 }
 
 function JobRow({ job }: { job: PortailJob }) {
