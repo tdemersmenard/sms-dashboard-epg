@@ -40,7 +40,12 @@ interface UpdateStageAction extends BaseAction {
   stage: string;
 }
 
-type AIAction = GenerateInvoiceAction | GenerateContractAction | BookJobAction | ReminderAction | NotifyThomasAction | UpdateStageAction;
+interface UpdateNotesAction extends BaseAction {
+  type: "UPDATE_NOTES";
+  info: string;
+}
+
+type AIAction = GenerateInvoiceAction | GenerateContractAction | BookJobAction | ReminderAction | NotifyThomasAction | UpdateStageAction | UpdateNotesAction;
 
 export function parseActions(aiResponse: string): { cleanMessage: string; actions: AIAction[] } {
   const actions: AIAction[] = [];
@@ -86,6 +91,8 @@ export function parseActions(aiResponse: string): { cleanMessage: string; action
         }
       } else if (actionType === "UPDATE_STAGE") {
         actions.push({ type: "UPDATE_STAGE", stage: actionParams });
+      } else if (actionType === "UPDATE_NOTES") {
+        actions.push({ type: "UPDATE_NOTES", info: actionParams });
       } else if (actionType === "REMINDER") {
         const parts = actionParams.split(":");
         if (parts.length >= 3) {
@@ -471,6 +478,26 @@ export async function executeActions(actions: AIAction[], contactId: string) {
         case "UPDATE_STAGE": {
           await supabaseAdmin.from("contacts").update({ stage: action.stage }).eq("id", contactId);
           console.log(`[ai-actions] Updated stage to ${action.stage}`);
+          break;
+        }
+
+        case "UPDATE_NOTES": {
+          const { data: contact } = await supabaseAdmin
+            .from("contacts")
+            .select("notes")
+            .eq("id", contactId)
+            .single();
+
+          const existingNotes = contact?.notes || "";
+          const newNotes = existingNotes
+            ? existingNotes + "\n" + action.info
+            : action.info;
+
+          await supabaseAdmin.from("contacts")
+            .update({ notes: newNotes })
+            .eq("id", contactId);
+
+          console.log("[ai-actions] Notes updated:", action.info);
           break;
         }
 
