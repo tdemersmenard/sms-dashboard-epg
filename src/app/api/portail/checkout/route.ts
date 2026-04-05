@@ -34,45 +34,71 @@ export async function POST(req: NextRequest) {
 
     const totalPaid = (receivedPayments || []).reduce((sum, p) => sum + (p.amount || 0), 0);
 
-    // Determine amount based on service type
-    const isEntretien = services.some(s => s.includes("entretien"));
     let amountToPay = 0;
     let description = "";
+    let pendingPaymentId: string | null = null;
 
-    if (isEntretien) {
-      const halfPrice = Math.ceil(seasonPrice / 2);
-      if (totalPaid === 0) {
-        amountToPay = halfPrice;
-        description = `Versement 1/2 — Entretien de piscine saison 2026`;
-      } else if (totalPaid < seasonPrice) {
-        amountToPay = seasonPrice - totalPaid;
-        description = `Versement 2/2 — Entretien de piscine saison 2026`;
-      }
+    // Priority: use manually-created pending payment if one exists
+    const { data: manualPendingList } = await supabaseAdmin
+      .from("payments")
+      .select("id, amount, notes")
+      .eq("contact_id", contact.id)
+      .eq("status", "en_attente")
+      .neq("method", "stripe")
+      .order("created_at", { ascending: true })
+      .limit(1);
+
+    const manualPending = manualPendingList?.[0] ?? null;
+
+    if (manualPending) {
+      // Use the manually-created pending payment as-is
+      amountToPay = manualPending.amount;
+      description = manualPending.notes || "Service de piscine";
+      pendingPaymentId = manualPending.id;
     } else {
-      amountToPay = seasonPrice - totalPaid;
-      description = `Paiement complet — Service de piscine`;
+      // Calculate automatically from season_price and services
+      const isEntretien = services.some(s => s.includes("entretien"));
+
+      if (isEntretien) {
+        const halfPrice = Math.ceil(seasonPrice / 2);
+        if (totalPaid === 0) {
+          amountToPay = halfPrice;
+          description = `Versement 1/2 — Entretien de piscine saison 2026`;
+        } else if (totalPaid < seasonPrice) {
+          amountToPay = seasonPrice - totalPaid;
+          description = `Versement 2/2 — Entretien de piscine saison 2026`;
+        }
+      } else {
+        amountToPay = seasonPrice - totalPaid;
+        description = `Paiement complet — Service de piscine`;
+      }
+
+      if (amountToPay <= 0) {
+        return NextResponse.json({ error: "Aucun montant à payer" }, { status: 400 });
+      }
+
+      // Delete only Stripe-generated stale pending payments
+      await supabaseAdmin
+        .from("payments")
+        .delete()
+        .eq("contact_id", contact.id)
+        .eq("status", "en_attente")
+        .eq("method", "stripe");
+
+      // Create fresh Stripe pending payment record
+      const { data: created } = await supabaseAdmin.from("payments").insert({
+        contact_id: contact.id,
+        amount: amountToPay,
+        method: "stripe",
+        status: "en_attente",
+        notes: description,
+      }).select("id").single();
+      pendingPaymentId = created?.id ?? null;
     }
 
     if (amountToPay <= 0) {
       return NextResponse.json({ error: "Aucun montant à payer" }, { status: 400 });
     }
-
-    // Delete any stale pending payments to avoid accumulation
-    await supabaseAdmin
-      .from("payments")
-      .delete()
-      .eq("contact_id", contact.id)
-      .eq("status", "en_attente");
-
-    // Create fresh pending payment record
-    const { data: created } = await supabaseAdmin.from("payments").insert({
-      contact_id: contact.id,
-      amount: amountToPay,
-      method: "stripe",
-      status: "en_attente",
-      notes: description,
-    }).select("id").single();
-    const pendingPaymentId = created?.id ?? null;
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
 

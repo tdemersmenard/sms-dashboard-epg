@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
 
   const { data: contact } = await supabaseAdmin
     .from("contacts")
-    .select("id, first_name, last_name, email, phone, address, city, pool_type, services, season_price, portal_token_expires")
+    .select("id, first_name, last_name, email, phone, address, city, postal_code, pool_type, services, season_price, portal_token_expires")
     .eq("portal_token", token)
     .single();
 

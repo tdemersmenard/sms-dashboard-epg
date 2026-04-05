@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { MessageSquare, CalendarPlus, ChevronDown, Upload, Download, Trash2, CheckCircle, PenLine, Globe, Copy, X } from "lucide-react";
+import { MessageSquare, CalendarPlus, ChevronDown, Upload, Download, Trash2, CheckCircle, PenLine, Globe, Copy, X, CreditCard } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import type { Contact, Job, Document, Payment, Message } from "@/lib/types";
 
@@ -37,11 +37,13 @@ const DOC_STATUS_COLORS: Record<string, { bg: string; text: string }> = {
 };
 
 const METHOD_BADGES: Record<string, { bg: string; text: string; label: string }> = {
-  interac: { bg: "bg-blue-100",   text: "text-blue-700",   label: "Interac" },
-  cash:    { bg: "bg-green-100",  text: "text-green-700",  label: "Cash" },
-  cheque:  { bg: "bg-gray-100",   text: "text-gray-600",   label: "Chèque" },
-  carte:   { bg: "bg-purple-100", text: "text-purple-700", label: "Carte" },
-  autre:   { bg: "bg-gray-100",   text: "text-gray-500",   label: "Autre" },
+  interac:    { bg: "bg-blue-100",   text: "text-blue-700",   label: "Interac" },
+  cash:       { bg: "bg-green-100",  text: "text-green-700",  label: "Cash" },
+  cheque:     { bg: "bg-gray-100",   text: "text-gray-600",   label: "Chèque" },
+  carte:      { bg: "bg-purple-100", text: "text-purple-700", label: "Carte" },
+  autre:      { bg: "bg-gray-100",   text: "text-gray-500",   label: "Autre" },
+  en_attente: { bg: "bg-yellow-100", text: "text-yellow-700", label: "En attente" },
+  stripe:     { bg: "bg-indigo-100", text: "text-indigo-700", label: "Stripe" },
 };
 
 const DOC_PREFIX: Record<string, string> = {
@@ -338,7 +340,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
     setTimeout(() => setDocuSignToast(null), 4000);
   };
 
-  // Payment form
+  // Payment form (paiement reçu)
   const [showPayForm, setShowPayForm] = useState(false);
   const [payForm, setPayForm] = useState({
     amount: "",
@@ -347,6 +349,16 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
     notes: "",
   });
   const [savingPayment, setSavingPayment] = useState(false);
+
+  // Payment request form (demander un paiement au client)
+  const [showRequestPayForm, setShowRequestPayForm] = useState(false);
+  const [requestPayForm, setRequestPayForm] = useState({
+    amount: "",
+    notes: "",
+    due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+  });
+  const [savingRequestPay, setSavingRequestPay] = useState(false);
+  const [requestPayToast, setRequestPayToast] = useState(false);
 
   const load = useCallback(async () => {
     const [{ data: c }, m, { data: j }, { data: d }, { data: p }] = await Promise.all([
@@ -502,6 +514,34 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
     if (!confirm("Supprimer ce paiement ?")) return;
     setPayments((prev) => prev.filter((p) => p.id !== paymentId));
     await supabaseBrowser.from("payments").delete().eq("id", paymentId);
+  };
+
+  const handleRequestPayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!requestPayForm.amount) return;
+    setSavingRequestPay(true);
+    const { data } = await supabaseBrowser
+      .from("payments")
+      .insert({
+        contact_id: id,
+        amount: parseFloat(requestPayForm.amount),
+        method: "en_attente" as Payment["method"],
+        status: "en_attente",
+        due_date: requestPayForm.due_date,
+        notes: requestPayForm.notes || null,
+      })
+      .select()
+      .single();
+    if (data) setPayments((prev) => [data as Payment, ...prev]);
+    setRequestPayForm({
+      amount: "",
+      notes: "",
+      due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+    });
+    setShowRequestPayForm(false);
+    setSavingRequestPay(false);
+    setRequestPayToast(true);
+    setTimeout(() => setRequestPayToast(false), 4000);
   };
 
   if (loading) {
@@ -951,15 +991,80 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
 
           {/* Paiements */}
           <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
+            {requestPayToast && (
+              <div className="mb-3 bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-xs text-green-700 font-medium">
+                Demande de paiement créée! Le client peut payer depuis son portail.
+              </div>
+            )}
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-sm font-bold text-gray-800">Paiements</h2>
-              <button
-                onClick={() => setShowPayForm((v) => !v)}
-                className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-              >
-                {showPayForm ? "Annuler" : "+ Ajouter"}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => { setShowRequestPayForm((v) => !v); setShowPayForm(false); }}
+                  className="flex items-center gap-1 text-xs bg-blue-600 text-white px-2.5 py-1.5 rounded-lg hover:bg-blue-700 font-medium transition"
+                >
+                  <CreditCard size={11} />
+                  Demander
+                </button>
+                <button
+                  onClick={() => { setShowPayForm((v) => !v); setShowRequestPayForm(false); }}
+                  className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                >
+                  {showPayForm ? "Annuler" : "+ Reçu"}
+                </button>
+              </div>
             </div>
+
+            {showRequestPayForm && (
+              <form onSubmit={handleRequestPayment} className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3 space-y-2">
+                <p className="text-xs font-semibold text-blue-800 mb-1">Demander un paiement au client</p>
+                <div>
+                  <label className="text-xs text-gray-500 mb-0.5 block">Montant ($)</label>
+                  <input
+                    type="number" min="0" step="0.01" required
+                    value={requestPayForm.amount}
+                    onChange={(e) => setRequestPayForm(p => ({ ...p, amount: e.target.value }))}
+                    className="w-full border border-gray-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                    placeholder="200"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-0.5 block">Description</label>
+                  <input
+                    type="text"
+                    value={requestPayForm.notes}
+                    onChange={(e) => setRequestPayForm(p => ({ ...p, notes: e.target.value }))}
+                    className="w-full border border-gray-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                    placeholder="Versement 1 — Entretien saison 2026"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-0.5 block">Date d&apos;échéance</label>
+                  <input
+                    type="date"
+                    value={requestPayForm.due_date}
+                    onChange={(e) => setRequestPayForm(p => ({ ...p, due_date: e.target.value }))}
+                    className="w-full border border-gray-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="submit"
+                    disabled={savingRequestPay}
+                    className="flex-1 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition"
+                  >
+                    {savingRequestPay ? "Création..." : "Créer la demande"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowRequestPayForm(false)}
+                    className="px-3 py-1.5 text-xs text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50"
+                  >
+                    Annuler
+                  </button>
+                </div>
+              </form>
+            )}
 
             {showPayForm && (
               <form onSubmit={handleAddPayment} className="bg-gray-50 rounded-lg p-3 mb-3 space-y-2">

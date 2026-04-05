@@ -116,7 +116,7 @@ export interface MessageTemplate {
 
 // ---- payments ----------------------------------------------
 
-export type PaymentMethod = "interac" | "cash" | "cheque" | "carte" | "autre";
+export type PaymentMethod = "interac" | "cash" | "cheque" | "carte" | "autre" | "en_attente" | "stripe";
 export type PaymentStatus = "en_attente" | "reçu" | "en_retard";
 
 export interface Payment {

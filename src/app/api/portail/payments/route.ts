@@ -21,14 +21,17 @@ export async function GET(req: NextRequest) {
   const contact = await getContactFromToken(req);
   if (!contact) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
-  const { data: payments } = await supabaseAdmin
+  const { data: allPayments } = await supabaseAdmin
     .from("payments")
     .select("id, amount, status, method, received_date, notes, created_at")
     .eq("contact_id", contact.id)
-    .neq("status", "en_attente")
     .order("created_at", { ascending: false });
 
-  const totalPaid = (payments || [])
+  // Exclude Stripe-generated pending (method=stripe, status=en_attente)
+  // Keep manually-created pending (method=en_attente) so the client can pay them
+  const payments = (allPayments || []).filter(p => !(p.status === "en_attente" && p.method === "stripe"));
+
+  const totalPaid = payments
     .filter(p => p.status === "reçu")
     .reduce((sum, p) => sum + (p.amount || 0), 0);
 
