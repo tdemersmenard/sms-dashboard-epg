@@ -85,8 +85,11 @@ export async function sendJobReminders() {
     const jobMinutes = jobH * 60 + jobM;
     const nowMinutes = currentHour * 60 + currentMinute;
 
-    // Envoyer si on est entre 45 et 75 minutes avant le job
-    const minutesBefore = jobMinutes - nowMinutes;
+    // Handle midnight wrap-around (e.g. job at 00:03, cron runs at 23:15)
+    let minutesBefore = jobMinutes - nowMinutes;
+    if (minutesBefore < 0) minutesBefore += 1440;
+
+    // Envoyer entre 45 et 75 minutes avant le job
     if (minutesBefore < 45 || minutesBefore > 75) continue;
 
     const actionKey = `reminder_1hour_${job.id}`;

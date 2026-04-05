@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { MessageSquare, CalendarPlus, ChevronDown, Upload, Download, Trash2, CheckCircle, PenLine, Globe, Copy } from "lucide-react";
+import { MessageSquare, CalendarPlus, ChevronDown, Upload, Download, Trash2, CheckCircle, PenLine, Globe, Copy, X } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import type { Contact, Job, Document, Payment, Message } from "@/lib/types";
 
@@ -463,6 +463,17 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
     setTimeout(() => setCalToast(null), 4000);
   };
 
+  const handleDeleteJob = async (jobId: string) => {
+    setJobs(prev => prev.filter(j => j.id !== jobId));
+    await fetch(`/api/jobs/delete?id=${jobId}`, { method: "DELETE" });
+  };
+
+  const handleDeleteBulkEntretiens = async () => {
+    if (!confirm("Êtes-vous sûr de vouloir supprimer tous les entretiens planifiés? Cette action est irréversible.")) return;
+    await fetch(`/api/jobs/delete?bulk=true&contactId=${id}`, { method: "DELETE" });
+    await load();
+  };
+
   const handleAddPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!payForm.amount) return;
@@ -711,18 +722,35 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
               </button>
               {jobs.filter(j => j.job_type === "entretien").length > 0 && (
                 <div className="mt-3 pt-3 border-t border-gray-100">
-                  <p className="text-xs font-medium text-gray-500 mb-2">
-                    {jobs.filter(j => j.job_type === "entretien").length} passage(s) planifié(s)
-                  </p>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-medium text-gray-500">
+                      {jobs.filter(j => j.job_type === "entretien").length} passage(s) planifié(s)
+                    </p>
+                    <button
+                      onClick={handleDeleteBulkEntretiens}
+                      className="flex items-center gap-1 text-[10px] font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg px-2 py-1 hover:bg-red-100 transition"
+                    >
+                      <Trash2 size={10} />
+                      Tout supprimer
+                    </button>
+                  </div>
                   <div className="space-y-1 max-h-40 overflow-y-auto">
                     {jobs.filter(j => j.job_type === "entretien").slice(0, 8).map(j => {
                       const jsc = JOB_STATUS_COLORS[j.status];
                       return (
-                        <div key={j.id} className="flex items-center justify-between text-xs">
+                        <div key={j.id} className="flex items-center justify-between text-xs group">
                           <span className="text-gray-700">{formatDate(j.scheduled_date)}{j.scheduled_time_start ? ` à ${j.scheduled_time_start.slice(0,5)}` : ""}</span>
-                          <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${jsc?.bg ?? "bg-gray-100"} ${jsc?.text ?? "text-gray-600"}`}>
-                            {j.status}
-                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${jsc?.bg ?? "bg-gray-100"} ${jsc?.text ?? "text-gray-600"}`}>
+                              {j.status}
+                            </span>
+                            <button
+                              onClick={() => handleDeleteJob(j.id)}
+                              className="text-red-300 hover:text-red-600 opacity-0 group-hover:opacity-100 transition"
+                            >
+                              <X size={12} />
+                            </button>
+                          </div>
                         </div>
                       );
                     })}

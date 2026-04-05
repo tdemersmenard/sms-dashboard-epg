@@ -23,7 +23,10 @@ export async function GET(req: NextRequest) {
     .from("jobs")
     .select("*")
     .eq("contact_id", contact.id)
+    .neq("job_type", "autre")
     .order("scheduled_date", { ascending: true });
+
+  console.log("[portail/jobs] Contact ID:", contact.id, "Jobs found:", jobs?.length);
 
   const today = new Date(new Date().toISOString().split("T")[0]);
 
