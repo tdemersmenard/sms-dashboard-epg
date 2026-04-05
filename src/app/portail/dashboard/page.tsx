@@ -89,6 +89,7 @@ export default function PortailDashboard() {
   const [loading, setLoading] = useState(true);
   const [payingId, setPayingId] = useState<string | null>(null);
   const [interacOpenId, setInteracOpenId] = useState<string | null>(null);
+  const [showAllJobs, setShowAllJobs] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem("portail_client");
@@ -220,10 +221,18 @@ export default function PortailDashboard() {
               <>
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">À venir</p>
                 <div className="space-y-2 mb-4">
-                  {upcomingJobs.map(j => (
+                  {(showAllJobs ? upcomingJobs : upcomingJobs.slice(0, 10)).map(j => (
                     <JobRow key={j.id} job={j} />
                   ))}
                 </div>
+                {upcomingJobs.length > 10 && (
+                  <button
+                    onClick={() => setShowAllJobs(v => !v)}
+                    className="text-xs text-blue-600 hover:text-blue-800 font-medium mb-4"
+                  >
+                    {showAllJobs ? "Voir moins" : `Voir tout (${upcomingJobs.length} passages)`}
+                  </button>
+                )}
               </>
             )}
             {pastJobs.length > 0 && (
@@ -278,18 +287,18 @@ export default function PortailDashboard() {
                   )}
                 </div>
                 {p.status === "en_attente" && (
-                  <div className="flex flex-wrap gap-2 mt-2">
+                  <div className="flex flex-col sm:flex-row gap-2 mt-2">
                     <button
                       onClick={() => handleStripeCheckout(p.id)}
                       disabled={payingId === p.id}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition"
+                      className="flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 w-full sm:w-auto bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition"
                     >
                       <CreditCard size={13} />
                       {payingId === p.id ? "Redirection..." : "Payer par carte"}
                     </button>
                     <button
                       onClick={() => setInteracOpenId(interacOpenId === p.id ? null : p.id)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-lg hover:bg-green-700 transition"
+                      className="flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 w-full sm:w-auto bg-green-600 text-white text-xs font-medium rounded-lg hover:bg-green-700 transition"
                     >
                       Payer par Interac
                     </button>

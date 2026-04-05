@@ -167,6 +167,13 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   const [sendingDocuSign, setSendingDocuSign] = useState<string | null>(null);
   const [docuSignToast, setDocuSignToast] = useState<string | null>(null);
 
+  // Calendrier d'entretien
+  const [calFrequency, setCalFrequency] = useState<"weekly" | "biweekly">("weekly");
+  const [calDay, setCalDay] = useState<number>(4); // 4 = jeudi
+  const [calTime, setCalTime] = useState("09:00");
+  const [generatingCal, setGeneratingCal] = useState(false);
+  const [calToast, setCalToast] = useState<string | null>(null);
+
   // Portail client
   const [showPortalModal, setShowPortalModal] = useState(false);
   const [portalPassword, setPortalPassword] = useState("");
@@ -389,44 +396,21 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
     setUploadingDoc(true);
 
     try {
-      // Get count for this type to auto-number
-      const { count } = await supabaseBrowser
-        .from("documents")
-        .select("*", { count: "exact", head: true })
-        .eq("doc_type", docType);
-      const prefix = DOC_PREFIX[docType] ?? "D";
-      const docNumber = `${prefix}-2026-${String((count ?? 0) + 1).padStart(3, "0")}`;
+      const form = new FormData();
+      form.append("file", docFile);
+      form.append("contactId", id);
+      form.append("docType", docType);
 
-      // Upload to storage
-      const path = `${id}/${Date.now()}-${docFile.name}`;
-      const { error: uploadError } = await supabaseBrowser.storage
-        .from("documents")
-        .upload(path, docFile);
+      const res = await fetch("/api/documents/upload", { method: "POST", body: form });
+      const data = await res.json();
 
-      if (uploadError) {
-        console.error("[doc-upload]", uploadError);
-        alert("Erreur lors du téléversement du fichier.");
+      if (!res.ok) {
+        alert(data.error || "Erreur lors du téléversement du fichier.");
         setUploadingDoc(false);
         return;
       }
 
-      const { data: urlData } = supabaseBrowser.storage
-        .from("documents")
-        .getPublicUrl(path);
-
-      const { data: newDoc } = await supabaseBrowser
-        .from("documents")
-        .insert({
-          contact_id: id,
-          doc_type: docType,
-          doc_number: docNumber,
-          status: "envoyé",
-          pdf_url: urlData.publicUrl,
-        })
-        .select()
-        .single();
-
-      if (newDoc) setDocuments((prev) => [newDoc as Document, ...prev]);
+      if (data.document) setDocuments((prev) => [data.document as Document, ...prev]);
       setDocFile(null);
       setShowDocUpload(false);
     } catch (err) {
@@ -434,6 +418,49 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
       alert("Erreur inattendue lors du téléversement.");
     }
     setUploadingDoc(false);
+  };
+
+  const handleGenerateCalendar = async () => {
+    setGeneratingCal(true);
+    const year = new Date().getFullYear();
+    const startDate = new Date(year, 3, 15); // April 15
+    const endDate = new Date(year, 8, 30);   // Sept 30
+
+    // Find first occurrence of chosen weekday >= startDate
+    const current = new Date(startDate);
+    const dayDiff = (calDay - current.getDay() + 7) % 7;
+    current.setDate(current.getDate() + dayDiff);
+
+    // Existing entretien dates to avoid duplicates
+    const existingDates = new Set(
+      jobs.filter(j => j.job_type === "entretien").map(j => j.scheduled_date)
+    );
+
+    const interval = calFrequency === "weekly" ? 7 : 14;
+    const toInsert: { contact_id: string; job_type: string; scheduled_date: string; scheduled_time_start: string; status: string }[] = [];
+
+    while (current <= endDate) {
+      const dateStr = current.toISOString().split("T")[0];
+      if (!existingDates.has(dateStr)) {
+        toInsert.push({
+          contact_id: id,
+          job_type: "entretien",
+          scheduled_date: dateStr,
+          scheduled_time_start: calTime,
+          status: "planifié",
+        });
+      }
+      current.setDate(current.getDate() + interval);
+    }
+
+    if (toInsert.length > 0) {
+      await supabaseBrowser.from("jobs").insert(toInsert);
+    }
+
+    await load();
+    setGeneratingCal(false);
+    setCalToast(`${toInsert.length} passage${toInsert.length !== 1 ? "s" : ""} planifié${toInsert.length !== 1 ? "s" : ""}!`);
+    setTimeout(() => setCalToast(null), 4000);
   };
 
   const handleAddPayment = async (e: React.FormEvent) => {
@@ -632,6 +659,81 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
               />
             </div>
           </div>
+
+          {/* Calendrier d'entretien */}
+          {(contact.services ?? []).some(s => s.includes("entretien")) && (
+            <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+              <h2 className="text-sm font-bold text-gray-800 mb-4">Calendrier d&apos;entretien</h2>
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <div>
+                  <label className="text-xs font-medium text-gray-500 mb-0.5 block">Fréquence</label>
+                  <select
+                    value={calFrequency}
+                    onChange={(e) => setCalFrequency(e.target.value as "weekly" | "biweekly")}
+                    className="w-full border border-gray-200 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                  >
+                    <option value="weekly">Hebdomadaire</option>
+                    <option value="biweekly">Aux 2 semaines</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-500 mb-0.5 block">Jour préféré</label>
+                  <select
+                    value={calDay}
+                    onChange={(e) => setCalDay(parseInt(e.target.value))}
+                    className="w-full border border-gray-200 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                  >
+                    <option value={1}>Lundi</option>
+                    <option value={2}>Mardi</option>
+                    <option value={3}>Mercredi</option>
+                    <option value={4}>Jeudi</option>
+                    <option value={5}>Vendredi</option>
+                    <option value={6}>Samedi</option>
+                    <option value={0}>Dimanche</option>
+                  </select>
+                </div>
+              </div>
+              <div className="mb-3">
+                <label className="text-xs font-medium text-gray-500 mb-0.5 block">Heure préférée</label>
+                <input
+                  type="time"
+                  value={calTime}
+                  onChange={(e) => setCalTime(e.target.value)}
+                  className="border border-gray-200 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                />
+              </div>
+              <button
+                onClick={handleGenerateCalendar}
+                disabled={generatingCal}
+                className="w-full py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition"
+              >
+                {generatingCal ? "Génération..." : "Générer le calendrier"}
+              </button>
+              {jobs.filter(j => j.job_type === "entretien").length > 0 && (
+                <div className="mt-3 pt-3 border-t border-gray-100">
+                  <p className="text-xs font-medium text-gray-500 mb-2">
+                    {jobs.filter(j => j.job_type === "entretien").length} passage(s) planifié(s)
+                  </p>
+                  <div className="space-y-1 max-h-40 overflow-y-auto">
+                    {jobs.filter(j => j.job_type === "entretien").slice(0, 8).map(j => {
+                      const jsc = JOB_STATUS_COLORS[j.status];
+                      return (
+                        <div key={j.id} className="flex items-center justify-between text-xs">
+                          <span className="text-gray-700">{formatDate(j.scheduled_date)}{j.scheduled_time_start ? ` à ${j.scheduled_time_start.slice(0,5)}` : ""}</span>
+                          <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${jsc?.bg ?? "bg-gray-100"} ${jsc?.text ?? "text-gray-600"}`}>
+                            {j.status}
+                          </span>
+                        </div>
+                      );
+                    })}
+                    {jobs.filter(j => j.job_type === "entretien").length > 8 && (
+                      <p className="text-xs text-gray-400">+ {jobs.filter(j => j.job_type === "entretien").length - 8} autres...</p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Notes */}
           <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
@@ -942,6 +1044,14 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
       {/* Close dropdown on outside click */}
       {showStageDropdown && (
         <div className="fixed inset-0 z-10" onClick={() => setShowStageDropdown(false)} />
+      )}
+
+      {/* Calendar toast */}
+      {calToast && (
+        <div className="fixed bottom-32 right-6 z-50 bg-blue-600 text-white px-5 py-3 rounded-xl shadow-xl text-sm font-medium flex items-center gap-2">
+          <CalendarPlus size={16} />
+          {calToast}
+        </div>
       )}
 
       {/* Close toast */}

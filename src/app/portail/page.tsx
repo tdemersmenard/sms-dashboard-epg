@@ -35,8 +35,8 @@ export default function PortailLoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8">
+    <div className="min-h-screen bg-gray-50 flex items-start sm:items-center justify-center p-4">
+      <div className="w-full sm:max-w-md bg-white sm:rounded-2xl sm:shadow-lg p-6 sm:p-8 mt-8 sm:mt-0 rounded-2xl shadow-lg">
         <div className="text-center mb-8">
           <div className="w-14 h-14 rounded-2xl bg-[#0a1f3f] flex items-center justify-center mx-auto mb-4">
             <span className="text-white font-bold text-xl">EPG</span>

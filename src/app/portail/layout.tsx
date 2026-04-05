@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { LogOut } from "lucide-react";
+import { LogOut, Settings } from "lucide-react";
+import Link from "next/link";
 
 interface PortailClient {
   id: string;
@@ -45,25 +46,35 @@ export default function PortailLayout({ children }: { children: React.ReactNode 
   return (
     <div className="min-h-screen bg-gray-50">
       {!isLoginPage && (
-        <header className="fixed top-0 left-0 right-0 z-50 bg-[#0a1f3f] text-white h-14 flex items-center px-6 shadow-md">
-          <div className="flex items-center gap-2 flex-1">
-            <span className="font-bold text-lg tracking-tight">Entretien Piscine Granby</span>
-          </div>
+        <header className="fixed top-0 left-0 right-0 z-50 bg-[#0a1f3f] text-white h-16 flex items-center justify-between px-4 md:px-6 shadow-md">
+          <span className="font-bold text-base md:text-lg tracking-tight whitespace-nowrap">
+            Entretien Piscine Granby
+          </span>
           {clientName && (
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-gray-300">{clientName}</span>
+            <div className="flex items-center gap-2 md:gap-4 min-w-0">
+              <span className="text-sm text-gray-300 truncate max-w-[100px] md:max-w-none hidden sm:block">
+                {clientName}
+              </span>
+              <Link
+                href="/portail/settings"
+                className="flex items-center gap-1 text-sm text-gray-300 hover:text-white transition flex-shrink-0"
+                title="Mon compte"
+              >
+                <Settings size={15} />
+                <span className="hidden md:inline">Mon compte</span>
+              </Link>
               <button
                 onClick={handleLogout}
-                className="flex items-center gap-1.5 text-sm text-gray-300 hover:text-white transition"
+                className="flex items-center gap-1 md:gap-1.5 text-sm text-gray-300 hover:text-white transition flex-shrink-0"
               >
                 <LogOut size={15} />
-                Déconnexion
+                <span className="hidden sm:inline">Déconnexion</span>
               </button>
             </div>
           )}
         </header>
       )}
-      <main className={!isLoginPage ? "pt-14" : ""}>{children}</main>
+      <main className={!isLoginPage ? "pt-16" : ""}>{children}</main>
     </div>
   );
 }

@@ -1,17 +1,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { Menu } from "lucide-react";
 import Sidebar from "./Sidebar";
 import { ToastProvider } from "./ToastProvider";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const isPortal = pathname?.startsWith("/portail");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
-  // Live unread count
+  // Live unread count (admin only)
   useEffect(() => {
+    if (isPortal) return;
     const fetchCount = () =>
       supabaseBrowser
         .from("messages")
@@ -29,7 +33,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       .subscribe();
 
     return () => { supabaseBrowser.removeChannel(channel); };
-  }, []);
+  }, [isPortal]);
+
+  // Portal pages: no sidebar, no admin shell
+  if (isPortal) {
+    return <>{children}</>;
+  }
 
   return (
     <ToastProvider>
