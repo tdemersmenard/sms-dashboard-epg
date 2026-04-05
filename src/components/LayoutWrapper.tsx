@@ -9,7 +9,7 @@ export default function LayoutWrapper({ children }: { children: React.ReactNode 
 
   if (isPortail) {
     // Portail: no sidebar, no h-screen, natural scroll
-    return <>{children}</>;
+    return <div style={{ minHeight: "100vh" }}>{children}</div>;
   }
 
   return <AppShell>{children}</AppShell>;

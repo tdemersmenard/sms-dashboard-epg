@@ -90,7 +90,7 @@ export default function PortailLayout({ children }: { children: React.ReactNode 
           )}
         </header>
       )}
-      <div style={{ paddingTop: isLoginPage ? 0 : 64 }}>
+      <div style={isLoginPage ? {} : { paddingTop: 64, maxWidth: 768, margin: "0 auto", padding: "64px 16px 80px" }}>
         {children}
       </div>
     </div>

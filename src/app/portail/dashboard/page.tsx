@@ -87,6 +87,7 @@ export default function PortailDashboard() {
   const [seasonPrice, setSeasonPrice] = useState(0);
   const [totalPaid, setTotalPaid] = useState(0);
   const [balance, setBalance] = useState(0);
+  const [services, setServices] = useState<string[]>([]);
   const [contactMsg, setContactMsg] = useState("");
   const [sendingMsg, setSendingMsg] = useState(false);
   const [msgSent, setMsgSent] = useState(false);
@@ -116,6 +117,7 @@ export default function PortailDashboard() {
         setSeasonPrice(p.season_price ?? 0);
         setTotalPaid(p.total_paid ?? 0);
         setBalance(p.balance ?? 0);
+        setServices(p.services ?? []);
       }
       setLoading(false);
     }).catch(() => setLoading(false));
@@ -124,21 +126,21 @@ export default function PortailDashboard() {
   const today = new Date().toLocaleDateString("fr-CA", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   const firstName = client?.first_name || "client";
 
+  // Calculate amount to pay
+  const isEntretien = services.some(s => s.includes("entretien"));
+  const halfPrice = Math.ceil(seasonPrice / 2);
+  const amountToPay = isEntretien
+    ? (totalPaid === 0 ? halfPrice : Math.max(seasonPrice - totalPaid, 0))
+    : Math.max(seasonPrice - totalPaid, 0);
 
   const handleStripeCheckout = async () => {
     setPaymentLoading(true);
     try {
-      const pendingPayment = payments.find(p => p.status === "en_attente");
-      if (!pendingPayment) {
-        alert("Aucun paiement en attente trouvé");
-        setPaymentLoading(false);
-        return;
-      }
       const token = localStorage.getItem("portail_token");
       const res = await fetch("/api/portail/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-        body: JSON.stringify({ paymentId: pendingPayment.id }),
+        body: JSON.stringify({}),
       });
       const data = await res.json();
       if (data.url) {
@@ -177,7 +179,7 @@ export default function PortailDashboard() {
   }
 
   return (
-    <div className="p-4 md:p-6 max-w-3xl mx-auto pb-8">
+    <div className="space-y-4">
       <Suspense fallback={null}>
         <PaymentBanner />
       </Suspense>
@@ -227,7 +229,7 @@ export default function PortailDashboard() {
       </div>
 
       {/* Rendez-vous */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mt-4">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
         <div className="flex items-center gap-2 mb-4">
           <Calendar size={18} className="text-[#0a1f3f]" />
           <h2 className="text-sm font-bold text-gray-800">Mes rendez-vous</h2>
@@ -269,7 +271,7 @@ export default function PortailDashboard() {
       </div>
 
       {/* Paiements */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mt-4">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
         <div className="flex items-center gap-2 mb-4">
           <DollarSign size={18} className="text-[#0a1f3f]" />
           <h2 className="text-sm font-bold text-gray-800">Mes paiements</h2>
@@ -291,17 +293,17 @@ export default function PortailDashboard() {
           </div>
         </div>
 
-        {/* Pay buttons — shown only if balance > 0 */}
-        {balance > 0 && (
+        {/* Pay buttons */}
+        {amountToPay > 0 ? (
           <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-200 mb-4">
-            <p className="font-medium text-blue-900 mb-3">Payer votre solde de {fmt(balance)}</p>
+            <p className="font-medium text-blue-900 mb-3">Payer votre prochain versement de {fmt(amountToPay)}</p>
             <div className="flex flex-col sm:flex-row gap-3">
               <button
                 onClick={handleStripeCheckout}
                 disabled={paymentLoading}
                 className="flex-1 bg-blue-600 text-white rounded-lg py-3 px-4 font-medium hover:bg-blue-700 disabled:opacity-50 transition"
               >
-                {paymentLoading ? "Chargement..." : "Payer par carte de crédit"}
+                {paymentLoading ? "Chargement..." : `Payer ${fmt(amountToPay)} par carte`}
               </button>
               <button
                 onClick={() => setShowInterac(v => !v)}
@@ -316,12 +318,16 @@ export default function PortailDashboard() {
                 <p className="text-sm text-gray-700">1. Ouvrez votre application bancaire</p>
                 <p className="text-sm text-gray-700">2. Envoyez un virement Interac à:</p>
                 <p className="text-lg font-bold text-blue-600 my-2">service@entretienpiscinegranby.com</p>
-                <p className="text-sm text-gray-700">3. Montant: <strong>{fmt(balance)}</strong></p>
+                <p className="text-sm text-gray-700">3. Montant à envoyer: <strong>{fmt(amountToPay)}</strong></p>
                 <p className="text-sm text-gray-500 mt-2">Votre paiement sera confirmé manuellement dans les heures qui suivent.</p>
               </div>
             )}
           </div>
-        )}
+        ) : seasonPrice > 0 ? (
+          <div className="mt-4 p-3 bg-green-50 rounded-xl border border-green-200">
+            <p className="text-sm font-medium text-green-800">Tout est payé!</p>
+          </div>
+        ) : null}
 
         {/* Payment list */}
         {payments.length === 0 ? (
@@ -347,7 +353,7 @@ export default function PortailDashboard() {
       </div>
 
       {/* Contact */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mt-4">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
         <h2 className="text-sm font-bold text-gray-800 mb-4">Nous contacter</h2>
         <div className="flex flex-wrap gap-4 mb-4">
           <a

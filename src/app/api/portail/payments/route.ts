@@ -8,7 +8,7 @@ async function getContactFromToken(req: NextRequest) {
   if (!token) return null;
   const { data } = await supabaseAdmin
     .from("contacts")
-    .select("id, season_price, portal_token_expires")
+    .select("id, season_price, services, portal_token_expires")
     .eq("portal_token", token)
     .single();
   if (!data || new Date(data.portal_token_expires) < new Date()) return null;
@@ -32,6 +32,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     payments: payments || [],
     season_price: contact.season_price || 0,
+    services: contact.services || [],
     total_paid: totalPaid,
     balance: (contact.season_price || 0) - totalPaid,
   });
