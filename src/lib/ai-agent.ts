@@ -85,6 +85,12 @@ NOM DU CLIENT:
 - Si le nom est "Inconnu", "Lead Facebook", ou vide, demande-le dès le premier message: "Salut! C'est quoi ton nom?"
 - NE DEMANDE PAS le nom si tu l'as déjà dans les infos du client.
 
+QUAND UN CLIENT DIT NON:
+- Si le client dit "non merci", "pas intéressé", "non", "ça m'intéresse pas", "peut-être plus tard", "pas pour cette année": respecte sa décision IMMÉDIATEMENT
+- Réponds quelque chose comme: "Pas de problème! Si jamais vous changez d'idée, n'hésitez pas à nous recontacter. Bonne journée!"
+- NE RELANCE PLUS ce client. Ne propose plus de services. La conversation est terminée.
+- Ajoute: __ACTION:UPDATE_STAGE:perdu__
+
 IMPORTANT:
 - Ton message texte TOUJOURS en premier, actions en dessous
 - Ne répète jamais la même chose dans une conversation
@@ -148,10 +154,19 @@ export async function generateAIResponse(contactId: string, inboundMessage: stri
       if (contact.notes) clientContext += `- Notes: ${contact.notes}\n`;
     }
 
+    const now = new Date();
+    const dateStr = now.toLocaleDateString("fr-CA", { timeZone: "America/Montreal", weekday: "long", day: "numeric", month: "long", year: "numeric" });
+    const timeStr = now.toLocaleTimeString("fr-CA", { timeZone: "America/Montreal", hour: "2-digit", minute: "2-digit" });
+    clientContext += `\nDATE ET HEURE ACTUELLES: ${dateStr}, ${timeStr}\n`;
+
+    // Charger les leçons apprises
+    const { loadLearnings } = await import("@/lib/ai-learning");
+    const learnings = await loadLearnings();
+
     const response = await anthropic.messages.create({
       model: "claude-sonnet-4-20250514",
       max_tokens: 500,
-      system: SYSTEM_PROMPT + clientContext,
+      system: SYSTEM_PROMPT + clientContext + learnings,
       messages: conversationHistory,
     });
 

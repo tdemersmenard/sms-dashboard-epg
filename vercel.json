@@ -7,6 +7,10 @@
     {
       "path": "/api/email/check-payments",
       "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/cron/learn",
+      "schedule": "0 4 * * *"
     }
   ]
 }

@@ -4,17 +4,18 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Kanban, MessageSquare, Users,
-  Calendar, FileText, Zap,
+  Calendar, FileText, Zap, Brain,
 } from "lucide-react";
 
 const NAV_ITEMS = [
-  { label: "Dashboard",   href: "/dashboard",   icon: LayoutDashboard },
-  { label: "Pipeline",    href: "/pipeline",    icon: Kanban },
-  { label: "Messages",    href: "/messages",    icon: MessageSquare },
-  { label: "Clients",     href: "/clients",     icon: Users },
-  { label: "Calendrier",  href: "/calendar",    icon: Calendar },
-  { label: "Templates",   href: "/templates",   icon: FileText },
-  { label: "Automations", href: "/automations", icon: Zap },
+  { label: "Dashboard",       href: "/dashboard",   icon: LayoutDashboard },
+  { label: "Pipeline",        href: "/pipeline",    icon: Kanban },
+  { label: "Messages",        href: "/messages",    icon: MessageSquare },
+  { label: "Clients",         href: "/clients",     icon: Users },
+  { label: "Calendrier",      href: "/calendar",    icon: Calendar },
+  { label: "Templates",       href: "/templates",   icon: FileText },
+  { label: "Automations",     href: "/automations", icon: Zap },
+  { label: "Apprentissages",  href: "/learnings",   icon: Brain },
 ];
 
 interface SidebarProps {
