@@ -81,7 +81,8 @@ export default function PortailDashboard() {
   const router = useRouter();
   const [client, setClient] = useState<PortailClient | null>(null);
   const [docs, setDocs] = useState<PortailDoc[]>([]);
-  const [jobs, setJobs] = useState<PortailJob[]>([]);
+  const [upcomingJobs, setUpcomingJobs] = useState<PortailJob[]>([]);
+  const [pastJobs, setPastJobs] = useState<PortailJob[]>([]);
   const [payments, setPayments] = useState<PortailPayment[]>([]);
   const [seasonPrice, setSeasonPrice] = useState(0);
   const [totalPaid, setTotalPaid] = useState(0);
@@ -106,7 +107,10 @@ export default function PortailDashboard() {
       fetch("/api/portail/payments", { headers: authHeaders() }).then(r => r.json()),
     ]).then(([d, j, p]) => {
       if (Array.isArray(d)) setDocs(d);
-      if (Array.isArray(j)) setJobs(j);
+      if (j && Array.isArray(j.upcoming)) {
+        setUpcomingJobs(j.upcoming);
+        setPastJobs(j.past || []);
+      }
       if (p && Array.isArray(p.payments)) {
         setPayments(p.payments);
         setSeasonPrice(p.season_price ?? 0);
@@ -120,8 +124,6 @@ export default function PortailDashboard() {
   const today = new Date().toLocaleDateString("fr-CA", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   const firstName = client?.first_name || "client";
 
-  const upcomingJobs = jobs.filter(j => j.scheduled_date >= new Date().toISOString().split("T")[0] && j.status !== "annulé");
-  const pastJobs = jobs.filter(j => j.scheduled_date < new Date().toISOString().split("T")[0] || j.status === "complété");
 
   const handleStripeCheckout = async (paymentId: string) => {
     setPayingId(paymentId);
@@ -217,8 +219,8 @@ export default function PortailDashboard() {
           <Calendar size={18} className="text-[#0a1f3f]" />
           <h2 className="text-sm font-bold text-gray-800">Mes rendez-vous</h2>
         </div>
-        {jobs.length === 0 ? (
-          <p className="text-sm text-gray-400">Aucun rendez-vous planifié</p>
+        {upcomingJobs.length === 0 && pastJobs.length === 0 ? (
+          <p className="text-sm text-gray-400">Aucun rendez-vous planifié pour le moment</p>
         ) : (
           <>
             {upcomingJobs.length > 0 && (
@@ -403,18 +405,21 @@ function JobRow({ job }: { job: PortailJob }) {
   const colorClass = JOB_TYPE_COLORS[job.job_type] ?? "bg-gray-100 text-gray-700";
   const label = JOB_TYPE_LABELS[job.job_type] ?? job.job_type;
   const date = new Date(job.scheduled_date + "T00:00:00").toLocaleDateString("fr-CA", {
-    weekday: "long", day: "numeric", month: "long",
+    weekday: "long", day: "numeric", month: "long", year: "numeric",
   });
+  const time = job.scheduled_time_start
+    ? job.scheduled_time_start.slice(0, 5).replace(":", "h")
+    : null;
   return (
-    <div className="flex items-center gap-3 py-1.5">
-      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${colorClass}`}>
+    <div className="flex items-start gap-3 py-2 border-b border-gray-50 last:border-0">
+      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 mt-0.5 ${colorClass}`}>
         {label}
       </span>
-      <span className="text-sm text-gray-700 capitalize">{date}</span>
-      {job.scheduled_time_start && (
-        <span className="text-sm text-gray-500">à {job.scheduled_time_start.slice(0, 5)}</span>
-      )}
-      <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ml-auto flex-shrink-0 ${STATUS_COLORS[job.status] ?? "bg-gray-100 text-gray-500"}`}>
+      <div className="flex-1 min-w-0">
+        <span className="text-sm text-gray-800 capitalize">{date}</span>
+        {time && <span className="text-sm text-gray-500"> à {time}</span>}
+      </div>
+      <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full flex-shrink-0 mt-0.5 ${STATUS_COLORS[job.status] ?? "bg-gray-100 text-gray-500"}`}>
         {job.status}
       </span>
     </div>

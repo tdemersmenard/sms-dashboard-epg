@@ -19,11 +19,20 @@ export async function GET(req: NextRequest) {
   const contact = await getContactFromToken(req);
   if (!contact) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
-  const { data } = await supabaseAdmin
+  const { data: jobs } = await supabaseAdmin
     .from("jobs")
-    .select("id, job_type, scheduled_date, scheduled_time_start, status, notes")
+    .select("*")
     .eq("contact_id", contact.id)
-    .order("scheduled_date", { ascending: false });
+    .order("scheduled_date", { ascending: true });
 
-  return NextResponse.json(data || []);
+  const today = new Date(new Date().toISOString().split("T")[0]);
+
+  const upcoming = (jobs || []).filter(j =>
+    j.status !== "annulé" && j.status !== "complété" && new Date(j.scheduled_date) >= today
+  );
+  const past = (jobs || []).filter(j =>
+    j.status === "complété" || new Date(j.scheduled_date) < today
+  );
+
+  return NextResponse.json({ upcoming, past });
 }
