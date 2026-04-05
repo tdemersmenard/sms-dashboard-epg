@@ -1,0 +1,3 @@
+ALTER TABLE contacts ADD COLUMN IF NOT EXISTS portal_password TEXT;
+ALTER TABLE contacts ADD COLUMN IF NOT EXISTS portal_token TEXT;
+ALTER TABLE contacts ADD COLUMN IF NOT EXISTS portal_token_expires TIMESTAMPTZ;
