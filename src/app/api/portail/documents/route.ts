@@ -25,5 +25,11 @@ export async function GET(req: NextRequest) {
     .eq("contact_id", contact.id)
     .order("created_at", { ascending: false });
 
-  return NextResponse.json(data || []);
+  return NextResponse.json(data || [], {
+    headers: {
+      "Cache-Control": "no-store, no-cache, must-revalidate",
+      "CDN-Cache-Control": "no-store",
+      "Vercel-CDN-Cache-Control": "no-store",
+    },
+  });
 }

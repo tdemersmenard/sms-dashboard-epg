@@ -35,5 +35,11 @@ export async function GET(req: NextRequest) {
     services: contact.services || [],
     total_paid: totalPaid,
     balance: (contact.season_price || 0) - totalPaid,
+  }, {
+    headers: {
+      "Cache-Control": "no-store, no-cache, must-revalidate",
+      "CDN-Cache-Control": "no-store",
+      "Vercel-CDN-Cache-Control": "no-store",
+    },
   });
 }

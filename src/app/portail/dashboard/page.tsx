@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useState, Suspense, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FileText, Calendar, DollarSign, Phone, Mail, Send } from "lucide-react";
 
@@ -96,16 +96,14 @@ export default function PortailDashboard() {
   const [showInterac, setShowInterac] = useState(false);
   const [showAllJobs, setShowAllJobs] = useState(false);
 
-  useEffect(() => {
-    const stored = localStorage.getItem("portail_client");
+  const fetchAllData = useCallback(() => {
     const token = localStorage.getItem("portail_token");
-    if (!stored || !token) { router.push("/portail"); return; }
-    try { setClient(JSON.parse(stored)); } catch { router.push("/portail"); return; }
-
+    const opts = { cache: "no-store" as const };
+    const headers = { Authorization: `Bearer ${token}` };
     Promise.all([
-      fetch("/api/portail/documents", { headers: authHeaders() }).then(r => r.json()),
-      fetch("/api/portail/jobs", { headers: authHeaders() }).then(r => r.json()),
-      fetch("/api/portail/payments", { headers: authHeaders() }).then(r => r.json()),
+      fetch("/api/portail/documents", { headers, ...opts }).then(r => r.json()),
+      fetch("/api/portail/jobs", { headers, ...opts }).then(r => r.json()),
+      fetch("/api/portail/payments", { headers, ...opts }).then(r => r.json()),
     ]).then(([d, j, p]) => {
       if (Array.isArray(d)) setDocs(d);
       if (j && Array.isArray(j.upcoming)) {
@@ -121,7 +119,20 @@ export default function PortailDashboard() {
       }
       setLoading(false);
     }).catch(() => setLoading(false));
-  }, [router]);
+  }, []);
+
+  useEffect(() => {
+    const stored = localStorage.getItem("portail_client");
+    const token = localStorage.getItem("portail_token");
+    if (!stored || !token) { router.push("/portail"); return; }
+    try { setClient(JSON.parse(stored)); } catch { router.push("/portail"); return; }
+    fetchAllData();
+  }, [router, fetchAllData]);
+
+  useEffect(() => {
+    const interval = setInterval(fetchAllData, 30000);
+    return () => clearInterval(interval);
+  }, [fetchAllData]);
 
   const today = new Date().toLocaleDateString("fr-CA", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   const firstName = client?.first_name || "client";

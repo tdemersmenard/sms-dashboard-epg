@@ -37,5 +37,11 @@ export async function GET(req: NextRequest) {
     j.status === "complété" || new Date(j.scheduled_date) < today
   );
 
-  return NextResponse.json({ upcoming, past });
+  return NextResponse.json({ upcoming, past }, {
+    headers: {
+      "Cache-Control": "no-store, no-cache, must-revalidate",
+      "CDN-Cache-Control": "no-store",
+      "Vercel-CDN-Cache-Control": "no-store",
+    },
+  });
 }
