@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
 
     const { data: contact } = await supabaseAdmin
       .from("contacts")
-      .select("id, first_name, last_name, email, season_price, services, portal_token_expires")
+      .select("id, email, portal_token_expires")
       .eq("portal_token", token)
       .single();
 
@@ -22,83 +22,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Session expirée" }, { status: 401 });
     }
 
-    const seasonPrice = contact.season_price || 0;
-    const services: string[] = contact.services || [];
-
-    // Fetch payments already received
-    const { data: receivedPayments } = await supabaseAdmin
-      .from("payments")
-      .select("amount, status")
-      .eq("contact_id", contact.id)
-      .eq("status", "reçu");
-
-    const totalPaid = (receivedPayments || []).reduce((sum, p) => sum + (p.amount || 0), 0);
-
-    let amountToPay = 0;
-    let description = "";
-    let pendingPaymentId: string | null = null;
-
-    // Priority: use manually-created pending payment if one exists
-    const { data: manualPendingList } = await supabaseAdmin
+    // Take the first pending payment ordered by due_date
+    const { data: pendingList } = await supabaseAdmin
       .from("payments")
       .select("id, amount, notes")
       .eq("contact_id", contact.id)
       .eq("status", "en_attente")
-      .neq("method", "stripe")
-      .order("created_at", { ascending: true })
+      .order("due_date", { ascending: true })
       .limit(1);
 
-    const manualPending = manualPendingList?.[0] ?? null;
-
-    if (manualPending) {
-      // Use the manually-created pending payment as-is
-      amountToPay = manualPending.amount;
-      description = manualPending.notes || "Service de piscine";
-      pendingPaymentId = manualPending.id;
-    } else {
-      // Calculate automatically from season_price and services
-      const isEntretien = services.some(s => s.includes("entretien"));
-
-      if (isEntretien) {
-        const halfPrice = Math.ceil(seasonPrice / 2);
-        if (totalPaid === 0) {
-          amountToPay = halfPrice;
-          description = `Versement 1/2 — Entretien de piscine saison 2026`;
-        } else if (totalPaid < seasonPrice) {
-          amountToPay = seasonPrice - totalPaid;
-          description = `Versement 2/2 — Entretien de piscine saison 2026`;
-        }
-      } else {
-        amountToPay = seasonPrice - totalPaid;
-        description = `Paiement complet — Service de piscine`;
-      }
-
-      if (amountToPay <= 0) {
-        return NextResponse.json({ error: "Aucun montant à payer" }, { status: 400 });
-      }
-
-      // Delete only Stripe-generated stale pending payments
-      await supabaseAdmin
-        .from("payments")
-        .delete()
-        .eq("contact_id", contact.id)
-        .eq("status", "en_attente")
-        .eq("method", "stripe");
-
-      // Create fresh Stripe pending payment record
-      const { data: created } = await supabaseAdmin.from("payments").insert({
-        contact_id: contact.id,
-        amount: amountToPay,
-        method: "stripe",
-        status: "en_attente",
-        notes: description,
-      }).select("id").single();
-      pendingPaymentId = created?.id ?? null;
+    if (!pendingList || pendingList.length === 0) {
+      return NextResponse.json({ error: "Aucun paiement en attente" }, { status: 400 });
     }
 
-    if (amountToPay <= 0) {
-      return NextResponse.json({ error: "Aucun montant à payer" }, { status: 400 });
-    }
+    const payment = pendingList[0];
+    const amountToPay = payment.amount;
+    const description = payment.notes || "Service de piscine";
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
 
@@ -108,7 +47,7 @@ export async function POST(req: NextRequest) {
         price_data: {
           currency: "cad",
           product_data: {
-            name: `Entretien Piscine Granby`,
+            name: "Entretien Piscine Granby",
             description,
           },
           unit_amount: Math.round(amountToPay * 100),
@@ -120,7 +59,7 @@ export async function POST(req: NextRequest) {
       cancel_url: `${baseUrl}/portail/dashboard?payment=cancel`,
       customer_email: contact.email || undefined,
       metadata: {
-        payment_id: pendingPaymentId ?? "",
+        payment_id: payment.id,
         contact_id: contact.id,
       },
     });

@@ -95,12 +95,11 @@ export default function DashboardPage() {
   const [docuSignStatus, setDocuSignStatus] = useState<"connected" | "disconnected" | "loading">("loading");
   const [docuSignToast, setDocuSignToast] = useState<"connected" | "error" | null>(null);
 
-  // Load contacts with season_price > 0 + their received payments
+  // Load contacts with payments (stats based entirely on payments table)
   const loadClients = async () => {
     const { data: contactsData } = await supabaseBrowser
       .from("contacts")
       .select("id, first_name, last_name, name, phone, address, services, season_price, notes")
-      .gt("season_price", 0)
       .order("first_name");
 
     if (!contactsData || contactsData.length === 0) {
@@ -112,23 +111,29 @@ export default function DashboardPage() {
     const ids = contactsData.map((c) => c.id);
     const { data: paymentsData } = await supabaseBrowser
       .from("payments")
-      .select("contact_id, amount")
-      .eq("status", "reçu")
+      .select("contact_id, amount, status")
       .in("contact_id", ids);
 
-    const paidMap: Record<string, number> = {};
+    const receivedMap: Record<string, number> = {};
+    const totalMap: Record<string, number> = {};
     for (const p of paymentsData ?? []) {
-      paidMap[p.contact_id] = (paidMap[p.contact_id] ?? 0) + (p.amount ?? 0);
+      totalMap[p.contact_id] = (totalMap[p.contact_id] ?? 0) + (p.amount ?? 0);
+      if (p.status === "reçu") {
+        receivedMap[p.contact_id] = (receivedMap[p.contact_id] ?? 0) + (p.amount ?? 0);
+      }
     }
 
+    // Only show clients who have payments or a season_price set
+    const clientsWithData = contactsData.filter(c => (totalMap[c.id] ?? 0) > 0 || (c.season_price ?? 0) > 0);
+
     setClients(
-      contactsData.map((c) => ({
+      clientsWithData.map((c) => ({
         id: c.id,
         name: displayName(c),
         address: c.address,
         services: c.services ?? [],
-        total: c.season_price ?? 0,
-        paid: paidMap[c.id] ?? 0,
+        total: Math.max(totalMap[c.id] ?? 0, c.season_price ?? 0),
+        paid: receivedMap[c.id] ?? 0,
         notes: c.notes,
       }))
     );

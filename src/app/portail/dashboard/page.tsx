@@ -90,17 +90,15 @@ export default function PortailDashboard() {
   const [upcomingJobs, setUpcomingJobs] = useState<PortailJob[]>([]);
   const [pastJobs, setPastJobs] = useState<PortailJob[]>([]);
   const [payments, setPayments] = useState<PortailPayment[]>([]);
-  const [seasonPrice, setSeasonPrice] = useState(0);
   const [total, setTotal] = useState(0);
   const [totalPaid, setTotalPaid] = useState(0);
   const [balance, setBalance] = useState(0);
-  const [services, setServices] = useState<string[]>([]);
   const [contactMsg, setContactMsg] = useState("");
   const [sendingMsg, setSendingMsg] = useState(false);
   const [msgSent, setMsgSent] = useState(false);
   const [loading, setLoading] = useState(true);
   const [paymentLoading, setPaymentLoading] = useState(false);
-  const [showInterac, setShowInterac] = useState(false);
+  const [showInteracId, setShowInteracId] = useState<string | null>(null);
   const [showAllJobs, setShowAllJobs] = useState(false);
 
   const fetchAllData = useCallback(() => {
@@ -122,11 +120,9 @@ export default function PortailDashboard() {
       }
       if (p && Array.isArray(p.payments)) {
         setPayments(p.payments);
-        setSeasonPrice(p.season_price ?? 0);
-        setTotal(p.total ?? p.season_price ?? 0);
+        setTotal(p.total ?? 0);
         setTotalPaid(p.total_paid ?? 0);
         setBalance(p.balance ?? 0);
-        setServices(p.services ?? []);
       }
       setLoading(false);
     }).catch(() => setLoading(false));
@@ -148,23 +144,7 @@ export default function PortailDashboard() {
   const today = new Date().toLocaleDateString("fr-CA", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   const firstName = client?.first_name || "client";
 
-  // Calculate amount to pay — manually created pending payments take priority
-  const isEntretien = services.some(s => s.includes("entretien"));
   const pendingPayments = payments.filter(p => p.status === "en_attente");
-
-  let amountToPay = 0;
-  let paymentDescription = "";
-
-  if (pendingPayments.length > 0) {
-    amountToPay = pendingPayments[0].amount;
-    paymentDescription = pendingPayments[0].notes || "Service de piscine";
-  } else if (balance > 0) {
-    const halfPrice = Math.ceil(seasonPrice / 2);
-    amountToPay = isEntretien && totalPaid === 0 ? halfPrice : balance;
-    paymentDescription = isEntretien
-      ? (totalPaid === 0 ? "Versement 1/2 — Entretien saison 2026" : "Versement 2/2 — Entretien saison 2026")
-      : "Paiement complet — Service de piscine";
-  }
 
   const handleStripeCheckout = async () => {
     setPaymentLoading(true);
@@ -326,40 +306,44 @@ export default function PortailDashboard() {
           </div>
         </div>
 
-        {/* Pay buttons */}
-        {amountToPay > 0 ? (
-          <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-200 mb-4">
-            <p className="font-medium text-blue-900">{paymentDescription}</p>
-            <p className="text-2xl font-bold text-blue-800 mt-1 mb-3">{fmt(amountToPay)}</p>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <button
-                onClick={handleStripeCheckout}
-                disabled={paymentLoading}
-                className="flex-1 bg-blue-600 text-white rounded-lg py-3 px-4 font-medium hover:bg-blue-700 disabled:opacity-50 transition"
-              >
-                {paymentLoading ? "Chargement..." : `Payer ${fmt(amountToPay)} par carte`}
-              </button>
-              <button
-                onClick={() => setShowInterac(v => !v)}
-                className="flex-1 bg-green-600 text-white rounded-lg py-3 px-4 font-medium hover:bg-green-700 transition"
-              >
-                Payer par Interac
-              </button>
-            </div>
-            {showInterac && (
-              <div className="mt-3 p-4 bg-white rounded-lg border border-gray-200">
-                <p className="font-medium mb-2 text-gray-900">Instructions pour le virement Interac:</p>
-                <p className="text-sm text-gray-700">1. Ouvrez votre application bancaire</p>
-                <p className="text-sm text-gray-700">2. Envoyez un virement Interac à:</p>
-                <p className="text-lg font-bold text-blue-600 my-2">service@entretienpiscinegranby.com</p>
-                <p className="text-sm text-gray-700">3. Montant: <strong>{fmt(amountToPay)}</strong></p>
-                <p className="text-sm text-gray-700">4. Message: <strong>{paymentDescription}</strong></p>
-                <p className="text-sm text-gray-500 mt-2">Votre paiement sera confirmé manuellement dans les heures qui suivent.</p>
+        {/* One block per pending payment */}
+        {pendingPayments.length > 0 ? (
+          <div className="space-y-3 mb-4">
+            {pendingPayments.map(pending => (
+              <div key={pending.id} className="p-4 bg-blue-50 rounded-xl border border-blue-200">
+                <p className="font-medium text-blue-900 text-sm">{pending.notes || "Paiement en attente"}</p>
+                <p className="text-2xl font-bold text-blue-800 mt-0.5 mb-3">{fmt(pending.amount)}</p>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <button
+                    onClick={handleStripeCheckout}
+                    disabled={paymentLoading}
+                    className="flex-1 bg-blue-600 text-white rounded-lg py-2.5 px-4 font-medium text-sm hover:bg-blue-700 disabled:opacity-50 transition"
+                  >
+                    {paymentLoading ? "Chargement..." : `Payer ${fmt(pending.amount)} par carte`}
+                  </button>
+                  <button
+                    onClick={() => setShowInteracId(showInteracId === pending.id ? null : pending.id)}
+                    className="flex-1 bg-green-600 text-white rounded-lg py-2.5 px-4 font-medium text-sm hover:bg-green-700 transition"
+                  >
+                    Payer par Interac
+                  </button>
+                </div>
+                {showInteracId === pending.id && (
+                  <div className="mt-3 p-4 bg-white rounded-lg border border-gray-200">
+                    <p className="font-medium mb-2 text-gray-900 text-sm">Instructions pour le virement Interac:</p>
+                    <p className="text-sm text-gray-700">1. Ouvrez votre application bancaire</p>
+                    <p className="text-sm text-gray-700">2. Envoyez un virement Interac à:</p>
+                    <p className="text-lg font-bold text-blue-600 my-2">service@entretienpiscinegranby.com</p>
+                    <p className="text-sm text-gray-700">3. Montant: <strong>{fmt(pending.amount)}</strong></p>
+                    <p className="text-sm text-gray-700">4. Message: <strong>{pending.notes || "Paiement EPG"}</strong></p>
+                    <p className="text-sm text-gray-500 mt-2">Votre paiement sera confirmé manuellement dans les heures qui suivent.</p>
+                  </div>
+                )}
               </div>
-            )}
+            ))}
           </div>
-        ) : seasonPrice > 0 ? (
-          <div className="mt-4 p-3 bg-green-50 rounded-xl border border-green-200">
+        ) : total > 0 ? (
+          <div className="mb-4 p-3 bg-green-50 rounded-xl border border-green-200">
             <p className="text-sm font-medium text-green-800">Tout est payé!</p>
           </div>
         ) : null}
