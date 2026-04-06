@@ -152,13 +152,23 @@ export async function POST(req: NextRequest) {
     const { data: contacts } = await supabaseAdmin
       .from("contacts")
       .select("id, first_name, last_name, phone, address, city, services, season_price")
-      .filter("services::text", "ilike", "%entretien%");
+      .not("services", "is", null);
 
-    if (!contacts || contacts.length === 0) {
+    const entretienClients = (contacts || []).filter(c => {
+      const services = c.services || [];
+      return services.some((s: string) => s.toLowerCase().includes("entretien"));
+    });
+
+    if (entretienClients.length === 0) {
       return NextResponse.json({ error: "Aucun client avec entretien trouvé" }, { status: 404 });
     }
 
-    const clientsWithAddress = contacts.filter(c => c.address && c.address.length > 5);
+    const clientsWithAddress = entretienClients.filter(c =>
+      c.address &&
+      c.address.length > 5 &&
+      c.first_name !== "Thomas" &&
+      !c.phone?.includes("4509942215")
+    );
 
     const homeGeo = await geocode(HOME_ADDRESS);
     if (!homeGeo) {
@@ -264,7 +274,7 @@ export async function POST(req: NextRequest) {
       routes: optimizedRoutes,
       totalClients: geocodedClients.length,
       totalDistanceKm: Math.round(totalDistanceKm * 10) / 10,
-      clientsWithoutAddress: contacts.length - clientsWithAddress.length,
+      clientsWithoutAddress: entretienClients.length - clientsWithAddress.length,
       fuel: {
         litresPerWeek: Math.round(fuelLitresPerWeek * 10) / 10,
         costPerWeek: Math.round(fuelCostPerWeek * 100) / 100,
