@@ -28,6 +28,8 @@ interface RouteClient {
   estimatedArrival: string;
   estimatedDeparture: string;
   phone: string;
+  ouvertureDate: string | null;
+  firstEntretien: string | null;
 }
 
 interface DayRoute {
@@ -449,9 +451,15 @@ export default function RoutesPage() {
                       {data.clients.map(client => {
                         const isConfirmed = confirmedIds.has(client.id);
                         const isPreviewOpen = previewKey === `${client.id}__${day}`;
-                        const todayStr = new Date().toISOString().split("T")[0];
-                        const passages = countPassages(todayStr, day);
-                        const firstDate = firstAppointmentDate(todayStr, day);
+                        const firstEntretienDateObj = client.firstEntretien ? new Date(client.firstEntretien + "T12:00:00") : null;
+                        const passages = (() => {
+                          if (!firstEntretienDateObj) return 0;
+                          const end = new Date("2026-09-30");
+                          let count = 0;
+                          const cur = new Date(firstEntretienDateObj);
+                          while (cur <= end) { count++; cur.setDate(cur.getDate() + 7); }
+                          return count;
+                        })();
 
                         if (isConfirmed) {
                           return (
@@ -505,8 +513,14 @@ export default function RoutesPage() {
                                   <p className="text-sm text-blue-800 mt-1">
                                     Entretien chaque <strong>{day.toLowerCase()}</strong> — arrivée <strong>{client.estimatedArrival}</strong>, départ <strong>{client.estimatedDeparture}</strong>
                                   </p>
-                                  <p className="text-xs text-blue-600 mt-1">
-                                    Premier RDV : {fmtDate(firstDate)} • {passages} passages jusqu&apos;au 30 sept. 2026
+                                  {client.ouvertureDate && (
+                                    <p className="text-xs text-blue-600 mt-0.5">Ouverture : {client.ouvertureDate}</p>
+                                  )}
+                                  <p className="text-xs text-blue-600 mt-0.5">
+                                    {firstEntretienDateObj
+                                      ? <>Premier entretien : <strong>{fmtDate(firstEntretienDateObj)}</strong> • {passages} passages jusqu&apos;au 30 sept. 2026</>
+                                      : <span className="text-orange-600">⚠ Pas de date d&apos;ouverture — RDV basé sur aujourd&apos;hui</span>
+                                    }
                                   </p>
                                 </div>
                                 <div className="flex gap-2">

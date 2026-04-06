@@ -23,6 +23,8 @@ export interface Contact {
   pool_dimensions: string | null;
   pool_system: string | null;
   has_spa: boolean;
+  // Dates
+  ouverture_date: string | null;
   // CRM
   stage: string | null;
   services: string[];

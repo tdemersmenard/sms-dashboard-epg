@@ -15,6 +15,7 @@ interface GeocodedClient {
   lat: number;
   lng: number;
   frequency: string;
+  ouvertureDate: string | null;
 }
 
 async function geocode(address: string): Promise<{ lat: number; lng: number } | null> {
@@ -151,7 +152,7 @@ export async function POST(req: NextRequest) {
 
     const { data: contacts } = await supabaseAdmin
       .from("contacts")
-      .select("id, first_name, last_name, phone, address, city, services, season_price")
+      .select("id, first_name, last_name, phone, address, city, services, season_price, ouverture_date")
       .not("services", "is", null);
 
     const entretienClients = (contacts || []).filter(c => {
@@ -189,6 +190,7 @@ export async function POST(req: NextRequest) {
           lat: geo.lat,
           lng: geo.lng,
           frequency: "hebdomadaire",
+          ouvertureDate: client.ouverture_date || null,
         });
       }
     }
@@ -225,6 +227,22 @@ export async function POST(req: NextRequest) {
         const departureMinutes = currentMinutes + 45;
         const departureTime = `${String(Math.floor(departureMinutes / 60)).padStart(2, "0")}:${String(departureMinutes % 60).padStart(2, "0")}`;
 
+        // Compute first entretien date based on ouvertureDate
+        let firstEntretienDate: string | null = null;
+        if (client.ouvertureDate) {
+          const dayToJS: Record<string, number> = {
+            "Dimanche": 0, "Lundi": 1, "Mardi": 2, "Mercredi": 3,
+            "Jeudi": 4, "Vendredi": 5, "Samedi": 6,
+          };
+          const targetDow = dayToJS[day];
+          const d = new Date(client.ouvertureDate + "T12:00:00");
+          d.setDate(d.getDate() + 7);
+          if (targetDow !== undefined) {
+            while (d.getDay() !== targetDow) d.setDate(d.getDate() + 1);
+          }
+          firstEntretienDate = d.toISOString().split("T")[0];
+        }
+
         stops.push({
           order: idx + 1,
           ...client,
@@ -232,6 +250,7 @@ export async function POST(req: NextRequest) {
           drivingTimeFromPrev: leg.durationMin,
           estimatedArrival: arrivalTime,
           estimatedDeparture: departureTime,
+          firstEntretien: firstEntretienDate,
         });
 
         currentMinutes = departureMinutes;

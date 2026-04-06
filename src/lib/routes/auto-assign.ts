@@ -106,7 +106,7 @@ export async function autoAssignClient(contactId: string): Promise<string> {
   // Vérifier que le client a entretien + adresse + ouverture
   const { data: contact } = await supabaseAdmin
     .from("contacts")
-    .select("id, first_name, last_name, phone, address, city, services")
+    .select("id, first_name, last_name, phone, address, city, services, ouverture_date")
     .eq("id", contactId)
     .single();
 
@@ -120,16 +120,7 @@ export async function autoAssignClient(contactId: string): Promise<string> {
     return "Pas d'adresse valide";
   }
 
-  // Vérifier qu'il a une ouverture planifiée
-  const { data: ouverture } = await supabaseAdmin
-    .from("jobs")
-    .select("scheduled_date")
-    .eq("contact_id", contactId)
-    .eq("job_type", "ouverture")
-    .order("scheduled_date", { ascending: false })
-    .limit(1);
-
-  if (!ouverture || ouverture.length === 0) {
+  if (!contact.ouverture_date) {
     return "Pas de date d'ouverture planifiée";
   }
 
@@ -155,7 +146,7 @@ export async function autoAssignClient(contactId: string): Promise<string> {
   const targetDayOfWeek = DAY_TO_JS[day];
 
   // Premier entretien = 7 jours après l'ouverture, ajusté au bon jour
-  const ouvertureDate = new Date(ouverture[0].scheduled_date + "T12:00:00");
+  const ouvertureDate = new Date(contact.ouverture_date + "T12:00:00");
   const firstEntretien = new Date(ouvertureDate);
   firstEntretien.setDate(firstEntretien.getDate() + 7);
   while (firstEntretien.getDay() !== targetDayOfWeek) {
@@ -197,13 +188,14 @@ export async function checkAndAutoAssign(): Promise<string[]> {
   // Trouver tous les clients entretien sans jobs d'entretien
   const { data: contacts } = await supabaseAdmin
     .from("contacts")
-    .select("id, first_name, last_name, services, address")
+    .select("id, first_name, last_name, services, address, ouverture_date")
     .not("services", "is", null);
 
   for (const contact of contacts || []) {
     const services = contact.services || [];
     if (!services.some((s: string) => s.toLowerCase().includes("entretien"))) continue;
     if (!contact.address || contact.address.length < 5) continue;
+    if (!contact.ouverture_date) continue;
 
     // A-t-il déjà des entretiens?
     const { data: existing } = await supabaseAdmin
@@ -214,16 +206,6 @@ export async function checkAndAutoAssign(): Promise<string[]> {
       .limit(1);
 
     if (existing && existing.length > 0) continue;
-
-    // A-t-il une ouverture?
-    const { data: ouverture } = await supabaseAdmin
-      .from("jobs")
-      .select("id")
-      .eq("contact_id", contact.id)
-      .eq("job_type", "ouverture")
-      .limit(1);
-
-    if (!ouverture || ouverture.length === 0) continue;
 
     // Tout est bon — auto-assigner
     const result = await autoAssignClient(contact.id);

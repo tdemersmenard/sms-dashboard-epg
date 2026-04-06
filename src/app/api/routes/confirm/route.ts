@@ -21,20 +21,18 @@ export async function POST(req: NextRequest) {
       if (targetDayOfWeek === undefined) continue;
 
       for (const client of routeData.clients || []) {
-        // Chercher la date d'ouverture de ce client
-        const { data: ouvertureJob } = await supabaseAdmin
-          .from("jobs")
-          .select("scheduled_date")
-          .eq("contact_id", client.id)
-          .eq("job_type", "ouverture")
-          .order("scheduled_date", { ascending: false })
-          .limit(1);
+        // Chercher la date d'ouverture depuis le contact
+        const { data: contactData } = await supabaseAdmin
+          .from("contacts")
+          .select("ouverture_date")
+          .eq("id", client.id)
+          .single();
 
         let firstEntretienDate: Date;
 
-        if (ouvertureJob && ouvertureJob.length > 0) {
+        if (contactData?.ouverture_date) {
           // Premier entretien = 1 semaine après l'ouverture
-          const ouvertureDate = new Date(ouvertureJob[0].scheduled_date + "T12:00:00");
+          const ouvertureDate = new Date(contactData.ouverture_date + "T12:00:00");
           firstEntretienDate = new Date(ouvertureDate);
           firstEntretienDate.setDate(firstEntretienDate.getDate() + 7);
 
@@ -88,7 +86,7 @@ export async function POST(req: NextRequest) {
           currentDate.setDate(currentDate.getDate() + 7);
         }
 
-        const ouvertureStr = ouvertureJob?.[0]?.scheduled_date || "pas d'ouverture";
+        const ouvertureStr = contactData?.ouverture_date || "pas d'ouverture";
         const firstStr = firstEntretienDate.toISOString().split("T")[0];
         results.push(`${client.name}: ${jobCount} passages chaque ${day}, ouverture ${ouvertureStr}, premier entretien ${firstStr}`);
 

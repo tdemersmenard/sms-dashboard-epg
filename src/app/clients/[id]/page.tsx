@@ -346,11 +346,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   const [newPayDescription, setNewPayDescription] = useState("");
   const [newPayDueDate, setNewPayDueDate] = useState(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10));
   const [newPaySplit, setNewPaySplit] = useState(true);
-  const [newPayCalDay, setNewPayCalDay] = useState(4);
-  const [newPayCalTime, setNewPayCalTime] = useState("09:00");
-  const [newPayCalFreq, setNewPayCalFreq] = useState<"weekly" | "biweekly">("weekly");
-  const [newPayCalGenerated, setNewPayCalGenerated] = useState(false);
-  const [newPayCalCount, setNewPayCalCount] = useState(0);
+  const [newPayOuvertureDate, setNewPayOuvertureDate] = useState("");
   const [savingNewPay, setSavingNewPay] = useState(false);
   const [newPayToast, setNewPayToast] = useState(false);
   const [markPaidId, setMarkPaidId] = useState<string | null>(null);
@@ -454,29 +450,6 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
     setMarkPaidId(null);
   };
 
-  const handleGenerateCalFromNewPay = async () => {
-    const year = new Date().getFullYear();
-    const startDate = new Date(year, 3, 15);
-    const endDate = new Date(year, 8, 30);
-    const current = new Date(startDate);
-    const dayDiff = (newPayCalDay - current.getDay() + 7) % 7;
-    current.setDate(current.getDate() + dayDiff);
-    const existingDates = new Set(jobs.filter(j => j.job_type === "entretien").map(j => j.scheduled_date));
-    const interval = newPayCalFreq === "weekly" ? 7 : 14;
-    const toInsert: { contact_id: string; job_type: string; scheduled_date: string; scheduled_time_start: string; status: string }[] = [];
-    while (current <= endDate) {
-      const dateStr = current.toISOString().split("T")[0];
-      if (!existingDates.has(dateStr)) {
-        toInsert.push({ contact_id: id, job_type: "entretien", scheduled_date: dateStr, scheduled_time_start: newPayCalTime, status: "planifié" });
-      }
-      current.setDate(current.getDate() + interval);
-    }
-    if (toInsert.length > 0) await supabaseBrowser.from("jobs").insert(toInsert);
-    await load();
-    setNewPayCalGenerated(true);
-    setNewPayCalCount(toInsert.length);
-  };
-
   const handleNewPaySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPayAmount) return;
@@ -501,7 +474,9 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
     const updatedServices = cat?.service
       ? Array.from(new Set([...(contact?.services || []), cat.service]))
       : (contact?.services || []);
-    await supabaseBrowser.from("contacts").update({ stage: "closé", services: updatedServices, season_price: amount }).eq("id", id);
+    const contactUpdate: Record<string, unknown> = { stage: "closé", services: updatedServices, season_price: amount };
+    if (cat?.isEntretien && newPayOuvertureDate) contactUpdate.ouverture_date = newPayOuvertureDate;
+    await supabaseBrowser.from("contacts").update(contactUpdate).eq("id", id);
 
     // Send portal welcome SMS with credentials
     fetch("/api/portail/send-welcome", {
@@ -514,8 +489,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
     setSavingNewPay(false);
     setShowNewPayForm(false);
     setNewPayToast(true);
-    setNewPayCalGenerated(false);
-    setNewPayCalCount(0);
+    setNewPayOuvertureDate("");
     setTimeout(() => setNewPayToast(false), 4000);
   };
 
@@ -908,9 +882,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
                         if (c && c.price > 0) setNewPayAmount(String(c.price));
                         else setNewPayAmount("");
                         setNewPayDescription(c?.label || "");
-                        if (c?.freq) setNewPayCalFreq(c.freq);
                         setNewPaySplit(c?.isEntretien ?? false);
-                        setNewPayCalGenerated(false);
                       }}
                       className="w-full border border-gray-200 rounded px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-200"
                     >
@@ -966,51 +938,16 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
                         Séparer en 2 versements (50% maintenant, 50% mi-juillet)
                       </label>
 
-                      {/* Calendar generation */}
-                      <div className="bg-white rounded-lg border border-blue-200 p-3 space-y-2">
-                        <p className="text-xs font-semibold text-gray-700">Planifier les passages</p>
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <label className="text-[10px] text-gray-500 mb-0.5 block">Jour</label>
-                            <select
-                              value={newPayCalDay}
-                              onChange={(e) => setNewPayCalDay(parseInt(e.target.value))}
-                              className="w-full border border-gray-200 rounded px-1.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-200"
-                            >
-                              {["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"].map((d, i) => (
-                                <option key={i} value={i}>{d}</option>
-                              ))}
-                            </select>
-                          </div>
-                          <div>
-                            <label className="text-[10px] text-gray-500 mb-0.5 block">Heure</label>
-                            <input
-                              type="time"
-                              value={newPayCalTime}
-                              onChange={(e) => setNewPayCalTime(e.target.value)}
-                              className="w-full border border-gray-200 rounded px-1.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-200"
-                            />
-                          </div>
-                        </div>
-                        <div>
-                          <label className="text-[10px] text-gray-500 mb-0.5 block">Fréquence</label>
-                          <select
-                            value={newPayCalFreq}
-                            onChange={(e) => setNewPayCalFreq(e.target.value as "weekly" | "biweekly")}
-                            className="w-full border border-gray-200 rounded px-1.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-200"
-                          >
-                            <option value="weekly">Chaque semaine</option>
-                            <option value="biweekly">Aux 2 semaines</option>
-                          </select>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={handleGenerateCalFromNewPay}
-                          disabled={newPayCalGenerated}
-                          className="w-full py-1.5 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-60 transition"
-                        >
-                          {newPayCalGenerated ? `✓ ${newPayCalCount} passages créés` : "Générer le calendrier"}
-                        </button>
+                      {/* Date d'ouverture */}
+                      <div>
+                        <label className="text-xs text-gray-600 font-medium mb-1 block">Date d&apos;ouverture</label>
+                        <input
+                          type="date"
+                          value={newPayOuvertureDate || (contact?.ouverture_date ?? "")}
+                          onChange={(e) => setNewPayOuvertureDate(e.target.value)}
+                          className="w-full border border-gray-200 rounded px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-200"
+                        />
+                        <p className="text-[10px] text-gray-400 mt-0.5">Le premier entretien sera planifié 1 semaine après cette date.</p>
                       </div>
                     </div>
                   )}
