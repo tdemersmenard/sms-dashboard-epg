@@ -89,7 +89,7 @@ function loadConfirmedIds(): Set<string> {
 }
 
 function saveConfirmedIds(ids: Set<string>) {
-  localStorage.setItem("confirmed_route_clients", JSON.stringify([...ids]));
+  localStorage.setItem("confirmed_route_clients", JSON.stringify(Array.from(ids)));
 }
 
 export default function RoutesPage() {
@@ -112,7 +112,7 @@ export default function RoutesPage() {
   const [clientConfirming, setClientConfirming] = useState(false);
 
   const markConfirmed = (clientId: string) => {
-    const next = new Set([...confirmedIds, clientId]);
+    const next = new Set(Array.from(confirmedIds).concat(clientId));
     setConfirmedIds(next);
     saveConfirmedIds(next);
   };
@@ -191,7 +191,7 @@ export default function RoutesPage() {
       if (data.success) {
         // Mark all visible clients as confirmed
         const allIds = Object.values(visibleRoutes).flatMap((d) => (d as DayRoute).clients.map(c => c.id));
-        const next = new Set([...confirmedIds, ...allIds]);
+        const next = new Set(Array.from(confirmedIds).concat(allIds));
         setConfirmedIds(next);
         saveConfirmedIds(next);
         setBulkConfirmed(true);

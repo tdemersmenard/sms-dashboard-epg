@@ -202,27 +202,18 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   };
 
   const handleCreatePortalAccess = async () => {
-    if (!contact?.email) return;
     setPortalCreating(true);
-    await fetch("/api/portail/setup-password", {
+    const res = await fetch("/api/portail/send-welcome", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contactId: id, password: portalPassword }),
+      body: JSON.stringify({ contactId: id }),
     });
+    const data = await res.json();
     setPortalCreating(false);
-    setPortalDone(true);
+    if (data.success) setPortalDone(true);
   };
 
-  const handleSendPortalSMS = async () => {
-    if (!contact?.email) return;
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
-    const msg = `Bonjour ${contact.first_name || ""}! Votre portail client Entretien Piscine Granby est prêt. Connectez-vous à ${appUrl}/portail avec votre courriel et le mot de passe: ${portalPassword}`;
-    await fetch("/api/sms/send", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contactId: id, body: msg }),
-    });
-  };
+  const handleSendPortalSMS = handleCreatePortalAccess;
 
   const handleCloseClient = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -511,6 +502,13 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
       ? Array.from(new Set([...(contact?.services || []), cat.service]))
       : (contact?.services || []);
     await supabaseBrowser.from("contacts").update({ stage: "closé", services: updatedServices, season_price: amount }).eq("id", id);
+
+    // Send portal welcome SMS with credentials
+    fetch("/api/portail/send-welcome", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contactId: id }),
+    }).catch(console.error);
 
     await load();
     setSavingNewPay(false);

@@ -82,6 +82,11 @@ QUAND UN CLIENT CONFIRME ET VEUT PAYER:
 - Si le client a un email, mentionne qu'il peut payer depuis son portail client
 - Crée AUSSI la facture/contrat comme avant avec GENERATE_INVOICE ou GENERATE_CONTRACT
 
+PORTAIL CLIENT:
+- Si le client demande son mot de passe ou comment accéder à son portail, et que tu as "Mot de passe portail temporaire" dans ses infos, donne-lui: "Votre mot de passe temporaire est: [mdp]. Connectez-vous sur [APP_URL]/portail avec votre courriel [email]. Nous vous recommandons de changer votre mot de passe après votre première connexion."
+- Si tu n'as pas de mot de passe temporaire pour lui, réponds: "Je vais vous envoyer vos accès très bientôt. Avez-vous bien reçu un SMS avec vos informations de connexion? Sinon, contactez-nous au 450-994-2215."
+- Ne mentionne jamais spontanément le portail sauf si le client en parle.
+
 MÉTÉO ET REPORTS:
 - Si un client demande si on reporte à cause de la pluie ou d'une tempête: "On travaille beau temps mauvais temps! La seule exception c'est en cas de tempête violente ou d'orage. Si on doit reporter, on vous contacte la veille pour reprogrammer."
 - Si Thomas doit reporter un RDV (il t'enverra un message), réponds au client: "Bonjour! Malheureusement on doit reporter votre rendez-vous à cause de la météo. On peut reprogrammer pour [prochaine dispo]. Est-ce que ça vous convient?"
@@ -172,6 +177,10 @@ export async function generateAIResponse(contactId: string, inboundMessage: stri
       if (contact.season_price) clientContext += `- Prix saison: ${contact.season_price}$\n`;
       if (contact.stage) clientContext += `- Stage: ${contact.stage}\n`;
       if (contact.notes) clientContext += `- Notes: ${contact.notes}\n`;
+      if (contact.portal_temp_password) {
+        clientContext += `- Mot de passe portail temporaire: ${contact.portal_temp_password}\n`;
+        clientContext += `- Email portail: ${contact.email || "inconnu"}\n`;
+      }
     }
 
     const now = new Date();

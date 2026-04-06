@@ -152,7 +152,7 @@ export async function POST(req: NextRequest) {
     const { data: contacts } = await supabaseAdmin
       .from("contacts")
       .select("id, first_name, last_name, phone, address, city, services, season_price")
-      .filter("services", "cs", '["entretien"]');
+      .filter("services::text", "ilike", "%entretien%");
 
     if (!contacts || contacts.length === 0) {
       return NextResponse.json({ error: "Aucun client avec entretien trouvé" }, { status: 404 });
