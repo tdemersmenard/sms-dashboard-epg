@@ -342,13 +342,21 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
     if (newPaySplit && cat?.isEntretien) {
       const half1 = Math.ceil(amount / 2);
       const half2 = amount - half1;
-      await supabaseBrowser.from("payments").insert([
-        { contact_id: id, amount: half1, method: "en_attente" as Payment["method"], status: "en_attente", due_date: newPayDueDate, notes: `${desc} — Versement 1/2` },
-        { contact_id: id, amount: half2, method: "en_attente" as Payment["method"], status: "en_attente", due_date: "2026-07-15", notes: `${desc} — Versement 2/2` },
-      ]);
+      await fetch("/api/payments/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contactId: id, amount: half1, description: `${desc} — Versement 1/2`, dueDate: newPayDueDate }),
+      });
+      await fetch("/api/payments/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contactId: id, amount: half2, description: `${desc} — Versement 2/2`, dueDate: "2026-07-15" }),
+      });
     } else {
-      await supabaseBrowser.from("payments").insert({
-        contact_id: id, amount, method: "en_attente" as Payment["method"], status: "en_attente", due_date: newPayDueDate, notes: desc,
+      await fetch("/api/payments/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contactId: id, amount, description: desc, dueDate: newPayDueDate }),
       });
     }
 
@@ -364,18 +372,6 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ contactId: id }),
-    }).catch(console.error);
-
-    // Send payment SMS notification
-    const clientName = contact?.first_name || "Bonjour";
-    const description = newPayDescription || cat?.label || "Service de piscine";
-    fetch("/api/sms/send", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contactId: id,
-        body: `Bonjour ${clientName}! Vous avez une nouvelle demande de paiement de ${amount}$ pour: ${description}. Vous pouvez payer par virement Interac à service@entretienpiscinegranby.com ou par carte de crédit sur votre portail client. Merci!`,
-      }),
     }).catch(console.error);
 
     await load();

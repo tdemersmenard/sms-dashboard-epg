@@ -243,45 +243,45 @@ export default function RoutesPage() {
               <p className="text-xs text-gray-500">Clients</p>
             </div>
             <div className="bg-white rounded-xl shadow-sm border p-4 text-center">
-              <p className="text-2xl font-bold text-blue-600">{displayRoutes.totalDistanceKm} km</p>
+              <p className="text-2xl font-bold text-blue-600">{displayRoutes.totalKm} km</p>
               <p className="text-xs text-gray-500">Dist./semaine</p>
             </div>
             <div className="bg-white rounded-xl shadow-sm border p-4 text-center">
-              <p className="text-2xl font-bold text-orange-500">{displayRoutes.fuel?.weeklyFuelLitres ?? "?"} L</p>
+              <p className="text-2xl font-bold text-orange-500">{displayRoutes.fuel?.wkL ?? "?"} L</p>
               <p className="text-xs text-gray-500">Essence/sem.</p>
             </div>
             <div className="bg-white rounded-xl shadow-sm border p-4 text-center">
-              <p className="text-2xl font-bold text-red-500">{displayRoutes.fuel?.weeklyFuelCost?.toFixed(2) ?? "?"} $</p>
+              <p className="text-2xl font-bold text-red-500">{displayRoutes.fuel?.wkCost?.toFixed(2) ?? "?"} $</p>
               <p className="text-xs text-gray-500">Coût/sem.</p>
             </div>
             <div className="bg-white rounded-xl shadow-sm border p-4 text-center">
-              <p className="text-2xl font-bold text-purple-600">{displayRoutes.fuel?.seasonFuelCost?.toFixed(0) ?? "?"} $</p>
+              <p className="text-2xl font-bold text-purple-600">{displayRoutes.fuel?.seasonCost?.toFixed(0) ?? "?"} $</p>
               <p className="text-xs text-gray-500">Coût/saison</p>
             </div>
           </div>
 
-          {displayRoutes?.clientsWithoutAddress?.length > 0 && (
+          {displayRoutes?.problems?.noAddress?.length > 0 && (
             <div className="bg-red-50 border border-red-200 rounded-xl p-4">
               <p className="font-semibold text-red-800 text-sm">⚠ Clients sans adresse (non inclus):</p>
-              <ul className="mt-1">{displayRoutes.clientsWithoutAddress.map((n: string, i: number) => (
+              <ul className="mt-1">{displayRoutes.problems.noAddress.map((n: string, i: number) => (
                 <li key={i} className="text-sm text-red-700">• {n}</li>
               ))}</ul>
             </div>
           )}
 
-          {displayRoutes?.clientsWithoutOuverture?.length > 0 && (
+          {displayRoutes?.problems?.noOuverture?.length > 0 && (
             <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
               <p className="font-semibold text-orange-800 text-sm">⚠ Clients sans date d&apos;ouverture:</p>
-              <ul className="mt-1">{displayRoutes.clientsWithoutOuverture.map((n: string, i: number) => (
+              <ul className="mt-1">{displayRoutes.problems.noOuverture.map((n: string, i: number) => (
                 <li key={i} className="text-sm text-orange-700">• {n}</li>
               ))}</ul>
             </div>
           )}
 
-          {displayRoutes?.failedGeocode?.length > 0 && (
+          {displayRoutes?.problems?.failedGeocode?.length > 0 && (
             <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
               <p className="font-semibold text-yellow-800 text-sm">⚠ Adresses non reconnues par Google:</p>
-              <ul className="mt-1">{displayRoutes.failedGeocode.map((n: string, i: number) => (
+              <ul className="mt-1">{displayRoutes.problems.failedGeocode.map((n: string, i: number) => (
                 <li key={i} className="text-sm text-yellow-700">• {n}</li>
               ))}</ul>
             </div>
@@ -298,7 +298,7 @@ export default function RoutesPage() {
                   <div className={`w-3 h-3 rounded-full ${DAY_COLORS[day] || "bg-gray-400"}`} />
                   <span className="font-semibold text-gray-900">{day}</span>
                   <span className="text-sm text-gray-500">{data.clients?.length || 0} clients</span>
-                  <span className="text-sm text-gray-400 hidden md:inline">• {data.totalDistanceKm} km • ~{Math.floor((data.totalDurationMin || 0) / 60)}h{String((data.totalDurationMin || 0) % 60).padStart(2, "0")}</span>
+                  <span className="text-sm text-gray-400 hidden md:inline">• {data.totalKm} km • ~{Math.floor((data.totalMin || 0) / 60)}h{String((data.totalMin || 0) % 60).padStart(2, "0")}</span>
                 </div>
                 {expandedDay === day ? <ChevronUp size={18} className="text-gray-400" /> : <ChevronDown size={18} className="text-gray-400" />}
               </button>
@@ -335,7 +335,7 @@ export default function RoutesPage() {
                                   clients: updated.routes[day].clients.filter((c: any) => c.id !== client.id),
                                 };
                                 if (!updated.routes[newDay]) {
-                                  updated.routes[newDay] = { clients: [], totalDistanceKm: 0, totalDurationMin: 0, estimatedEndTime: "", returnHomeKm: 0, returnHomeMin: 0 };
+                                  updated.routes[newDay] = { clients: [], totalKm: 0, totalMin: 0, endTime: "", returnKm: 0, returnMin: 0 };
                                 }
                                 updated.routes[newDay] = {
                                   ...updated.routes[newDay],
@@ -358,8 +358,8 @@ export default function RoutesPage() {
                         )}
                       </div>
                       <div className="text-right flex-shrink-0">
-                        <p className="text-sm font-medium text-gray-900">{client.estimatedArrival} → {client.estimatedDeparture}</p>
-                        <p className="text-xs text-gray-400">{client.distanceFromPrev} km • {client.drivingTimeFromPrev} min</p>
+                        <p className="text-sm font-medium text-gray-900">{client.arrival} → {client.departure}</p>
+                        <p className="text-xs text-gray-400">{client.distKm} km • {client.driveMin} min</p>
                       </div>
                     </div>
                   ))}
@@ -369,7 +369,7 @@ export default function RoutesPage() {
                       <div className="w-7 h-7 rounded-full bg-green-500 text-white flex items-center justify-center text-xs">🏠</div>
                       <p className="text-sm font-medium text-green-800">Retour à la maison</p>
                     </div>
-                    <p className="text-xs text-green-600">{data.returnHomeKm} km • {data.returnHomeMin} min</p>
+                    <p className="text-xs text-green-600">{data.returnKm} km • {data.returnMin} min</p>
                   </div>
                 </div>
               )}
