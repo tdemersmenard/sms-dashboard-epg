@@ -165,8 +165,7 @@ export async function POST(req: NextRequest) {
 
     const clientsWithAddress = entretienClients.filter(c =>
       c.address &&
-      c.address.length > 5 &&
-      !c.phone?.includes("4509942215")
+      c.address.length > 5
     );
 
     const homeGeo = await geocode(HOME_ADDRESS);
