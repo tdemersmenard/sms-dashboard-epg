@@ -28,6 +28,16 @@ export async function GET(req: NextRequest) {
       console.error("[cron] Reminder error:", e);
     }
 
+    // Payment reminders (due today)
+    let paymentReminderResults: string[] = [];
+    try {
+      const { sendPaymentReminders } = await import("@/lib/automations/reminders");
+      paymentReminderResults = await sendPaymentReminders();
+      console.log("[cron] Payment reminders:", paymentReminderResults);
+    } catch (e) {
+      console.error("[cron] Payment reminder error:", e);
+    }
+
     // Auto-assign routes pour les nouveaux clients
     let routeResults: string[] = [];
     try {
@@ -48,6 +58,7 @@ export async function GET(req: NextRequest) {
       failed,
       results,
       reminders: reminderResults,
+      payment_reminders: paymentReminderResults,
       routes: routeResults,
     });
   } catch (err) {
