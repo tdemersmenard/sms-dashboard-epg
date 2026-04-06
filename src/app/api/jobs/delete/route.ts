@@ -9,6 +9,19 @@ export async function DELETE(req: NextRequest) {
   const contactId = searchParams.get("contactId");
   const bulk = searchParams.get("bulk");
 
+  const type = searchParams.get("type");
+
+  if (bulk === "true" && type) {
+    const { error } = await supabaseAdmin
+      .from("jobs")
+      .delete()
+      .eq("job_type", type)
+      .eq("status", "planifié");
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ success: true, deleted: "all " + type });
+  }
+
   if (bulk === "true" && contactId) {
     const { error } = await supabaseAdmin
       .from("jobs")
