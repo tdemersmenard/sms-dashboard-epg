@@ -32,6 +32,36 @@ async function geocode(address: string): Promise<{ lat: number; lng: number } | 
   }
 }
 
+async function getDrivingInfo(
+  originLat: number,
+  originLng: number,
+  destLat: number,
+  destLng: number
+): Promise<{ distanceKm: number; durationMin: number }> {
+  try {
+    const origin = `${originLat},${originLng}`;
+    const dest = `${destLat},${destLng}`;
+    const res = await fetch(
+      `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${origin}&destinations=${dest}&mode=driving&key=${GOOGLE_MAPS_KEY}`
+    );
+    const data = await res.json();
+    const element = data.rows?.[0]?.elements?.[0];
+    if (element?.status === "OK") {
+      return {
+        distanceKm: Math.round((element.distance.value / 1000) * 10) / 10,
+        durationMin: Math.round(element.duration.value / 60),
+      };
+    }
+  } catch {
+    // fall through to haversine fallback
+  }
+  const dist = haversine(originLat, originLng, destLat, destLng);
+  return {
+    distanceKm: Math.round(dist * 10) / 10,
+    durationMin: Math.round((dist / 40) * 60),
+  };
+}
+
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -116,6 +146,8 @@ export async function POST(req: NextRequest) {
     const daysAvailable: string[] = body.days || ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi"];
     const maxPerDay: number = body.maxPerDay || 5;
     const startTime: string = body.startTime || "08:00";
+    const fuelConsumptionPer100km: number = body.fuelPer100km || 9;
+    const fuelPricePerLitre: number = body.fuelPricePerLitre || 1.65;
 
     const { data: contacts } = await supabaseAdmin
       .from("contacts")
@@ -157,56 +189,89 @@ export async function POST(req: NextRequest) {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const optimizedRoutes: Record<string, any> = {};
-    let totalDistance = 0;
+    let totalDistanceKm = 0;
+    let totalDurationMin = 0;
+
+    const [startH, startM] = startTime.split(":").map(Number);
 
     for (const [day, clients] of Object.entries(clusters)) {
       if (clients.length === 0) continue;
 
       const optimized = optimizeRoute(clients, homeGeo.lat, homeGeo.lng);
 
-      let dayDistance = 0;
+      let dayDistanceKm = 0;
+      let dayDurationMin = 0;
+      let currentMinutes = startH * 60 + startM;
       let prevLat = homeGeo.lat;
       let prevLng = homeGeo.lng;
 
-      const stops = optimized.map((client, idx) => {
-        const dist = haversine(prevLat, prevLng, client.lat, client.lng);
-        dayDistance += dist;
-        prevLat = client.lat;
-        prevLng = client.lng;
+      const stops = [];
+      for (let idx = 0; idx < optimized.length; idx++) {
+        const client = optimized[idx];
+        const leg = await getDrivingInfo(prevLat, prevLng, client.lat, client.lng);
+        dayDistanceKm += leg.distanceKm;
+        dayDurationMin += leg.durationMin;
+        currentMinutes += leg.durationMin;
 
-        const [startH, startM] = startTime.split(":").map(Number);
-        const minutesFromStart = idx * 60;
-        const arrivalMinutes = startH * 60 + startM + minutesFromStart;
-        const arrivalTime = `${String(Math.floor(arrivalMinutes / 60)).padStart(2, "0")}:${String(arrivalMinutes % 60).padStart(2, "0")}`;
+        const arrivalTime = `${String(Math.floor(currentMinutes / 60)).padStart(2, "0")}:${String(currentMinutes % 60).padStart(2, "0")}`;
+        const departureMinutes = currentMinutes + 45;
+        const departureTime = `${String(Math.floor(departureMinutes / 60)).padStart(2, "0")}:${String(departureMinutes % 60).padStart(2, "0")}`;
 
-        return {
+        stops.push({
           order: idx + 1,
           ...client,
-          distanceFromPrev: Math.round(dist * 10) / 10,
+          distanceFromPrev: leg.distanceKm,
+          drivingTimeFromPrev: leg.durationMin,
           estimatedArrival: arrivalTime,
-        };
-      });
+          estimatedDeparture: departureTime,
+        });
 
-      if (optimized.length > 0) {
-        const last = optimized[optimized.length - 1];
-        dayDistance += haversine(last.lat, last.lng, homeGeo.lat, homeGeo.lng);
+        currentMinutes = departureMinutes;
+        prevLat = client.lat;
+        prevLng = client.lng;
       }
 
-      totalDistance += dayDistance;
+      // Return home leg
+      const returnLeg = optimized.length > 0
+        ? await getDrivingInfo(prevLat, prevLng, homeGeo.lat, homeGeo.lng)
+        : { distanceKm: 0, durationMin: 0 };
+      dayDistanceKm += returnLeg.distanceKm;
+      dayDurationMin += returnLeg.durationMin + stops.length * 45;
+
+      const endMinutes = currentMinutes + returnLeg.durationMin;
+      const estimatedEndTime = `${String(Math.floor(endMinutes / 60)).padStart(2, "0")}:${String(endMinutes % 60).padStart(2, "0")}`;
+
+      totalDistanceKm += dayDistanceKm;
+      totalDurationMin += dayDurationMin;
 
       optimizedRoutes[day] = {
         clients: stops,
-        totalDistance: Math.round(dayDistance * 10) / 10,
-        estimatedDuration: `${stops.length * 45 + Math.round(dayDistance * 2)}min`,
+        totalDistanceKm: Math.round(dayDistanceKm * 10) / 10,
+        totalDurationMin: dayDurationMin,
+        estimatedEndTime,
+        returnHomeKm: returnLeg.distanceKm,
+        returnHomeMin: returnLeg.durationMin,
       };
     }
+
+    const weeksInSeason = 24; // ~late April to late September
+    const fuelLitresPerWeek = (totalDistanceKm * fuelConsumptionPer100km) / 100;
+    const fuelCostPerWeek = fuelLitresPerWeek * fuelPricePerLitre;
+    const fuelCostSeason = fuelCostPerWeek * weeksInSeason;
 
     return NextResponse.json({
       home: { address: HOME_ADDRESS, ...homeGeo },
       routes: optimizedRoutes,
       totalClients: geocodedClients.length,
-      totalDistance: Math.round(totalDistance * 10) / 10,
+      totalDistanceKm: Math.round(totalDistanceKm * 10) / 10,
       clientsWithoutAddress: contacts.length - clientsWithAddress.length,
+      fuel: {
+        litresPerWeek: Math.round(fuelLitresPerWeek * 10) / 10,
+        costPerWeek: Math.round(fuelCostPerWeek * 100) / 100,
+        costSeason: Math.round(fuelCostSeason * 100) / 100,
+        per100km: fuelConsumptionPer100km,
+        pricePerLitre: fuelPricePerLitre,
+      },
     });
   } catch (err) {
     console.error("[routes] Error:", err);

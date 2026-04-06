@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { MapPin, Loader2, AlertCircle, ChevronDown, ChevronUp, Check, Send } from "lucide-react";
+import { MapPin, Loader2, AlertCircle, ChevronDown, ChevronUp, Check, Send, Fuel } from "lucide-react";
 
 const DAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
 const DAY_COLORS: Record<string, string> = {
@@ -20,21 +20,41 @@ interface RouteClient {
   address: string;
   order: number;
   distanceFromPrev: number;
+  drivingTimeFromPrev: number;
   estimatedArrival: string;
+  estimatedDeparture: string;
   phone: string;
 }
 
 interface DayRoute {
   clients: RouteClient[];
-  totalDistance: number;
-  estimatedDuration: string;
+  totalDistanceKm: number;
+  totalDurationMin: number;
+  estimatedEndTime: string;
+  returnHomeKm: number;
+  returnHomeMin: number;
+}
+
+interface FuelStats {
+  litresPerWeek: number;
+  costPerWeek: number;
+  costSeason: number;
+  per100km: number;
+  pricePerLitre: number;
 }
 
 interface OptimizeResult {
   routes: Record<string, DayRoute>;
   totalClients: number;
-  totalDistance: number;
+  totalDistanceKm: number;
   clientsWithoutAddress: number;
+  fuel: FuelStats;
+}
+
+function fmtDuration(min: number) {
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return h > 0 ? `${h}h${String(m).padStart(2, "0")}` : `${m}min`;
 }
 
 export default function RoutesPage() {
@@ -42,6 +62,8 @@ export default function RoutesPage() {
   const [maxPerDay, setMaxPerDay] = useState(5);
   const [startTime, setStartTime] = useState("08:00");
   const [startDate, setStartDate] = useState("2026-04-20");
+  const [fuelPer100, setFuelPer100] = useState(9);
+  const [fuelPrice, setFuelPrice] = useState(1.65);
   const [routes, setRoutes] = useState<OptimizeResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -58,12 +80,11 @@ export default function RoutesPage() {
       const res = await fetch("/api/routes/optimize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ days: selectedDays, maxPerDay, startTime }),
+        body: JSON.stringify({ days: selectedDays, maxPerDay, startTime, fuelPer100km: fuelPer100, fuelPricePerLitre: fuelPrice }),
       });
       const data = await res.json();
       if (data.error) { setError(data.error); return; }
       setRoutes(data);
-      // Auto-expand first day
       const firstDay = Object.keys(data.routes)[0];
       if (firstDay) setExpandedDay(firstDay);
     } catch {
@@ -103,7 +124,7 @@ export default function RoutesPage() {
     <div className="p-6 max-w-4xl mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Optimisation des routes</h1>
-        <p className="text-sm text-gray-500 mt-1">Calcule les routes optimales pour minimiser les déplacements entre les clients d&apos;entretien.</p>
+        <p className="text-sm text-gray-500 mt-1">Calcule les routes optimales avec les vrais temps de trajet Google Maps.</p>
       </div>
 
       {/* Config */}
@@ -129,7 +150,7 @@ export default function RoutesPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-600 mb-1">Max clients/jour</label>
             <input
@@ -151,14 +172,39 @@ export default function RoutesPage() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-600 mb-1">Premier jour de saison</label>
+            <label className="block text-sm font-medium text-gray-600 mb-1">L/100km</label>
             <input
-              type="date"
-              value={startDate}
-              onChange={e => setStartDate(e.target.value)}
+              type="number"
+              value={fuelPer100}
+              min={1}
+              max={30}
+              step={0.5}
+              onChange={e => setFuelPer100(parseFloat(e.target.value) || 9)}
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
             />
           </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-600 mb-1">Prix/litre ($)</label>
+            <input
+              type="number"
+              value={fuelPrice}
+              min={0.5}
+              max={5}
+              step={0.01}
+              onChange={e => setFuelPrice(parseFloat(e.target.value) || 1.65)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-600 mb-1">Premier jour de saison</label>
+          <input
+            type="date"
+            value={startDate}
+            onChange={e => setStartDate(e.target.value)}
+            className="w-full sm:w-48 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+          />
         </div>
 
         <button
@@ -167,7 +213,7 @@ export default function RoutesPage() {
           className="w-full bg-[#0a1f3f] text-white rounded-lg py-3 font-semibold text-sm flex items-center justify-center gap-2 hover:bg-[#0f2855] disabled:opacity-50 transition"
         >
           {loading
-            ? <><Loader2 size={18} className="animate-spin" /> Calcul en cours...</>
+            ? <><Loader2 size={18} className="animate-spin" /> Calcul en cours (Google Maps)...</>
             : <><MapPin size={18} /> Calculer les routes optimales</>
           }
         </button>
@@ -183,21 +229,37 @@ export default function RoutesPage() {
       {/* Results */}
       {routes && (
         <div className="space-y-4">
-          {/* Summary stats */}
-          <div className="grid grid-cols-3 gap-3">
+          {/* Summary stats — 5 cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 text-center">
               <p className="text-2xl font-bold text-gray-900">{routes.totalClients}</p>
-              <p className="text-xs text-gray-500 mt-0.5">Clients inclus</p>
+              <p className="text-xs text-gray-500 mt-0.5">Clients</p>
             </div>
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 text-center">
-              <p className="text-2xl font-bold text-blue-600">{routes.totalDistance} km</p>
-              <p className="text-xs text-gray-500 mt-0.5">Distance/semaine</p>
+              <p className="text-2xl font-bold text-blue-600">{routes.totalDistanceKm} km</p>
+              <p className="text-xs text-gray-500 mt-0.5">Distance/sem.</p>
             </div>
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 text-center">
-              <p className={`text-2xl font-bold ${routes.clientsWithoutAddress > 0 ? "text-orange-500" : "text-green-600"}`}>
-                {routes.clientsWithoutAddress}
-              </p>
-              <p className="text-xs text-gray-500 mt-0.5">Sans adresse</p>
+              <p className="text-2xl font-bold text-amber-600">{routes.fuel.litresPerWeek} L</p>
+              <p className="text-xs text-gray-500 mt-0.5">Essence/sem.</p>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 text-center">
+              <p className="text-2xl font-bold text-orange-600">{routes.fuel.costPerWeek.toFixed(2)} $</p>
+              <p className="text-xs text-gray-500 mt-0.5">Coût/sem.</p>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 text-center col-span-2 sm:col-span-1">
+              <p className="text-2xl font-bold text-red-600">{routes.fuel.costSeason.toFixed(0)} $</p>
+              <p className="text-xs text-gray-500 mt-0.5">Coût/saison</p>
+            </div>
+          </div>
+
+          {/* Fuel detail */}
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+            <Fuel size={18} className="text-amber-600 flex-shrink-0 mt-0.5" />
+            <div className="text-sm text-amber-800">
+              <span className="font-semibold">Estimation essence</span> — {routes.fuel.per100km} L/100km à {routes.fuel.pricePerLitre.toFixed(2)} $/L :{" "}
+              <strong>{routes.fuel.litresPerWeek} L/semaine</strong> ({routes.fuel.costPerWeek.toFixed(2)} $),{" "}
+              <strong>{routes.fuel.costSeason.toFixed(0)} $ sur 24 semaines</strong>.
             </div>
           </div>
 
@@ -214,14 +276,15 @@ export default function RoutesPage() {
                 onClick={() => setExpandedDay(expandedDay === day ? null : day)}
                 className="w-full px-5 py-4 flex items-center justify-between hover:bg-gray-50 transition"
               >
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-wrap">
                   <div className={`w-3 h-3 rounded-full ${DAY_COLORS[day] ?? "bg-gray-400"}`} />
                   <span className="font-semibold text-gray-900">{day}</span>
                   <span className="text-sm text-gray-500">{data.clients.length} client{data.clients.length > 1 ? "s" : ""}</span>
-                  <span className="text-sm text-gray-400">• {data.totalDistance} km</span>
-                  <span className="text-sm text-gray-400">• ~{data.estimatedDuration}</span>
+                  <span className="text-sm text-gray-400">• {data.totalDistanceKm} km</span>
+                  <span className="text-sm text-gray-400">• ~{fmtDuration(data.totalDurationMin)}</span>
+                  <span className="text-sm text-gray-400">• Fin: {data.estimatedEndTime}</span>
                 </div>
-                {expandedDay === day ? <ChevronUp size={18} className="text-gray-400" /> : <ChevronDown size={18} className="text-gray-400" />}
+                {expandedDay === day ? <ChevronUp size={18} className="text-gray-400 flex-shrink-0" /> : <ChevronDown size={18} className="text-gray-400 flex-shrink-0" />}
               </button>
 
               {expandedDay === day && (
@@ -242,17 +305,21 @@ export default function RoutesPage() {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-gray-900 truncate">{client.name}</p>
                         <p className="text-xs text-gray-500 truncate">{client.address}</p>
+                        <p className="text-xs text-gray-400">{client.distanceFromPrev} km • {client.drivingTimeFromPrev} min de trajet</p>
                       </div>
                       <div className="text-right flex-shrink-0">
-                        <p className="text-sm font-semibold text-gray-900">{client.estimatedArrival}</p>
-                        <p className="text-xs text-gray-400">{client.distanceFromPrev} km</p>
+                        <p className="text-sm font-semibold text-gray-900">↓ {client.estimatedArrival}</p>
+                        <p className="text-xs text-gray-400">↑ {client.estimatedDeparture}</p>
                       </div>
                     </div>
                   ))}
 
                   <div className="px-5 py-3 bg-green-50 flex items-center gap-3">
                     <div className="w-7 h-7 rounded-full bg-green-500 text-white flex items-center justify-center text-xs">🏠</div>
-                    <p className="text-sm font-medium text-green-800">Retour à la maison</p>
+                    <div>
+                      <p className="text-sm font-medium text-green-800">Retour à la maison</p>
+                      <p className="text-xs text-green-600">{data.returnHomeKm} km • {data.returnHomeMin} min • Arrivée: {data.estimatedEndTime}</p>
+                    </div>
                   </div>
                 </div>
               )}
