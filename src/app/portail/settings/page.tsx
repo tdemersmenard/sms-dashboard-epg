@@ -5,14 +5,13 @@ import { useRouter } from "next/navigation";
 import { Lock, User } from "lucide-react";
 
 function authHeaders() {
-  const token = typeof window !== "undefined" ? localStorage.getItem("portail_token") : "";
+  const token = typeof window !== "undefined" ? localStorage.getItem("portal_token") : "";
   return { Authorization: `Bearer ${token}` };
 }
 
 export default function PortailSettingsPage() {
   const router = useRouter();
 
-  // ── Profile info state ──────────────────────────────────────
   const [infoLoading, setInfoLoading] = useState(true);
   const [infoSaving, setInfoSaving] = useState(false);
   const [infoSuccess, setInfoSuccess] = useState(false);
@@ -26,7 +25,6 @@ export default function PortailSettingsPage() {
   const [city, setCity] = useState("");
   const [postalCode, setPostalCode] = useState("");
 
-  // ── Password state ──────────────────────────────────────────
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -35,7 +33,7 @@ export default function PortailSettingsPage() {
   const [pwSuccess, setPwSuccess] = useState(false);
 
   useEffect(() => {
-    const token = localStorage.getItem("portail_token");
+    const token = localStorage.getItem("portal_token");
     if (!token) { router.push("/portail"); return; }
     fetch(`/api/portail/me?t=${Date.now()}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -45,8 +43,7 @@ export default function PortailSettingsPage() {
       .then(data => {
         if (data?.client) {
           const c = data.client;
-          const name = [c.first_name, c.last_name].filter(Boolean).join(" ");
-          setDisplayName(name || "—");
+          setDisplayName([c.first_name, c.last_name].filter(Boolean).join(" ") || "—");
           setPoolType(c.pool_type || "");
           setServicesList(c.services || []);
           setPhone(c.phone || "");
@@ -117,22 +114,18 @@ export default function PortailSettingsPage() {
     setPwLoading(false);
   };
 
+  const inputClass = "w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition bg-gray-50";
+  const btnClass = "w-full bg-[#0a1f3f] text-white rounded-xl py-3 text-sm font-semibold hover:bg-[#0d2a52] disabled:opacity-50 transition";
+
   return (
-    <div className="p-4 md:p-6 max-w-xl mx-auto">
-      <button
-        onClick={() => router.back()}
-        className="text-gray-400 hover:text-gray-600 text-sm mb-6 flex items-center gap-1"
-      >
-        ← Retour
-      </button>
+    <div className="space-y-5 max-w-lg">
+      <h1 className="text-xl font-bold text-gray-900">Mon compte</h1>
 
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Mon compte</h1>
-
-      {/* ── Section: Mes informations ───────────────────────── */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-4">
+      {/* Mes informations */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
         <div className="flex items-center gap-2 mb-5">
           <User size={18} className="text-[#0a1f3f]" />
-          <h2 className="text-sm font-bold text-gray-800">Mes informations</h2>
+          <h2 className="font-semibold text-gray-900">Mes informations</h2>
         </div>
 
         {infoLoading ? (
@@ -141,107 +134,70 @@ export default function PortailSettingsPage() {
           </div>
         ) : (
           <form onSubmit={handleSaveInfo} className="space-y-4">
-            {/* Read-only fields */}
-            <div className="grid grid-cols-1 gap-3 p-4 bg-gray-50 rounded-lg">
+            {/* Read-only info */}
+            <div className="grid gap-3 p-4 bg-gray-50 rounded-xl">
               <div>
                 <p className="text-xs font-medium text-gray-400 mb-0.5">Nom</p>
-                <p className="text-sm text-gray-500">{displayName || "—"}</p>
+                <p className="text-sm text-gray-600">{displayName || "—"}</p>
               </div>
               {poolType && (
                 <div>
                   <p className="text-xs font-medium text-gray-400 mb-0.5">Type de piscine</p>
-                  <p className="text-sm text-gray-500 capitalize">{poolType}</p>
+                  <p className="text-sm text-gray-600 capitalize">{poolType}</p>
                 </div>
               )}
               {servicesList.length > 0 && (
                 <div>
                   <p className="text-xs font-medium text-gray-400 mb-0.5">Services</p>
-                  <p className="text-sm text-gray-500">{servicesList.join(", ")}</p>
+                  <p className="text-sm text-gray-600">{servicesList.join(", ")}</p>
                 </div>
               )}
             </div>
 
-            {/* Editable fields */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Téléphone</label>
-              <input
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#0a1f3f]/20 focus:border-[#0a1f3f] bg-gray-50"
-                placeholder="450-000-0000"
-              />
+              <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} className={inputClass} placeholder="450-000-0000" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Adresse courriel</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#0a1f3f]/20 focus:border-[#0a1f3f] bg-gray-50"
-                placeholder="votre@email.com"
-              />
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} className={inputClass} placeholder="votre@courriel.com" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Adresse</label>
-              <input
-                type="text"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#0a1f3f]/20 focus:border-[#0a1f3f] bg-gray-50"
-                placeholder="123 rue Principale"
-              />
+              <input type="text" value={address} onChange={e => setAddress(e.target.value)} className={inputClass} placeholder="123 rue Principale" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Ville</label>
-                <input
-                  type="text"
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#0a1f3f]/20 focus:border-[#0a1f3f] bg-gray-50"
-                  placeholder="Granby"
-                />
+                <input type="text" value={city} onChange={e => setCity(e.target.value)} className={inputClass} placeholder="Granby" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Code postal</label>
-                <input
-                  type="text"
-                  value={postalCode}
-                  onChange={(e) => setPostalCode(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#0a1f3f]/20 focus:border-[#0a1f3f] bg-gray-50"
-                  placeholder="J0E 1Z0"
-                />
+                <input type="text" value={postalCode} onChange={e => setPostalCode(e.target.value)} className={inputClass} placeholder="J0E 1Z0" />
               </div>
             </div>
 
             {infoError && (
-              <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
-                {infoError}
-              </div>
+              <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">{infoError}</div>
             )}
             {infoSuccess && (
-              <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-sm text-green-700 font-medium">
+              <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-sm text-green-700 font-medium">
                 Informations mises à jour!
               </div>
             )}
 
-            <button
-              type="submit"
-              disabled={infoSaving}
-              className="w-full bg-[#0a1f3f] text-white rounded-lg py-3 text-sm font-medium hover:bg-[#0f2855] disabled:opacity-50 transition"
-            >
+            <button type="submit" disabled={infoSaving} className={btnClass}>
               {infoSaving ? "Sauvegarde en cours..." : "Sauvegarder"}
             </button>
           </form>
         )}
       </div>
 
-      {/* ── Section: Changer le mot de passe ───────────────── */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+      {/* Changer le mot de passe */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
         <div className="flex items-center gap-2 mb-5">
           <Lock size={18} className="text-[#0a1f3f]" />
-          <h2 className="text-sm font-bold text-gray-800">Changer le mot de passe</h2>
+          <h2 className="font-semibold text-gray-900">Changer le mot de passe</h2>
         </div>
 
         {pwSuccess ? (
@@ -254,52 +210,30 @@ export default function PortailSettingsPage() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Mot de passe actuel</label>
               <input
-                type="password"
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                required
-                autoComplete="current-password"
-                className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#0a1f3f]/20 focus:border-[#0a1f3f] bg-gray-50"
-                placeholder="••••••••"
+                type="password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)}
+                required autoComplete="current-password" className={inputClass} placeholder="••••••••"
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Nouveau mot de passe</label>
               <input
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                required
-                autoComplete="new-password"
-                minLength={6}
-                className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#0a1f3f]/20 focus:border-[#0a1f3f] bg-gray-50"
-                placeholder="Minimum 6 caractères"
+                type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)}
+                required autoComplete="new-password" minLength={6} className={inputClass} placeholder="Minimum 6 caractères"
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Confirmer le nouveau mot de passe</label>
               <input
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-                autoComplete="new-password"
-                className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#0a1f3f]/20 focus:border-[#0a1f3f] bg-gray-50"
-                placeholder="••••••••"
+                type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)}
+                required autoComplete="new-password" className={inputClass} placeholder="••••••••"
               />
             </div>
 
             {pwError && (
-              <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
-                {pwError}
-              </div>
+              <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">{pwError}</div>
             )}
 
-            <button
-              type="submit"
-              disabled={pwLoading}
-              className="w-full bg-[#0a1f3f] text-white rounded-lg py-3 text-sm font-medium hover:bg-[#0f2855] disabled:opacity-50 transition"
-            >
+            <button type="submit" disabled={pwLoading} className={btnClass}>
               {pwLoading ? "Modification en cours..." : "Modifier le mot de passe"}
             </button>
           </form>

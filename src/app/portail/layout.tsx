@@ -1,98 +1,106 @@
 "use client";
 
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { useRouter, usePathname } from "next/navigation";
-import { LogOut, Settings } from "lucide-react";
-import Link from "next/link";
-
-interface PortailClient {
-  id: string;
-  first_name: string | null;
-  last_name: string | null;
-  email: string | null;
-}
+import { Home, Calendar, CreditCard, User, LogOut } from "lucide-react";
 
 export default function PortailLayout({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
   const pathname = usePathname();
-  const [client, setClient] = useState<PortailClient | null>(null);
+  const router = useRouter();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [client, setClient] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const isLoginPage = pathname === "/portail";
 
   useEffect(() => {
-    if (isLoginPage) return;
-    const token = localStorage.getItem("portail_token");
-    const stored = localStorage.getItem("portail_client");
-    if (!token || !stored) {
-      router.push("/portail");
-      return;
-    }
-    try {
-      setClient(JSON.parse(stored));
-    } catch {
-      router.push("/portail");
-    }
-  }, [isLoginPage, router]);
+    if (isLoginPage) { setLoading(false); return; }
+    const token = localStorage.getItem("portal_token");
+    if (!token) { router.push("/portail"); return; }
+    fetch("/api/portail/me", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" })
+      .then(r => r.json())
+      .then(data => {
+        if (data.error) { localStorage.removeItem("portal_token"); router.push("/portail"); }
+        else setClient(data.client);
+      })
+      .catch(() => { router.push("/portail"); })
+      .finally(() => setLoading(false));
+  }, [pathname, router, isLoginPage]);
 
-  const handleLogout = () => {
-    localStorage.removeItem("portail_token");
-    localStorage.removeItem("portail_client");
+  const logout = () => {
+    localStorage.removeItem("portal_token");
     router.push("/portail");
   };
 
-  const clientName = client
-    ? [client.first_name, client.last_name].filter(Boolean).join(" ")
-    : "";
+  if (isLoginPage) return <div className="min-h-screen bg-gradient-to-b from-[#0a1f3f] to-[#1a3a5c]">{children}</div>;
+  if (loading) return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="w-8 h-8 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+    </div>
+  );
+
+  const navItems = [
+    { icon: Home, label: "Accueil", path: "/portail/dashboard" },
+    { icon: Calendar, label: "Rendez-vous", path: "/portail/rendez-vous" },
+    { icon: CreditCard, label: "Paiements", path: "/portail/paiements" },
+    { icon: User, label: "Compte", path: "/portail/settings" },
+  ];
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f9fafb" }}>
-      {!isLoginPage && (
-        <header
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            zIndex: 50,
-            background: "#0a1f3f",
-            color: "white",
-            height: 64,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            padding: "0 24px",
-            boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
-          }}
-        >
-          <span style={{ fontWeight: 700, fontSize: 16, whiteSpace: "nowrap" }}>
-            Entretien Piscine Granby
-          </span>
-          {clientName && (
-            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-              <span style={{ fontSize: 14, color: "#cbd5e1", maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {clientName}
-              </span>
-              <Link
-                href="/portail/settings"
-                style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 14, color: "#cbd5e1", textDecoration: "none" }}
-                title="Mon compte"
-              >
-                <Settings size={15} />
-                <span style={{ display: "none" }} className="md-inline">Mon compte</span>
-              </Link>
-              <button
-                onClick={handleLogout}
-                style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 14, color: "#cbd5e1", background: "none", border: "none", cursor: "pointer" }}
-              >
-                <LogOut size={15} />
-                <span>Déconnexion</span>
-              </button>
+    <div className="min-h-screen bg-gray-50 pb-20 md:pb-0">
+      {/* Header */}
+      <header className="bg-[#0a1f3f] text-white sticky top-0 z-50">
+        <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-blue-500 flex items-center justify-center text-sm font-bold flex-shrink-0">EP</div>
+            <div>
+              <div className="font-semibold text-sm leading-tight">Entretien Piscine Granby</div>
+              <div className="text-[11px] text-blue-300 leading-tight">Portail client</div>
             </div>
-          )}
-        </header>
-      )}
-      <div style={isLoginPage ? {} : { paddingTop: 64, maxWidth: 768, margin: "0 auto", padding: "64px 16px 80px" }}>
+          </div>
+          <div className="hidden md:flex items-center gap-6">
+            {navItems.map(item => (
+              <button
+                key={item.path}
+                onClick={() => router.push(item.path)}
+                className={`flex items-center gap-2 text-sm transition ${pathname === item.path ? "text-white" : "text-gray-400 hover:text-gray-200"}`}
+              >
+                <item.icon size={16} />
+                {item.label}
+              </button>
+            ))}
+            <button onClick={logout} className="text-gray-400 hover:text-red-300 transition ml-2">
+              <LogOut size={16} />
+            </button>
+          </div>
+          <div className="md:hidden text-sm text-gray-300 truncate max-w-[120px]">
+            {client?.first_name || ""}
+          </div>
+        </div>
+      </header>
+
+      {/* Content */}
+      <main className="max-w-5xl mx-auto px-4 py-6">
         {children}
-      </div>
+      </main>
+
+      {/* Bottom nav mobile */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50" style={{ paddingBottom: "env(safe-area-inset-bottom, 8px)" }}>
+        <div className="flex justify-around py-2">
+          {navItems.map(item => {
+            const isActive = pathname === item.path;
+            return (
+              <button
+                key={item.path}
+                onClick={() => router.push(item.path)}
+                className={`flex flex-col items-center gap-0.5 py-1 px-3 transition ${isActive ? "text-[#0a1f3f]" : "text-gray-400"}`}
+              >
+                <item.icon size={20} strokeWidth={isActive ? 2.5 : 1.5} />
+                <span className="text-[10px] font-medium">{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </nav>
     </div>
   );
 }

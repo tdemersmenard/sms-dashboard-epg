@@ -22,22 +22,49 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Session expirée" }, { status: 401 });
     }
 
-    // Take the first pending payment ordered by due_date
-    const { data: pendingList } = await supabaseAdmin
-      .from("payments")
-      .select("id, amount, notes")
-      .eq("contact_id", contact.id)
-      .eq("status", "en_attente")
-      .order("due_date", { ascending: true })
-      .limit(1);
+    // Accept optional paymentId to pay a specific pending payment
+    const body = await req.json().catch(() => ({}));
+    const { paymentId } = body as { paymentId?: string };
 
-    if (!pendingList || pendingList.length === 0) {
-      return NextResponse.json({ error: "Aucun paiement en attente" }, { status: 400 });
+    let amountToPay: number;
+    let description: string;
+    let paymentRowId: string;
+
+    if (paymentId) {
+      // Use the specific payment requested
+      const { data: specificPayment } = await supabaseAdmin
+        .from("payments")
+        .select("id, amount, notes")
+        .eq("id", paymentId)
+        .eq("contact_id", contact.id)
+        .eq("status", "en_attente")
+        .single();
+
+      if (!specificPayment) {
+        return NextResponse.json({ error: "Paiement non trouvé" }, { status: 404 });
+      }
+
+      amountToPay = specificPayment.amount;
+      description = specificPayment.notes || "Service de piscine";
+      paymentRowId = specificPayment.id;
+    } else {
+      // Fallback: take the first pending payment ordered by due_date
+      const { data: pendingList } = await supabaseAdmin
+        .from("payments")
+        .select("id, amount, notes")
+        .eq("contact_id", contact.id)
+        .eq("status", "en_attente")
+        .order("due_date", { ascending: true })
+        .limit(1);
+
+      if (!pendingList || pendingList.length === 0) {
+        return NextResponse.json({ error: "Aucun paiement en attente" }, { status: 400 });
+      }
+
+      amountToPay = pendingList[0].amount;
+      description = pendingList[0].notes || "Service de piscine";
+      paymentRowId = pendingList[0].id;
     }
-
-    const payment = pendingList[0];
-    const amountToPay = payment.amount;
-    const description = payment.notes || "Service de piscine";
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
 
@@ -55,11 +82,11 @@ export async function POST(req: NextRequest) {
         quantity: 1,
       }],
       mode: "payment",
-      success_url: `${baseUrl}/portail/dashboard?payment=success`,
-      cancel_url: `${baseUrl}/portail/dashboard?payment=cancel`,
+      success_url: `${baseUrl}/portail/paiements?payment=success`,
+      cancel_url: `${baseUrl}/portail/paiements?payment=cancel`,
       customer_email: contact.email || undefined,
       metadata: {
-        payment_id: payment.id,
+        payment_id: paymentRowId,
         contact_id: contact.id,
       },
     });

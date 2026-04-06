@@ -2,101 +2,95 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Waves } from "lucide-react";
 
-export default function PortailLoginPage() {
+export default function PortailLogin() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
+    setError("");
     setLoading(true);
     try {
       const res = await fetch("/api/portail/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), password }),
+        body: JSON.stringify({ email, password }),
       });
       const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || "Erreur de connexion");
-      } else {
-        localStorage.setItem("portail_token", data.token);
-        localStorage.setItem("portail_client", JSON.stringify(data.client));
-        router.push("/portail/dashboard");
-      }
+      if (!res.ok) { setError(data.error || "Erreur de connexion"); return; }
+      localStorage.setItem("portal_token", data.token);
+      router.push("/portail/dashboard");
     } catch {
-      setError("Erreur de connexion. Veuillez réessayer.");
+      setError("Erreur de connexion");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-blue-50/30 flex items-start sm:items-center justify-center p-4">
-      <div className="w-full sm:max-w-md bg-white sm:rounded-2xl sm:shadow-lg p-6 sm:p-8 mt-8 sm:mt-0 rounded-2xl shadow-lg">
+    <div className="min-h-screen flex items-center justify-center px-4">
+      <div className="w-full max-w-sm">
+        {/* Logo */}
         <div className="text-center mb-8">
-          <div className="w-14 h-14 rounded-2xl bg-[#0a1f3f] flex items-center justify-center mx-auto mb-4">
-            <span className="text-white font-bold text-xl">EPG</span>
+          <div className="w-16 h-16 rounded-2xl bg-blue-500 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-500/30">
+            <Waves size={32} className="text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-[#0a1f3f]">Entretien Piscine Granby</h1>
-          <p className="text-gray-500 mt-1 text-sm font-medium">Portail client</p>
-          <p className="text-gray-400 mt-0.5 text-xs">Consultez vos documents, rendez-vous et paiements</p>
+          <h1 className="text-2xl font-bold text-white">Entretien Piscine Granby</h1>
+          <p className="text-blue-300 text-sm mt-1">Portail client</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Adresse courriel
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              autoComplete="email"
-              className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#0a1f3f]/20 focus:border-[#0a1f3f] bg-gray-50"
-              placeholder="votre@email.com"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Mot de passe
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              autoComplete="current-password"
-              className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#0a1f3f]/20 focus:border-[#0a1f3f] bg-gray-50"
-              placeholder="••••••••"
-            />
-          </div>
+        {/* Form */}
+        <div className="bg-white rounded-2xl shadow-2xl p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-1">Connexion</h2>
+          <p className="text-sm text-gray-500 mb-6">Accédez à vos documents, rendez-vous et paiements</p>
 
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
+            <div className="bg-red-50 text-red-600 text-sm rounded-lg p-3 mb-4 border border-red-100">
               {error}
             </div>
           )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-[#0a1f3f] text-white rounded-lg py-3 text-sm font-medium hover:bg-[#0f2855] disabled:opacity-50 transition mt-2"
-          >
-            {loading ? "Connexion en cours..." : "Se connecter"}
-          </button>
-        </form>
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Courriel</label>
+              <input
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="votre@courriel.com"
+                required
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Mot de passe</label>
+              <input
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-[#0a1f3f] text-white rounded-xl py-3 text-sm font-semibold hover:bg-[#0d2a52] transition disabled:opacity-50"
+            >
+              {loading ? "Connexion..." : "Se connecter"}
+            </button>
+          </form>
 
-        <p className="text-center mt-6 text-xs text-gray-400">
-          Mot de passe oublié?{" "}
-          <span className="text-[#0a1f3f] cursor-pointer hover:underline">
-            Contactez-nous au 450-994-2215
-          </span>
-        </p>
+          <p className="text-center text-xs text-gray-400 mt-6">
+            Besoin d&apos;aide? Appelez-nous au 450-994-2215
+          </p>
+        </div>
       </div>
     </div>
   );

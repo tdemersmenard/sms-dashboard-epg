@@ -1,477 +1,215 @@
 "use client";
 
-import { useEffect, useState, Suspense, useCallback } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { FileText, Calendar, DollarSign, Phone, Mail, Send } from "lucide-react";
-
-interface PortailClient {
-  id: string;
-  first_name: string | null;
-  last_name: string | null;
-  email: string | null;
-  phone: string | null;
-  address: string | null;
-  city: string | null;
-  pool_type: string | null;
-  services: string[] | null;
-  season_price: number | null;
-}
-
-interface PortailDoc {
-  id: string;
-  doc_type: string;
-  doc_number: string;
-  amount: number;
-  status: string;
-  pdf_url: string | null;
-  created_at: string;
-}
-
-interface PortailJob {
-  id: string;
-  job_type: string;
-  scheduled_date: string;
-  scheduled_time_start: string | null;
-  status: string;
-  notes: string | null;
-}
-
-interface PortailPayment {
-  id: string;
-  amount: number;
-  status: string;
-  method: string | null;
-  received_date: string | null;
-  due_date: string | null;
-  notes: string | null;
-  created_at: string;
-}
-
-const JOB_TYPE_LABELS: Record<string, string> = {
-  ouverture: "Ouverture",
-  fermeture: "Fermeture",
-  entretien: "Entretien",
-  visite: "Visite",
-  autre: "Autre",
-};
-
-const JOB_TYPE_COLORS: Record<string, string> = {
-  ouverture: "bg-green-100 text-green-700",
-  fermeture: "bg-orange-100 text-orange-700",
-  entretien: "bg-blue-100 text-blue-700",
-  visite: "bg-purple-100 text-purple-700",
-  autre: "bg-gray-100 text-gray-700",
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  brouillon: "bg-gray-100 text-gray-600 border border-gray-200",
-  envoyé: "bg-blue-100 text-blue-700 border border-blue-200",
-  signé: "bg-green-100 text-green-700 border border-green-200",
-  en_attente: "bg-yellow-100 text-yellow-700 border border-yellow-200",
-  reçu: "bg-green-100 text-green-700 border border-green-200",
-  planifié: "bg-blue-100 text-blue-700 border border-blue-200",
-  confirmé: "bg-green-100 text-green-700 border border-green-200",
-  complété: "bg-gray-100 text-gray-600 border border-gray-200",
-};
+import { FileText, Calendar, CreditCard, Phone, Mail, ChevronRight, Download, CheckCircle, XCircle } from "lucide-react";
 
 function fmt(n: number) {
   return new Intl.NumberFormat("fr-CA", { style: "currency", currency: "CAD", minimumFractionDigits: 0 }).format(n);
 }
 
-function authHeaders() {
-  const token = typeof window !== "undefined" ? localStorage.getItem("portail_token") : "";
-  return { Authorization: `Bearer ${token}` };
+function PaymentBanner() {
+  const params = useSearchParams();
+  const payment = params.get("payment");
+  if (payment === "success") return (
+    <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-start gap-3">
+      <CheckCircle size={18} className="text-green-600 flex-shrink-0 mt-0.5" />
+      <div>
+        <p className="font-semibold text-green-800 text-sm">Paiement reçu!</p>
+        <p className="text-xs text-green-700 mt-0.5">Votre paiement par carte a été traité. Merci!</p>
+      </div>
+    </div>
+  );
+  if (payment === "cancel") return (
+    <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 flex items-start gap-3">
+      <XCircle size={18} className="text-yellow-600 flex-shrink-0 mt-0.5" />
+      <div>
+        <p className="font-semibold text-yellow-800 text-sm">Paiement annulé</p>
+        <p className="text-xs text-yellow-700 mt-0.5">Votre paiement n&apos;a pas été complété.</p>
+      </div>
+    </div>
+  );
+  return null;
 }
 
 export default function PortailDashboard() {
   const router = useRouter();
-  const [client, setClient] = useState<PortailClient | null>(null);
-  const [docs, setDocs] = useState<PortailDoc[]>([]);
-  const [upcomingJobs, setUpcomingJobs] = useState<PortailJob[]>([]);
-  const [pastJobs, setPastJobs] = useState<PortailJob[]>([]);
-  const [payments, setPayments] = useState<PortailPayment[]>([]);
-  const [total, setTotal] = useState(0);
-  const [totalPaid, setTotalPaid] = useState(0);
-  const [balance, setBalance] = useState(0);
-  const [contactMsg, setContactMsg] = useState("");
-  const [sendingMsg, setSendingMsg] = useState(false);
-  const [msgSent, setMsgSent] = useState(false);
-  const [msgError, setMsgError] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [client, setClient] = useState<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [documents, setDocuments] = useState<any[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [upcomingJobs, setUpcomingJobs] = useState<any[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [paymentData, setPaymentData] = useState<{ total: number; total_paid: number; balance: number; payments: any[] }>({
+    total: 0, total_paid: 0, balance: 0, payments: [],
+  });
   const [loading, setLoading] = useState(true);
-  const [paymentLoading, setPaymentLoading] = useState(false);
-  const [showInteracId, setShowInteracId] = useState<string | null>(null);
-  const [showAllJobs, setShowAllJobs] = useState(false);
 
-  const fetchAllData = useCallback(() => {
-    const token = localStorage.getItem("portail_token");
-    const opts = { cache: "no-store" as const };
+  useEffect(() => {
+    const token = localStorage.getItem("portal_token");
+    if (!token) { router.push("/portail"); return; }
     const headers = { Authorization: `Bearer ${token}` };
     const t = Date.now();
+
     Promise.all([
-      fetch(`/api/portail/me?t=${t}`, { headers, ...opts }).then(r => r.json()),
-      fetch(`/api/portail/documents?t=${t}`, { headers, ...opts }).then(r => r.json()),
-      fetch(`/api/portail/jobs?t=${t}`, { headers, ...opts }).then(r => r.json()),
-      fetch(`/api/portail/payments?t=${t}`, { headers, ...opts }).then(r => r.json()),
-    ]).then(([me, d, j, p]) => {
+      fetch(`/api/portail/me?t=${t}`, { headers, cache: "no-store" }).then(r => r.json()),
+      fetch(`/api/portail/documents?t=${t}`, { headers, cache: "no-store" }).then(r => r.json()),
+      fetch(`/api/portail/jobs?t=${t}`, { headers, cache: "no-store" }).then(r => r.json()),
+      fetch(`/api/portail/payments?t=${t}`, { headers, cache: "no-store" }).then(r => r.json()),
+    ]).then(([me, docs, jobs, payments]) => {
       if (me?.client) setClient(me.client);
-      if (Array.isArray(d)) setDocs(d);
-      if (j && Array.isArray(j.upcoming)) {
-        setUpcomingJobs(j.upcoming);
-        setPastJobs(j.past || []);
-      }
-      if (p && Array.isArray(p.payments)) {
-        setPayments(p.payments);
-        setTotal(p.total ?? 0);
-        setTotalPaid(p.total_paid ?? 0);
-        setBalance(p.balance ?? 0);
-      }
-      setLoading(false);
-    }).catch(() => setLoading(false));
-  }, []);
+      if (Array.isArray(docs)) setDocuments(docs);
+      else if (docs?.documents) setDocuments(docs.documents);
+      setUpcomingJobs(jobs?.upcoming || []);
+      if (payments?.payments) setPaymentData(payments);
+    }).catch(console.error).finally(() => setLoading(false));
+  }, [router]);
 
-  useEffect(() => {
-    const stored = localStorage.getItem("portail_client");
-    const token = localStorage.getItem("portail_token");
-    if (!stored || !token) { router.push("/portail"); return; }
-    try { setClient(JSON.parse(stored)); } catch { router.push("/portail"); return; }
-    fetchAllData();
-  }, [router, fetchAllData]);
+  const today = new Date().toLocaleDateString("fr-CA", {
+    timeZone: "America/Montreal", weekday: "long", day: "numeric", month: "long", year: "numeric",
+  });
 
-  useEffect(() => {
-    const interval = setInterval(fetchAllData, 30000);
-    return () => clearInterval(interval);
-  }, [fetchAllData]);
+  const pendingPayments = paymentData.payments.filter(p => p.status === "en_attente");
 
-  const today = new Date().toLocaleDateString("fr-CA", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
-  const firstName = client?.first_name || "client";
-
-  const pendingPayments = payments.filter(p => p.status === "en_attente");
-
-  const handleStripeCheckout = async () => {
-    setPaymentLoading(true);
-    try {
-      const token = localStorage.getItem("portail_token");
-      const res = await fetch("/api/portail/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-        body: JSON.stringify({}),
-      });
-      const data = await res.json();
-      if (data.url) {
-        window.location.href = data.url;
-      } else {
-        alert(data.error || "Erreur lors de la création du paiement");
-      }
-    } catch {
-      alert("Erreur de connexion");
-    }
-    setPaymentLoading(false);
-  };
-
-  const handleSendMessage = async () => {
-    if (!contactMsg.trim()) return;
-    setSendingMsg(true);
-    setMsgError(false);
-    try {
-      const res = await fetch("/api/portail/contact", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({ message: contactMsg }),
-      });
-      if (res.ok) {
-        setContactMsg("");
-        setMsgSent(true);
-        setTimeout(() => setMsgSent(false), 4000);
-      } else {
-        setMsgError(true);
-        setTimeout(() => setMsgError(false), 4000);
-      }
-    } catch {
-      setMsgError(true);
-      setTimeout(() => setMsgError(false), 4000);
-    }
-    setSendingMsg(false);
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="w-8 h-8 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin" />
-      </div>
-    );
-  }
+  if (loading) return (
+    <div className="flex justify-center py-16">
+      <div className="w-6 h-6 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+    </div>
+  );
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <Suspense fallback={null}>
         <PaymentBanner />
       </Suspense>
 
       {/* Welcome */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Bonjour {firstName}!</h1>
-        <p className="text-sm text-gray-500 mt-0.5 capitalize">Nous sommes le {today}.</p>
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">
+          Bonjour{client?.first_name ? ` ${client.first_name}` : ""}!
+        </h1>
+        <p className="text-sm text-gray-500 mt-1 capitalize">Nous sommes le {today}.</p>
       </div>
 
-      {/* Documents */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <FileText size={18} className="text-[#0a1f3f]" />
-          <h2 className="text-sm font-bold text-gray-800">Mes documents</h2>
+      {/* Quick stats */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm text-center">
+          <p className="text-2xl font-bold text-gray-900">{upcomingJobs.length}</p>
+          <p className="text-xs text-gray-500 mt-1">Rendez-vous</p>
         </div>
-        {docs.length === 0 ? (
-          <p className="text-sm text-gray-400">Aucun document pour le moment. Vos factures et contrats apparaîtront ici.</p>
-        ) : (
-          <div className="space-y-3">
-            {docs.map(d => (
-              <div key={d.id} className="flex items-center justify-between gap-3 py-2 border-b border-gray-50 last:border-0">
-                <div className="flex items-center gap-3 min-w-0">
-                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${d.doc_type === "contrat" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}`}>
-                    {d.doc_type === "contrat" ? "Contrat" : "Facture"}
-                  </span>
-                  <span className="text-sm text-gray-700 font-medium">{d.doc_number}</span>
-                  <span className="text-sm text-gray-500">{fmt(d.amount)}</span>
-                  <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${STATUS_COLORS[d.status] ?? "bg-gray-100 text-gray-500"}`}>
-                    {d.status}
-                  </span>
-                </div>
-                {d.pdf_url && (
-                  <a
-                    href={d.pdf_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex-shrink-0 text-xs font-medium text-[#0a1f3f] border border-[#0a1f3f]/20 rounded-lg px-3 py-1.5 hover:bg-[#0a1f3f]/5 transition"
-                  >
-                    Voir PDF
-                  </a>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+        <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm text-center">
+          <p className="text-lg font-bold text-green-600">{fmt(paymentData.total_paid)}</p>
+          <p className="text-xs text-gray-500 mt-1">Payé</p>
+        </div>
+        <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm text-center">
+          <p className={`text-lg font-bold ${paymentData.balance > 0 ? "text-orange-500" : "text-green-600"}`}>
+            {fmt(Math.max(0, paymentData.balance))}
+          </p>
+          <p className="text-xs text-gray-500 mt-1">Restant</p>
+        </div>
       </div>
 
-      {/* Rendez-vous */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Calendar size={18} className="text-[#0a1f3f]" />
-          <h2 className="text-sm font-bold text-gray-800">Mes rendez-vous</h2>
+      {/* Payment alert */}
+      {pendingPayments.length > 0 && (
+        <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
+          <p className="font-semibold text-orange-800 text-sm">
+            {pendingPayments.length > 1 ? `${pendingPayments.length} paiements en attente` : "Paiement en attente"}
+          </p>
+          <p className="text-sm text-orange-700 mt-1">
+            {pendingPayments[0].notes || "Service de piscine"} — {fmt(pendingPayments[0].amount)}
+          </p>
+          <button
+            onClick={() => router.push("/portail/paiements")}
+            className="mt-3 bg-orange-500 text-white rounded-xl px-4 py-2.5 text-sm font-semibold w-full hover:bg-orange-600 transition"
+          >
+            Payer maintenant
+          </button>
         </div>
-        {upcomingJobs.length === 0 && pastJobs.length === 0 ? (
-          <p className="text-sm text-gray-400">Aucun rendez-vous planifié. Contactez-nous pour planifier un service!</p>
-        ) : (
-          <>
-            {upcomingJobs.length > 0 && (
-              <>
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">À venir</p>
-                <div className="space-y-2 mb-4">
-                  {(showAllJobs ? upcomingJobs : upcomingJobs.slice(0, 10)).map(j => (
-                    <JobRow key={j.id} job={j} />
-                  ))}
-                </div>
-                {upcomingJobs.length > 10 && (
-                  <button
-                    onClick={() => setShowAllJobs(v => !v)}
-                    className="text-xs text-blue-600 hover:text-blue-800 font-medium mb-4"
-                  >
-                    {showAllJobs ? "Voir moins" : `Voir tout (${upcomingJobs.length} passages)`}
-                  </button>
-                )}
-              </>
-            )}
-            {pastJobs.length > 0 && (
-              <>
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Passés</p>
-                <div className="space-y-2">
-                  {pastJobs.slice(0, 5).map(j => (
-                    <JobRow key={j.id} job={j} />
-                  ))}
-                </div>
-              </>
-            )}
-          </>
-        )}
-      </div>
+      )}
 
-      {/* Paiements */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <DollarSign size={18} className="text-[#0a1f3f]" />
-          <h2 className="text-sm font-bold text-gray-800">Mes paiements</h2>
+      {/* Next appointment */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <Calendar size={16} className="text-blue-600" />
+            <h2 className="font-semibold text-sm text-gray-900">Prochain rendez-vous</h2>
+          </div>
+          <button onClick={() => router.push("/portail/rendez-vous")} className="text-xs text-blue-600 flex items-center gap-1 hover:text-blue-800 transition">
+            Voir tout <ChevronRight size={14} />
+          </button>
         </div>
-
-        {/* 3 stat cards */}
-        <div className="grid grid-cols-3 gap-3 mb-4">
-          <div className="bg-gray-50 rounded-lg p-3 text-center">
-            <p className="text-base font-bold text-gray-900">{fmt(total)}</p>
-            <p className="text-xs text-gray-500 mt-0.5">Total</p>
-          </div>
-          <div className="bg-green-50 rounded-lg p-3 text-center">
-            <p className="text-base font-bold text-green-600">{fmt(totalPaid)}</p>
-            <p className="text-xs text-gray-500 mt-0.5">Payé</p>
-          </div>
-          <div className={`rounded-lg p-3 text-center ${balance > 0 ? "bg-red-50" : "bg-green-50"}`}>
-            <p className={`text-base font-bold ${balance > 0 ? "text-red-600" : "text-green-600"}`}>{fmt(Math.max(0, balance))}</p>
-            <p className="text-xs text-gray-500 mt-0.5">Restant</p>
-          </div>
-        </div>
-
-        {/* One block per pending payment */}
-        {pendingPayments.length > 0 ? (
-          <div className="space-y-3 mb-4">
-            {pendingPayments.map(pending => (
-              <div key={pending.id} className="p-4 bg-blue-50 rounded-xl border border-blue-200">
-                <p className="font-medium text-blue-900 text-sm">{pending.notes || "Paiement en attente"}</p>
-                <p className="text-2xl font-bold text-blue-800 mt-0.5 mb-3">{fmt(pending.amount)}</p>
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <button
-                    onClick={handleStripeCheckout}
-                    disabled={paymentLoading}
-                    className="flex-1 bg-blue-600 text-white rounded-lg py-2.5 px-4 font-medium text-sm hover:bg-blue-700 disabled:opacity-50 transition"
-                  >
-                    {paymentLoading ? "Chargement..." : `Payer ${fmt(pending.amount)} par carte`}
-                  </button>
-                  <button
-                    onClick={() => setShowInteracId(showInteracId === pending.id ? null : pending.id)}
-                    className="flex-1 bg-green-600 text-white rounded-lg py-2.5 px-4 font-medium text-sm hover:bg-green-700 transition"
-                  >
-                    Payer par Interac
-                  </button>
-                </div>
-                {showInteracId === pending.id && (
-                  <div className="mt-3 p-4 bg-white rounded-lg border border-gray-200">
-                    <p className="font-medium mb-2 text-gray-900 text-sm">Instructions pour le virement Interac:</p>
-                    <p className="text-sm text-gray-700">1. Ouvrez votre application bancaire</p>
-                    <p className="text-sm text-gray-700">2. Envoyez un virement Interac à:</p>
-                    <p className="text-lg font-bold text-blue-600 my-2">service@entretienpiscinegranby.com</p>
-                    <p className="text-sm text-gray-700">3. Montant: <strong>{fmt(pending.amount)}</strong></p>
-                    <p className="text-sm text-gray-700">4. Message: <strong>{pending.notes || "Paiement EPG"}</strong></p>
-                    <p className="text-sm text-gray-500 mt-2">Votre paiement sera confirmé manuellement dans les heures qui suivent.</p>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        ) : total > 0 ? (
-          <div className="mb-4 p-3 bg-green-50 rounded-xl border border-green-200">
-            <p className="text-sm font-medium text-green-800">Tout est payé!</p>
-          </div>
-        ) : null}
-
-        {/* Payment list */}
-        {payments.length === 0 ? (
-          <p className="text-sm text-gray-400">Aucun paiement en cours.</p>
-        ) : (
-          <div className="space-y-2">
-            {payments.map(p => (
-              <div key={p.id} className="flex items-center gap-3 py-2 border-b border-gray-50 last:border-0">
-                <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full flex-shrink-0 ${STATUS_COLORS[p.status] ?? "bg-gray-100 text-gray-500"}`}>
-                  {p.status}
+        <div className="p-4">
+          {upcomingJobs.length > 0 ? (
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-blue-50 flex flex-col items-center justify-center flex-shrink-0">
+                <span className="text-sm font-bold text-blue-600 leading-tight">
+                  {new Date(upcomingJobs[0].scheduled_date + "T12:00:00").toLocaleDateString("fr-CA", { day: "numeric" })}
                 </span>
-                <span className="text-sm font-bold text-gray-900">{fmt(p.amount)}</span>
-                {p.notes && <span className="text-xs text-gray-500 truncate">{p.notes.replace(" — Payé par Stripe", "")}</span>}
-                {p.received_date && (
-                  <span className="text-xs text-gray-400 ml-auto flex-shrink-0">
-                    {new Date(p.received_date).toLocaleDateString("fr-CA", { day: "numeric", month: "short" })}
-                  </span>
-                )}
+                <span className="text-[10px] text-blue-500 uppercase">
+                  {new Date(upcomingJobs[0].scheduled_date + "T12:00:00").toLocaleDateString("fr-CA", { month: "short" })}
+                </span>
               </div>
-            ))}
-          </div>
-        )}
+              <div>
+                <p className="font-medium text-sm text-gray-900 capitalize">{upcomingJobs[0].job_type}</p>
+                <p className="text-xs text-gray-500 capitalize">
+                  {new Date(upcomingJobs[0].scheduled_date + "T12:00:00").toLocaleDateString("fr-CA", { weekday: "long", day: "numeric", month: "long" })}
+                  {upcomingJobs[0].scheduled_time_start ? ` à ${upcomingJobs[0].scheduled_time_start.slice(0, 5)}` : ""}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-400 text-center py-2">Aucun rendez-vous planifié</p>
+          )}
+        </div>
+      </div>
+
+      {/* Recent documents */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100">
+          <FileText size={16} className="text-purple-600" />
+          <h2 className="font-semibold text-sm text-gray-900">Documents récents</h2>
+        </div>
+        <div className="divide-y divide-gray-50">
+          {documents.length > 0 ? documents.slice(0, 3).map(doc => (
+            <div key={doc.id} className="px-4 py-3 flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-900">{doc.doc_number}</p>
+                <p className="text-xs text-gray-500 capitalize">{doc.doc_type} — {fmt(doc.amount || 0)}</p>
+              </div>
+              {doc.pdf_url && (
+                <a href={doc.pdf_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 p-2 hover:text-blue-800 transition">
+                  <Download size={16} />
+                </a>
+              )}
+            </div>
+          )) : (
+            <p className="text-sm text-gray-400 text-center py-6">Aucun document pour le moment</p>
+          )}
+        </div>
       </div>
 
       {/* Contact */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Phone size={18} className="text-[#0a1f3f]" />
-          <h2 className="text-sm font-bold text-gray-800">Nous contacter</h2>
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <CreditCard size={16} className="text-gray-400" />
+          <h2 className="font-semibold text-sm text-gray-900">Nous contacter</h2>
         </div>
-        <div className="flex flex-wrap gap-4 mb-4">
+        <div className="flex gap-3">
           <a
             href="tel:4509942215"
-            className="flex items-center gap-2 text-sm text-[#0a1f3f] font-medium hover:underline"
+            className="flex-1 bg-[#0a1f3f] text-white rounded-xl py-3 flex items-center justify-center gap-2 text-sm font-semibold hover:bg-[#0d2a52] transition"
           >
-            <Phone size={15} />
-            450-994-2215
+            <Phone size={16} /> Appeler
           </a>
           <a
             href="mailto:service@entretienpiscinegranby.com"
-            className="flex items-center gap-2 text-sm text-[#0a1f3f] font-medium hover:underline"
+            className="flex-1 bg-gray-100 text-gray-700 rounded-xl py-3 flex items-center justify-center gap-2 text-sm font-semibold hover:bg-gray-200 transition"
           >
-            <Mail size={15} />
-            service@entretienpiscinegranby.com
+            <Mail size={16} /> Courriel
           </a>
         </div>
-        <textarea
-          value={contactMsg}
-          onChange={(e) => setContactMsg(e.target.value)}
-          placeholder="Écrivez votre message ici..."
-          rows={3}
-          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0a1f3f]/20 resize-none bg-gray-50"
-        />
-        {msgSent && (
-          <p className="text-sm text-green-600 mt-2">Message envoyé! On vous répond bientôt.</p>
-        )}
-        {msgError && (
-          <p className="text-sm text-red-600 mt-2">Erreur lors de l&apos;envoi. Veuillez réessayer.</p>
-        )}
-        <button
-          onClick={handleSendMessage}
-          disabled={sendingMsg || !contactMsg.trim()}
-          className="mt-2 flex items-center gap-2 px-4 py-2 bg-[#0a1f3f] text-white text-sm font-medium rounded-lg hover:bg-[#0f2855] disabled:opacity-50 transition"
-        >
-          <Send size={14} />
-          {sendingMsg ? "Envoi..." : "Envoyer"}
-        </button>
       </div>
-    </div>
-  );
-}
-
-function PaymentBanner() {
-  const params = useSearchParams();
-  const payment = params.get("payment");
-  if (payment === "success") {
-    return (
-      <div className="mb-4 bg-green-50 border border-green-200 rounded-xl p-4 text-sm text-green-800">
-        <p className="font-semibold">Paiement reçu!</p>
-        <p className="text-green-700 mt-0.5">Votre paiement par carte a été traité avec succès. Merci!</p>
-      </div>
-    );
-  }
-  if (payment === "cancel") {
-    return (
-      <div className="mb-4 bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-sm text-yellow-800">
-        <p className="font-semibold">Paiement annulé</p>
-        <p className="text-yellow-700 mt-0.5">Votre paiement n&apos;a pas été complété. Vous pouvez réessayer.</p>
-      </div>
-    );
-  }
-  return null;
-}
-
-function JobRow({ job }: { job: PortailJob }) {
-  const colorClass = JOB_TYPE_COLORS[job.job_type] ?? "bg-gray-100 text-gray-700";
-  const label = JOB_TYPE_LABELS[job.job_type] ?? job.job_type;
-  const date = new Date(job.scheduled_date + "T00:00:00").toLocaleDateString("fr-CA", {
-    weekday: "long", day: "numeric", month: "long", year: "numeric",
-  });
-  const time = job.scheduled_time_start
-    ? job.scheduled_time_start.slice(0, 5).replace(":", "h")
-    : null;
-  return (
-    <div className="flex items-start gap-3 py-2 border-b border-gray-50 last:border-0">
-      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 mt-0.5 ${colorClass}`}>
-        {label}
-      </span>
-      <div className="flex-1 min-w-0">
-        <span className="text-sm text-gray-800 capitalize">{date}</span>
-        {time && <span className="text-sm text-gray-500"> à {time}</span>}
-      </div>
-      <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full flex-shrink-0 mt-0.5 ${STATUS_COLORS[job.status] ?? "bg-gray-100 text-gray-500"}`}>
-        {job.status}
-      </span>
     </div>
   );
 }
