@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Kanban, MessageSquare, Users,
-  Calendar, FileText, Zap, Brain, BarChart3, Navigation,
+  Calendar, FileText, Zap, Brain, BarChart3, Navigation, Activity,
 } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -18,6 +18,7 @@ const NAV_ITEMS = [
   { label: "Templates",       href: "/templates",   icon: FileText },
   { label: "Automations",     href: "/automations", icon: Zap },
   { label: "Apprentissages",  href: "/learnings",   icon: Brain },
+  { label: "Diagnostic",      href: "/diagnostic",  icon: Activity },
 ];
 
 interface SidebarProps {
