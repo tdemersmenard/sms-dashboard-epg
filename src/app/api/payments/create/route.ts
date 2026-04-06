@@ -51,7 +51,9 @@ export async function POST(req: NextRequest) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contactId: thomas.id,
-          body: `CHLORE: Paiement de ${amount}$ créé pour ${name} (${description}). SMS envoyé.`,
+          body: silentClient
+            ? `CHLORE: Paiement de ${amount}$ créé pour ${name} (${description}). Aucun SMS au client (paiement futur).`
+            : `CHLORE: Paiement de ${amount}$ créé pour ${name} (${description}). SMS envoyé au client.`,
         }),
       });
     }
