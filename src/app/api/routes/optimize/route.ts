@@ -166,7 +166,6 @@ export async function POST(req: NextRequest) {
     const clientsWithAddress = entretienClients.filter(c =>
       c.address &&
       c.address.length > 5 &&
-      c.first_name !== "Thomas" &&
       !c.phone?.includes("4509942215")
     );
 
