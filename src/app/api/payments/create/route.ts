@@ -4,7 +4,7 @@ import { supabaseAdmin } from "@/lib/supabase";
 
 export async function POST(req: NextRequest) {
   try {
-    const { contactId, amount, description, dueDate, method } = await req.json();
+    const { contactId, amount, description, dueDate, method, silentClient } = await req.json();
 
     if (!contactId || !amount || !description) {
       return NextResponse.json({ error: "contactId, amount et description requis" }, { status: 400 });
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     const clientName = contact.first_name || "Bonjour";
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
 
-    if (contact.phone?.startsWith("+")) {
+    if (contact.phone?.startsWith("+") && !silentClient) {
       await fetch(`${baseUrl}/api/sms/send`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

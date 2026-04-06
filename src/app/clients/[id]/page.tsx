@@ -238,7 +238,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
       fetch(`/api/messages?contactId=${id}`).then((r) => r.json()).catch(() => []),
       supabaseBrowser.from("jobs").select("*").eq("contact_id", id).order("scheduled_date"),
       supabaseBrowser.from("documents").select("*").eq("contact_id", id).order("created_at", { ascending: false }),
-      supabaseBrowser.from("payments").select("*").eq("contact_id", id).order("created_at", { ascending: false }),
+      supabaseBrowser.from("payments").select("*").eq("contact_id", id).order("due_date", { ascending: true }),
     ]);
     if (c) setContact(c as Contact);
     setMessages(Array.isArray(m) ? (m as Message[]).slice(-5) : []);
@@ -356,7 +356,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
       await fetch("/api/payments/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contactId: id, amount: half2, description: `${desc} — Versement 2/2`, dueDate: "2026-07-15" }),
+        body: JSON.stringify({ contactId: id, amount: half2, description: `${desc} — Versement 2/2`, dueDate: "2026-07-15", silentClient: true }),
       });
     } else {
       await fetch("/api/payments/create", {
