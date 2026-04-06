@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { MessageSquare, CalendarPlus, ChevronDown, Upload, Download, Trash2, CheckCircle, PenLine, Globe, Copy, X, CreditCard } from "lucide-react";
+import { MessageSquare, CalendarPlus, ChevronDown, Upload, Download, Trash2, CheckCircle, PenLine, Copy, X, CreditCard } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import type { Contact, Job, Document, Payment, Message } from "@/lib/types";
 
@@ -161,37 +161,6 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   // DocuSign
   const [sendingDocuSign, setSendingDocuSign] = useState<string | null>(null);
   const [docuSignToast, setDocuSignToast] = useState<string | null>(null);
-
-  // Portail client
-  const [showPortalModal, setShowPortalModal] = useState(false);
-  const [portalPassword, setPortalPassword] = useState("");
-  const [portalCreating, setPortalCreating] = useState(false);
-  const [portalDone, setPortalDone] = useState(false);
-  const [portalCopied, setPortalCopied] = useState(false);
-
-  const openPortalModal = () => {
-    // Generate random 8-char password
-    const chars = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
-    const pwd = Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
-    setPortalPassword(pwd);
-    setPortalDone(false);
-    setPortalCopied(false);
-    setShowPortalModal(true);
-  };
-
-  const handleCreatePortalAccess = async () => {
-    setPortalCreating(true);
-    const res = await fetch("/api/portail/send-welcome", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contactId: id }),
-    });
-    const data = await res.json();
-    setPortalCreating(false);
-    if (data.success) setPortalDone(true);
-  };
-
-  const handleSendPortalSMS = handleCreatePortalAccess;
 
   const handleDocuSign = async (docId: string) => {
     if (!contact?.email) {
@@ -439,13 +408,6 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
           </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          <button
-            onClick={openPortalModal}
-            className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition"
-          >
-            <Globe size={15} />
-            Portail
-          </button>
           <button
             onClick={() => router.push(`/messages?contact=${id}`)}
             className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition"
@@ -1011,72 +973,6 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
         </div>
       )}
 
-      {/* Portal modal */}
-      {showPortalModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-              <h2 className="text-base font-bold text-gray-900">Créer accès portail</h2>
-              <button onClick={() => setShowPortalModal(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
-            </div>
-            <div className="px-5 py-4 space-y-4">
-              {!contact?.email ? (
-                <p className="text-sm text-orange-600 bg-orange-50 border border-orange-200 rounded-lg px-4 py-3">
-                  Ce client n&apos;a pas d&apos;adresse email. Ajoutez un email avant de créer un accès portail.
-                </p>
-              ) : (
-                <>
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">Email du client</p>
-                    <p className="text-sm font-medium text-gray-900">{contact.email}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">Mot de passe généré</p>
-                    <div className="flex items-center gap-2">
-                      <code className="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono font-bold text-gray-900">
-                        {portalPassword}
-                      </code>
-                      <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(portalPassword);
-                          setPortalCopied(true);
-                          setTimeout(() => setPortalCopied(false), 2000);
-                        }}
-                        className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition"
-                      >
-                        <Copy size={14} />
-                        {portalCopied ? "Copié!" : "Copier"}
-                      </button>
-                    </div>
-                  </div>
-                  {portalDone && (
-                    <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-4 py-2">
-                      Accès portail créé avec succès!
-                    </p>
-                  )}
-                  <div className="flex flex-wrap gap-2 pt-2">
-                    <button
-                      onClick={handleSendPortalSMS}
-                      className="flex items-center gap-1.5 px-4 py-2 border border-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition"
-                    >
-                      <MessageSquare size={14} />
-                      Envoyer par SMS
-                    </button>
-                    <button
-                      onClick={handleCreatePortalAccess}
-                      disabled={portalCreating || portalDone}
-                      className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition"
-                    >
-                      <Globe size={14} />
-                      {portalCreating ? "Création..." : portalDone ? "Créé ✓" : "Créer l'accès"}
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

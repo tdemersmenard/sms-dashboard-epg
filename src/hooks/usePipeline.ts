@@ -55,14 +55,28 @@ export function usePipeline() {
     setContacts((prev) =>
       prev.map((c) => (c.id === contactId ? { ...c, stage: newStage } : c))
     );
-    const { error } = await supabaseBrowser
-      .from("contacts")
-      .update({ stage: newStage })
-      .eq("id", contactId);
-    if (error) {
-      console.error("usePipeline updateStage:", error);
-      // Rollback
-      loadContacts();
+
+    if (newStage === "closé") {
+      // Use API route so portal access is created automatically
+      const res = await fetch("/api/contacts/update-stage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contactId, stage: newStage }),
+      });
+      if (!res.ok) {
+        console.error("usePipeline updateStage (closé):", await res.text());
+        loadContacts();
+      }
+    } else {
+      const { error } = await supabaseBrowser
+        .from("contacts")
+        .update({ stage: newStage })
+        .eq("id", contactId);
+      if (error) {
+        console.error("usePipeline updateStage:", error);
+        // Rollback
+        loadContacts();
+      }
     }
   }, [loadContacts]);
 

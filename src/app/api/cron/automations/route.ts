@@ -1,10 +1,9 @@
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from "next/server";
-import { runAutomations } from "@/lib/automations/engine";
 
 export async function GET(req: NextRequest) {
-  // Verify cron secret if configured
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret) {
     const auth = req.headers.get("authorization");
@@ -13,57 +12,32 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const results: any = { ran_at: new Date().toISOString() };
+
+  // 1. Rappels RDV (1 jour avant + 1h avant)
   try {
-    const results = await runAutomations();
-    const succeeded = results.filter((r) => r.status === "success").length;
-    const failed    = results.filter((r) => r.status === "error").length;
-
-    // Job reminders (1 day before + 1 hour before)
-    let reminderResults: string[] = [];
-    try {
-      const { sendJobReminders } = await import("@/lib/automations/reminders");
-      reminderResults = await sendJobReminders();
-      console.log("[cron] Reminders:", reminderResults);
-    } catch (e) {
-      console.error("[cron] Reminder error:", e);
-    }
-
-    // Payment reminders (due today)
-    let paymentReminderResults: string[] = [];
-    try {
-      const { sendPaymentReminders } = await import("@/lib/automations/reminders");
-      paymentReminderResults = await sendPaymentReminders();
-      console.log("[cron] Payment reminders:", paymentReminderResults);
-    } catch (e) {
-      console.error("[cron] Payment reminder error:", e);
-    }
-
-    // Auto-assign routes pour les nouveaux clients
-    let routeResults: string[] = [];
-    try {
-      const { checkAndAutoAssign } = await import("@/lib/routes/auto-assign");
-      routeResults = await checkAndAutoAssign();
-      if (routeResults.length > 0) {
-        console.log("[cron] Auto-assigned routes:", routeResults);
-      }
-    } catch (e) {
-      console.error("[cron] Route auto-assign error:", e);
-    }
-
-    return NextResponse.json({
-      ok: true,
-      ran_at: new Date().toISOString(),
-      total: results.length,
-      succeeded,
-      failed,
-      results,
-      reminders: reminderResults,
-      payment_reminders: paymentReminderResults,
-      routes: routeResults,
-    });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error("[cron/automations] fatal:", err);
-    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
+    const { sendJobReminders } = await import("@/lib/automations/reminders");
+    results.job_reminders = await sendJobReminders();
+  } catch (e) {
+    results.job_reminders_error = String(e);
   }
+
+  // 2. Rappels paiement (jour de la due_date)
+  try {
+    const { sendPaymentReminders } = await import("@/lib/automations/reminders");
+    results.payment_reminders = await sendPaymentReminders();
+  } catch (e) {
+    results.payment_reminders_error = String(e);
+  }
+
+  // 3. Auto-assign nouveaux clients aux routes
+  try {
+    const { checkAndAutoAssign } = await import("@/lib/routes/auto-assign");
+    results.routes_assigned = await checkAndAutoAssign();
+  } catch (e) {
+    results.routes_error = String(e);
+  }
+
+  return NextResponse.json({ ok: true, ...results });
 }
