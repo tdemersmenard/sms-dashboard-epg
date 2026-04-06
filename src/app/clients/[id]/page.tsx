@@ -334,6 +334,8 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   const handleNewPaySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPayAmount) return;
+    // Prévenir les doubles soumissions
+    if (savingNewPay) return;
     setSavingNewPay(true);
     const amount = parseFloat(newPayAmount);
     const cat = PAYMENT_CATEGORIES.find(c => c.value === newPayCategory);
@@ -374,6 +376,9 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
     await load();
     setSavingNewPay(false);
     setShowNewPayForm(false);
+    setNewPayCategory("");
+    setNewPayAmount("");
+    setNewPayDescription("");
     setNewPayToast(true);
     setNewPayOuvertureDate("");
     setTimeout(() => setNewPayToast(false), 4000);
