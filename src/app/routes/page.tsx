@@ -247,22 +247,43 @@ export default function RoutesPage() {
               <p className="text-xs text-gray-500">Dist./semaine</p>
             </div>
             <div className="bg-white rounded-xl shadow-sm border p-4 text-center">
-              <p className="text-2xl font-bold text-orange-500">{displayRoutes.fuel?.litresPerWeek ?? "?"} L</p>
+              <p className="text-2xl font-bold text-orange-500">{displayRoutes.fuel?.weeklyFuelLitres ?? "?"} L</p>
               <p className="text-xs text-gray-500">Essence/sem.</p>
             </div>
             <div className="bg-white rounded-xl shadow-sm border p-4 text-center">
-              <p className="text-2xl font-bold text-red-500">{displayRoutes.fuel?.costPerWeek?.toFixed(2) ?? "?"} $</p>
+              <p className="text-2xl font-bold text-red-500">{displayRoutes.fuel?.weeklyFuelCost?.toFixed(2) ?? "?"} $</p>
               <p className="text-xs text-gray-500">Coût/sem.</p>
             </div>
             <div className="bg-white rounded-xl shadow-sm border p-4 text-center">
-              <p className="text-2xl font-bold text-purple-600">{displayRoutes.fuel?.costSeason?.toFixed(0) ?? "?"} $</p>
+              <p className="text-2xl font-bold text-purple-600">{displayRoutes.fuel?.seasonFuelCost?.toFixed(0) ?? "?"} $</p>
               <p className="text-xs text-gray-500">Coût/saison</p>
             </div>
           </div>
 
-          {displayRoutes.clientsWithoutAddress > 0 && (
-            <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 text-sm text-orange-700">
-              ⚠ {displayRoutes.clientsWithoutAddress} client(s) sans adresse — non inclus dans les routes
+          {displayRoutes?.clientsWithoutAddress?.length > 0 && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+              <p className="font-semibold text-red-800 text-sm">⚠ Clients sans adresse (non inclus):</p>
+              <ul className="mt-1">{displayRoutes.clientsWithoutAddress.map((n: string, i: number) => (
+                <li key={i} className="text-sm text-red-700">• {n}</li>
+              ))}</ul>
+            </div>
+          )}
+
+          {displayRoutes?.clientsWithoutOuverture?.length > 0 && (
+            <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
+              <p className="font-semibold text-orange-800 text-sm">⚠ Clients sans date d&apos;ouverture:</p>
+              <ul className="mt-1">{displayRoutes.clientsWithoutOuverture.map((n: string, i: number) => (
+                <li key={i} className="text-sm text-orange-700">• {n}</li>
+              ))}</ul>
+            </div>
+          )}
+
+          {displayRoutes?.failedGeocode?.length > 0 && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+              <p className="font-semibold text-yellow-800 text-sm">⚠ Adresses non reconnues par Google:</p>
+              <ul className="mt-1">{displayRoutes.failedGeocode.map((n: string, i: number) => (
+                <li key={i} className="text-sm text-yellow-700">• {n}</li>
+              ))}</ul>
             </div>
           )}
 
@@ -294,11 +315,43 @@ export default function RoutesPage() {
 
                   {(data.clients || []).map((client: any) => (
                     <div key={client.id} className="px-4 py-3 flex items-center gap-3">
-                      <div className={`w-7 h-7 rounded-full ${DAY_COLORS[day] || "bg-gray-400"} text-white flex items-center justify-center text-xs font-bold`}>
+                      <div className={`w-7 h-7 rounded-full ${DAY_COLORS[day] || "bg-gray-400"} text-white flex items-center justify-center text-xs font-bold flex-shrink-0`}>
                         {client.order}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900">{client.name}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium text-gray-900">{client.name}</p>
+                          <select
+                            className="text-xs border rounded px-1 py-0.5 text-gray-500 bg-white"
+                            defaultValue=""
+                            onChange={(e) => {
+                              if (!e.target.value) return;
+                              const newDay = e.target.value;
+                              setCalculatedRoutes((prev: any) => {
+                                if (!prev) return prev;
+                                const updated = { ...prev, routes: { ...prev.routes } };
+                                updated.routes[day] = {
+                                  ...updated.routes[day],
+                                  clients: updated.routes[day].clients.filter((c: any) => c.id !== client.id),
+                                };
+                                if (!updated.routes[newDay]) {
+                                  updated.routes[newDay] = { clients: [], totalDistanceKm: 0, totalDurationMin: 0, estimatedEndTime: "", returnHomeKm: 0, returnHomeMin: 0 };
+                                }
+                                updated.routes[newDay] = {
+                                  ...updated.routes[newDay],
+                                  clients: [...updated.routes[newDay].clients, { ...client, order: updated.routes[newDay].clients.length + 1 }],
+                                };
+                                return updated;
+                              });
+                              e.target.value = "";
+                            }}
+                          >
+                            <option value="">Déplacer...</option>
+                            {Object.keys(displayRoutes.routes).filter((d: string) => d !== day).map((d: string) => (
+                              <option key={d} value={d}>{d}</option>
+                            ))}
+                          </select>
+                        </div>
                         <p className="text-xs text-gray-500 truncate">{client.address}</p>
                         {client.ouvertureDate && (
                           <p className="text-xs text-blue-500">Ouverture: {client.ouvertureDate} → 1er entretien: {client.firstEntretien || "—"}</p>
