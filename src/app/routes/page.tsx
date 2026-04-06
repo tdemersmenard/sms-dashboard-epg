@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { MapPin, Loader2, AlertCircle, ChevronDown, ChevronUp, Check, Send, Fuel } from "lucide-react";
+import { MapPin, Loader2, AlertCircle, ChevronDown, ChevronUp, Check, Send, Fuel, Clock } from "lucide-react";
 
 const DAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
 const DAY_COLORS: Record<string, string> = {
@@ -227,13 +227,21 @@ export default function RoutesPage() {
       )}
 
       {/* Results */}
-      {routes && (
+      {routes && (() => {
+        const totalWorkMin = Object.values(routes.routes).reduce((sum, d) => sum + d.totalDurationMin, 0);
+        const workH = Math.floor(totalWorkMin / 60);
+        const workM = totalWorkMin % 60;
+        return (
         <div className="space-y-4">
-          {/* Summary stats — 5 cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          {/* Summary stats — 6 cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 text-center">
               <p className="text-2xl font-bold text-gray-900">{routes.totalClients}</p>
               <p className="text-xs text-gray-500 mt-0.5">Clients</p>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 text-center">
+              <p className="text-2xl font-bold text-indigo-600">{workH}h{String(workM).padStart(2, "0")}</p>
+              <p className="text-xs text-gray-500 mt-0.5">Heures/sem.</p>
             </div>
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 text-center">
               <p className="text-2xl font-bold text-blue-600">{routes.totalDistanceKm} km</p>
@@ -247,9 +255,19 @@ export default function RoutesPage() {
               <p className="text-2xl font-bold text-orange-600">{routes.fuel.costPerWeek.toFixed(2)} $</p>
               <p className="text-xs text-gray-500 mt-0.5">Coût/sem.</p>
             </div>
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 text-center col-span-2 sm:col-span-1">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 text-center">
               <p className="text-2xl font-bold text-red-600">{routes.fuel.costSeason.toFixed(0)} $</p>
               <p className="text-xs text-gray-500 mt-0.5">Coût/saison</p>
+            </div>
+          </div>
+
+          {/* Hours detail */}
+          <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 flex items-start gap-3">
+            <Clock size={18} className="text-indigo-600 flex-shrink-0 mt-0.5" />
+            <div className="text-sm text-indigo-800">
+              <span className="font-semibold">Temps de travail</span> — {routes.totalClients} clients × 45 min + trajets :{" "}
+              <strong>{workH}h{String(workM).padStart(2, "0")} par semaine</strong>
+              {" "}({Object.keys(routes.routes).length} journée{Object.keys(routes.routes).length > 1 ? "s" : ""}).
             </div>
           </div>
 
@@ -362,7 +380,8 @@ export default function RoutesPage() {
             </div>
           )}
         </div>
-      )}
+      );
+      })()}
     </div>
   );
 }
