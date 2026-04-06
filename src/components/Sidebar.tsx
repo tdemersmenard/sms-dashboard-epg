@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Kanban, MessageSquare, Users,
-  Calendar, FileText, Zap, Brain, BarChart3,
+  Calendar, FileText, Zap, Brain, BarChart3, Navigation,
 } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { label: "Messages",        href: "/messages",    icon: MessageSquare },
   { label: "Clients",         href: "/clients",     icon: Users },
   { label: "Calendrier",      href: "/calendar",    icon: Calendar },
+  { label: "Routes",          href: "/routes",      icon: Navigation },
   { label: "Templates",       href: "/templates",   icon: FileText },
   { label: "Automations",     href: "/automations", icon: Zap },
   { label: "Apprentissages",  href: "/learnings",   icon: Brain },
