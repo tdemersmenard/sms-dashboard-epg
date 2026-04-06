@@ -2,7 +2,7 @@
 
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { FileText, Calendar, CreditCard, Phone, Mail, ChevronRight, Download, CheckCircle, XCircle } from "lucide-react";
+import { FileText, Calendar, CreditCard, Phone, Mail, ChevronRight, Download, CheckCircle, XCircle, MessageSquare, Send } from "lucide-react";
 
 function fmt(n: number) {
   return new Intl.NumberFormat("fr-CA", { style: "currency", currency: "CAD", minimumFractionDigits: 0 }).format(n);
@@ -45,6 +45,10 @@ export default function PortailDashboard() {
     total: 0, total_paid: 0, balance: 0, payments: [],
   });
   const [loading, setLoading] = useState(true);
+  const [smsText, setSmsText] = useState("");
+  const [smsSending, setSmsSending] = useState(false);
+  const [smsSent, setSmsSent] = useState(false);
+  const [smsError, setSmsError] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem("portal_token");
@@ -71,6 +75,32 @@ export default function PortailDashboard() {
   });
 
   const pendingPayments = paymentData.payments.filter(p => p.status === "en_attente");
+
+  const handleSendSms = async () => {
+    if (!smsText.trim()) return;
+    setSmsSending(true);
+    setSmsError(false);
+    try {
+      const token = localStorage.getItem("portal_token");
+      const res = await fetch("/api/portail/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ message: smsText.trim() }),
+      });
+      if (res.ok) {
+        setSmsText("");
+        setSmsSent(true);
+        setTimeout(() => setSmsSent(false), 5000);
+      } else {
+        setSmsError(true);
+        setTimeout(() => setSmsError(false), 4000);
+      }
+    } catch {
+      setSmsError(true);
+      setTimeout(() => setSmsError(false), 4000);
+    }
+    setSmsSending(false);
+  };
 
   if (loading) return (
     <div className="flex justify-center py-16">
@@ -192,21 +222,50 @@ export default function PortailDashboard() {
       {/* Contact */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
         <div className="flex items-center gap-2 mb-3">
-          <CreditCard size={16} className="text-gray-400" />
+          <MessageSquare size={16} className="text-[#0a1f3f]" />
           <h2 className="font-semibold text-sm text-gray-900">Nous contacter</h2>
         </div>
+
+        {/* SMS form */}
+        <div className="mb-3">
+          <textarea
+            value={smsText}
+            onChange={e => setSmsText(e.target.value)}
+            placeholder="Écrivez votre message..."
+            rows={3}
+            className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition resize-none bg-gray-50"
+          />
+          {smsSent && (
+            <p className="text-xs text-green-600 mt-1.5 flex items-center gap-1">
+              <CheckCircle size={13} /> Message envoyé! On vous répond bientôt.
+            </p>
+          )}
+          {smsError && (
+            <p className="text-xs text-red-600 mt-1.5">Erreur lors de l&apos;envoi. Réessayez.</p>
+          )}
+          <button
+            onClick={handleSendSms}
+            disabled={smsSending || !smsText.trim()}
+            className="mt-2 w-full bg-[#0a1f3f] text-white rounded-xl py-3 text-sm font-semibold flex items-center justify-center gap-2 hover:bg-[#0d2a52] disabled:opacity-40 transition"
+          >
+            <Send size={15} />
+            {smsSending ? "Envoi en cours..." : "Envoyer un message"}
+          </button>
+        </div>
+
+        {/* Call / Email */}
         <div className="flex gap-3">
           <a
             href="tel:4509942215"
-            className="flex-1 bg-[#0a1f3f] text-white rounded-xl py-3 flex items-center justify-center gap-2 text-sm font-semibold hover:bg-[#0d2a52] transition"
+            className="flex-1 bg-gray-100 text-gray-700 rounded-xl py-2.5 flex items-center justify-center gap-2 text-sm font-medium hover:bg-gray-200 transition"
           >
-            <Phone size={16} /> Appeler
+            <Phone size={15} /> Appeler
           </a>
           <a
             href="mailto:service@entretienpiscinegranby.com"
-            className="flex-1 bg-gray-100 text-gray-700 rounded-xl py-3 flex items-center justify-center gap-2 text-sm font-semibold hover:bg-gray-200 transition"
+            className="flex-1 bg-gray-100 text-gray-700 rounded-xl py-2.5 flex items-center justify-center gap-2 text-sm font-medium hover:bg-gray-200 transition"
           >
-            <Mail size={16} /> Courriel
+            <Mail size={15} /> Courriel
           </a>
         </div>
       </div>
