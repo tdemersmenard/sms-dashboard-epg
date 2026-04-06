@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
   const { data: contact } = await supabaseAdmin
     .from("contacts")
     .select("id, first_name, last_name, email, portal_password")
-    .eq("email", email.toLowerCase())
+    .ilike("email", email.trim())
     .single();
 
   if (!contact || !contact.portal_password) {
