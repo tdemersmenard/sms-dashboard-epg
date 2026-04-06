@@ -28,6 +28,18 @@ export async function GET(req: NextRequest) {
       console.error("[cron] Reminder error:", e);
     }
 
+    // Auto-assign routes pour les nouveaux clients
+    let routeResults: string[] = [];
+    try {
+      const { checkAndAutoAssign } = await import("@/lib/routes/auto-assign");
+      routeResults = await checkAndAutoAssign();
+      if (routeResults.length > 0) {
+        console.log("[cron] Auto-assigned routes:", routeResults);
+      }
+    } catch (e) {
+      console.error("[cron] Route auto-assign error:", e);
+    }
+
     return NextResponse.json({
       ok: true,
       ran_at: new Date().toISOString(),
@@ -36,6 +48,7 @@ export async function GET(req: NextRequest) {
       failed,
       results,
       reminders: reminderResults,
+      routes: routeResults,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { MapPin, Loader2, AlertCircle, ChevronDown, ChevronUp, Check, Send, Fuel, Clock, CalendarCheck, X } from "lucide-react";
 
 const DAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
@@ -96,8 +96,8 @@ export default function RoutesPage() {
   const [selectedDays, setSelectedDays] = useState(["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi"]);
   const [maxPerDay, setMaxPerDay] = useState(5);
   const [startTime, setStartTime] = useState("08:00");
-  const [startDate, setStartDate] = useState("2026-04-20");
   const [fuelPer100, setFuelPer100] = useState(9);
+  const [currentRoutes, setCurrentRoutes] = useState<any>(null);
   const [fuelPrice, setFuelPrice] = useState(1.65);
   const [routes, setRoutes] = useState<OptimizeResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -110,6 +110,10 @@ export default function RoutesPage() {
   const [confirmedIds, setConfirmedIds] = useState<Set<string>>(loadConfirmedIds);
   const [previewKey, setPreviewKey] = useState<string | null>(null); // "{clientId}__{day}"
   const [clientConfirming, setClientConfirming] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/routes/current", { cache: "no-store" }).then(r => r.json()).then(setCurrentRoutes);
+  }, []);
 
   const markConfirmed = (clientId: string) => {
     const next = new Set(Array.from(confirmedIds).concat(clientId));
@@ -150,7 +154,7 @@ export default function RoutesPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           routes: { [day]: { clients: [client] } },
-          startDate,
+          startDate: new Date().toISOString().split("T")[0],
           sendSMS,
         }),
       });
@@ -185,7 +189,7 @@ export default function RoutesPage() {
       const res = await fetch("/api/routes/confirm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ routes: visibleRoutes, startDate, sendSMS }),
+        body: JSON.stringify({ routes: visibleRoutes, startDate: new Date().toISOString().split("T")[0], sendSMS }),
       });
       const data = await res.json();
       if (data.success) {
@@ -231,6 +235,31 @@ export default function RoutesPage() {
           </button>
         )}
       </div>
+
+      {/* Routes actuelles */}
+      {currentRoutes && currentRoutes.totalClients > 0 && (
+        <div className="bg-white rounded-xl shadow-sm border p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold text-gray-900">Routes actuelles ({currentRoutes.totalClients} clients)</h2>
+          </div>
+          {Object.entries(currentRoutes.routes).map(([day, clients]: [string, any]) => (
+            <div key={day}>
+              <h3 className="text-sm font-medium text-gray-500 mb-2">{day} — {clients.length} client{clients.length > 1 ? "s" : ""}</h3>
+              <div className="space-y-1">
+                {clients.map((client: any, idx: number) => (
+                  <div key={client.id} className="flex items-center gap-3 py-1.5 px-3 rounded-lg hover:bg-gray-50 text-sm">
+                    <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold">{idx + 1}</span>
+                    <span className="font-medium text-gray-900 flex-1">{client.name}</span>
+                    <span className="text-gray-500 text-xs">{client.address}</span>
+                    <span className="text-gray-400 text-xs">{client.time}</span>
+                    <span className="text-gray-300 text-xs">{client.remainingJobs} passages</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Config */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-5">
@@ -300,16 +329,6 @@ export default function RoutesPage() {
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
             />
           </div>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-600 mb-1">Premier jour de saison</label>
-          <input
-            type="date"
-            value={startDate}
-            onChange={e => setStartDate(e.target.value)}
-            className="w-full sm:w-48 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
-          />
         </div>
 
         <button
@@ -430,8 +449,9 @@ export default function RoutesPage() {
                       {data.clients.map(client => {
                         const isConfirmed = confirmedIds.has(client.id);
                         const isPreviewOpen = previewKey === `${client.id}__${day}`;
-                        const passages = countPassages(startDate, day);
-                        const firstDate = firstAppointmentDate(startDate, day);
+                        const todayStr = new Date().toISOString().split("T")[0];
+                        const passages = countPassages(todayStr, day);
+                        const firstDate = firstAppointmentDate(todayStr, day);
 
                         if (isConfirmed) {
                           return (
@@ -532,7 +552,7 @@ export default function RoutesPage() {
                 <div>
                   <h2 className="font-semibold text-gray-900">Confirmer tous les RDV restants</h2>
                   <p className="text-sm text-gray-500 mt-1">
-                    Crée les {pendingCount} RDV non confirmés du <strong>{startDate}</strong> jusqu&apos;au 30 septembre 2026.
+                    Crée les {pendingCount} RDV non confirmés jusqu&apos;au 30 septembre 2026.
                   </p>
                 </div>
                 <div className="flex gap-3">
