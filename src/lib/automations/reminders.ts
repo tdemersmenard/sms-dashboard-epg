@@ -112,3 +112,34 @@ export async function sendJobReminders() {
 
   return results;
 }
+
+export async function sendPaymentReminders() {
+  const results: string[] = [];
+  const today = new Date().toISOString().split("T")[0];
+
+  const { data: payments } = await supabaseAdmin
+    .from("payments")
+    .select("id, contact_id, amount, notes, due_date")
+    .eq("status", "en_attente")
+    .eq("due_date", today);
+
+  for (const payment of payments || []) {
+    const actionKey = `payment_reminder_${payment.id}`;
+    if (await wasAlreadySent(actionKey, payment.contact_id)) continue;
+
+    const { data: contact } = await supabaseAdmin
+      .from("contacts")
+      .select("first_name, phone")
+      .eq("id", payment.contact_id)
+      .single();
+
+    if (!contact || !contact.phone?.startsWith("+")) continue;
+
+    const name = contact.first_name || "Bonjour";
+    await sendSMS(payment.contact_id, `Bonjour ${name}! Un paiement de ${payment.amount}$ est dû aujourd'hui pour: ${payment.notes || "service de piscine"}. Vous pouvez payer par Interac à service@entretienpiscinegranby.com ou par carte sur votre portail. Merci!`);
+    await logAction(actionKey, payment.contact_id);
+    results.push(`Rappel paiement: ${name} — ${payment.amount}$ (${payment.notes})`);
+  }
+
+  return results;
+}
