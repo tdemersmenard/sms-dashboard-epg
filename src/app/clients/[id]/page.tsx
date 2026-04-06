@@ -347,6 +347,10 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ contactId: id, amount: half1, description: `${desc} — Versement 1/2`, dueDate: newPayDueDate }),
       });
+
+      // Wait 1 sec pour que les SMS arrivent dans le bon ordre
+      await new Promise(r => setTimeout(r, 1500));
+
       await fetch("/api/payments/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
