@@ -10,13 +10,15 @@ export async function POST(req: NextRequest) {
     const results: string[] = [];
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
 
-    const dayToNumber: Record<string, number> = {
-      "Lundi": 0, "Mardi": 1, "Mercredi": 2, "Jeudi": 3,
-      "Vendredi": 4, "Samedi": 5, "Dimanche": 6,
+    // JavaScript getDay(): 0=Dimanche, 1=Lundi, 2=Mardi, 3=Mercredi, 4=Jeudi, 5=Vendredi, 6=Samedi
+    const dayToJS: Record<string, number> = {
+      "Dimanche": 0, "Lundi": 1, "Mardi": 2, "Mercredi": 3,
+      "Jeudi": 4, "Vendredi": 5, "Samedi": 6,
     };
 
     for (const [day, routeData] of Object.entries(routes) as [string, any][]) {
-      const dayOffset = dayToNumber[day] || 0;
+      const targetDayOfWeek = dayToJS[day];
+      if (targetDayOfWeek === undefined) continue;
 
       for (const client of routeData.clients || []) {
         // Chercher la date d'ouverture de ce client
@@ -32,32 +34,37 @@ export async function POST(req: NextRequest) {
 
         if (ouvertureJob && ouvertureJob.length > 0) {
           // Premier entretien = 1 semaine après l'ouverture
-          const ouvertureDate = new Date(ouvertureJob[0].scheduled_date);
+          const ouvertureDate = new Date(ouvertureJob[0].scheduled_date + "T12:00:00");
           firstEntretienDate = new Date(ouvertureDate);
           firstEntretienDate.setDate(firstEntretienDate.getDate() + 7);
 
-          // Ajuster au bon jour de la semaine
-          while (firstEntretienDate.getDay() !== (dayOffset === 6 ? 0 : dayOffset + 1)) {
+          // Ajuster au bon jour de la semaine (le jour assigné par le routing)
+          while (firstEntretienDate.getDay() !== targetDayOfWeek) {
             firstEntretienDate.setDate(firstEntretienDate.getDate() + 1);
           }
         } else {
           // Pas d'ouverture planifiée — utiliser startDate
-          firstEntretienDate = new Date(startDate);
-          firstEntretienDate.setDate(firstEntretienDate.getDate() + dayOffset);
+          firstEntretienDate = new Date(startDate + "T12:00:00");
+          // Ajuster au bon jour
+          while (firstEntretienDate.getDay() !== targetDayOfWeek) {
+            firstEntretienDate.setDate(firstEntretienDate.getDate() + 1);
+          }
         }
 
-        // Créer les jobs hebdomadaires
-        const endDate = new Date("2026-09-30");
+        // Créer les jobs hebdomadaires jusqu'au 30 septembre
+        const endDate = new Date("2026-09-30T23:59:59");
         const currentDate = new Date(firstEntretienDate);
         let jobCount = 0;
 
         while (currentDate <= endDate) {
-          // Vérifier qu'un job n'existe pas déjà à cette date pour ce client
+          const dateStr = currentDate.toISOString().split("T")[0];
+
+          // Vérifier qu'un job n'existe pas déjà
           const { data: existingJob } = await supabaseAdmin
             .from("jobs")
             .select("id")
             .eq("contact_id", client.id)
-            .eq("scheduled_date", currentDate.toISOString().split("T")[0])
+            .eq("scheduled_date", dateStr)
             .eq("job_type", "entretien")
             .limit(1);
 
@@ -65,7 +72,7 @@ export async function POST(req: NextRequest) {
             await supabaseAdmin.from("jobs").insert({
               contact_id: client.id,
               job_type: "entretien",
-              scheduled_date: currentDate.toISOString().split("T")[0],
+              scheduled_date: dateStr,
               scheduled_time_start: client.estimatedArrival,
               scheduled_time_end: (() => {
                 const [h, m] = client.estimatedArrival.split(":").map(Number);
@@ -81,9 +88,11 @@ export async function POST(req: NextRequest) {
           currentDate.setDate(currentDate.getDate() + 7);
         }
 
-        results.push(`${client.name}: ${jobCount} passages (${day}, début ${firstEntretienDate.toLocaleDateString("fr-CA")})`);
+        const ouvertureStr = ouvertureJob?.[0]?.scheduled_date || "pas d'ouverture";
+        const firstStr = firstEntretienDate.toISOString().split("T")[0];
+        results.push(`${client.name}: ${jobCount} passages chaque ${day}, ouverture ${ouvertureStr}, premier entretien ${firstStr}`);
 
-        // Send SMS if requested
+        // Envoyer SMS si demandé
         if (sendSMS && client.phone?.startsWith("+")) {
           const dayFr = day.toLowerCase();
           const debutStr = firstEntretienDate.toLocaleDateString("fr-CA", { weekday: "long", day: "numeric", month: "long" });
