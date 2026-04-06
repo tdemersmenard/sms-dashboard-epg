@@ -367,13 +367,6 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
     if (cat?.isEntretien && newPayOuvertureDate) contactUpdate.ouverture_date = newPayOuvertureDate;
     await supabaseBrowser.from("contacts").update(contactUpdate).eq("id", id);
 
-    // Send portal welcome SMS with credentials
-    fetch("/api/portail/send-welcome", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contactId: id }),
-    }).catch(console.error);
-
     await load();
     setSavingNewPay(false);
     setShowNewPayForm(false);

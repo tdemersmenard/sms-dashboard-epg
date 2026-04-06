@@ -3,22 +3,13 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
-
-function generateTempPassword(): string {
-  const chars = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
-  let pwd = "";
-  for (let i = 0; i < 8; i++) {
-    pwd += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return pwd;
-}
 
 export async function POST(req: NextRequest) {
   try {
     const { contactId } = await req.json();
-    if (!contactId) return NextResponse.json({ error: "contactId requis" }, { status: 400 });
 
     const { data: contact } = await supabaseAdmin
       .from("contacts")
@@ -26,36 +17,37 @@ export async function POST(req: NextRequest) {
       .eq("id", contactId)
       .single();
 
-    if (!contact?.phone) return NextResponse.json({ error: "Client sans numéro de téléphone" }, { status: 400 });
+    if (!contact) return NextResponse.json({ error: "Contact non trouvé" }, { status: 404 });
+    if (!contact.email) return NextResponse.json({ error: "Pas d'email" }, { status: 400 });
 
-    const firstName = contact.first_name || "Client";
-    let tempPassword = contact.portal_temp_password as string | null;
-
-    // Only generate a new password if the client doesn't already have one
-    if (!tempPassword) {
-      tempPassword = generateTempPassword();
-      const hashed = await bcrypt.hash(tempPassword, 10);
-      await supabaseAdmin
-        .from("contacts")
-        .update({ portal_password: hashed, portal_temp_password: tempPassword })
-        .eq("id", contactId);
+    // Si le client a DÉJÀ un mot de passe (qu'il a potentiellement changé), ne PAS le reset
+    if (contact.portal_password) {
+      return NextResponse.json({
+        error: "Ce client a déjà un accès portail. Utilisez 'Reset mot de passe' si vous voulez en générer un nouveau.",
+      }, { status: 400 });
     }
 
-    // Build SMS
-    let sms: string;
-    if (contact.email) {
-      sms = `Bonjour ${firstName}! Votre portail client Chlore est maintenant disponible. Connectez-vous sur ${APP_URL}/portail avec votre courriel (${contact.email}) et le mot de passe temporaire: ${tempPassword}. Nous vous recommandons de le changer après votre première connexion. Entretien Piscine Granby`;
-    } else {
-      sms = `Bonjour ${firstName}! Votre portail client Chlore est maintenant disponible sur ${APP_URL}/portail. Contactez-nous au 450-994-2215 pour obtenir vos accès. Entretien Piscine Granby`;
+    // Générer un mot de passe temporaire
+    const tempPassword = crypto.randomBytes(4).toString("hex");
+    const hashed = await bcrypt.hash(tempPassword, 10);
+
+    await supabaseAdmin
+      .from("contacts")
+      .update({ portal_password: hashed, portal_temp_password: tempPassword })
+      .eq("id", contactId);
+
+    const firstName = contact.first_name || "Bonjour";
+    const sms = `Bonjour ${firstName}! Votre portail client Entretien Piscine Granby est maintenant disponible. Connectez-vous sur ${APP_URL}/portail avec votre courriel (${contact.email}) et le mot de passe temporaire: ${tempPassword}`;
+
+    if (contact.phone?.startsWith("+")) {
+      await fetch(`${APP_URL}/api/sms/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contactId, body: sms }),
+      });
     }
 
-    await fetch(`${APP_URL}/api/sms/send`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contactId, body: sms }),
-    });
-
-    return NextResponse.json({ success: true, sentSMS: true, hasEmail: !!contact.email });
+    return NextResponse.json({ success: true });
   } catch (err) {
     console.error("[send-welcome] Error:", err);
     return NextResponse.json({ error: String(err) }, { status: 500 });
