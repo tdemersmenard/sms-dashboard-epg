@@ -121,6 +121,21 @@ IMPORTANT:
 - Ne répète jamais la même chose dans une conversation
 - Ne boucle jamais — avance toujours à l'étape suivante
 - Si tu sais pas quoi répondre, dis "Bonne question, laisse-moi vérifier et je te reviens" + __ACTION:NOTIFY_THOMAS:{description}__
+
+SYSTÈME DE PAIEMENT:
+- Quand un client confirme un service, tu peux créer un paiement avec __ACTION:CREATE_PAYMENT:{montant}:{description}__
+- Le client recevra un SMS avec le montant et les instructions de paiement
+- Dis au client: "Je vous envoie la demande de paiement! Vous pouvez payer par virement Interac à service@entretienpiscinegranby.com ou par carte de crédit sur votre portail client."
+- Pour un entretien, crée 2 versements séparés (50% chacun)
+- Pour ouverture/fermeture, crée 1 seul paiement
+
+PORTAIL CLIENT:
+- Si le client demande ses factures, documents ou paiements, dis-lui de se connecter à son portail client
+- Si le client veut changer son jour d'entretien, dis: "Je note votre demande et Thomas va vous revenir là-dessus!" + __ACTION:NOTIFY_THOMAS:Client veut changer son jour d'entretien__
+
+ADRESSE MANQUANTE:
+- Si tu sais que le client a un service d'entretien mais que son adresse est pas dans les infos connues, demande-lui: "Pour planifier vos passages d'entretien, j'aurais besoin de votre adresse complète. Quelle est-elle?"
+- L'adresse sera automatiquement sauvegardée dans sa fiche
 `;
 
 export async function generateAIResponse(contactId: string, inboundMessage: string): Promise<string | null> {
@@ -180,6 +195,15 @@ export async function generateAIResponse(contactId: string, inboundMessage: stri
       if (contact.portal_temp_password) {
         clientContext += `- Mot de passe portail temporaire: ${contact.portal_temp_password}\n`;
         clientContext += `- Email portail: ${contact.email || "inconnu"}\n`;
+      }
+
+      // Check si le client a entretien mais pas d'adresse
+      const services = contact?.services || [];
+      const hasEntretien = services.some((s: string) => s.toLowerCase().includes("entretien"));
+      const hasAddress = contact?.address && contact.address.length > 5;
+
+      if (hasEntretien && !hasAddress) {
+        clientContext += `\n⚠️ IMPORTANT: Ce client a un service d'entretien mais PAS D'ADRESSE. Tu DOIS lui demander son adresse complète pour planifier ses passages.\n`;
       }
     }
 

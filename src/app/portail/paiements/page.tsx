@@ -140,20 +140,20 @@ export default function PortailPaiements() {
                   </div>
                   <p className="text-2xl font-bold text-gray-900 ml-3 flex-shrink-0">{fmt(p.amount)}</p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-col gap-2">
+                  <button
+                    onClick={() => setShowInterac(showInterac === p.id ? null : p.id)}
+                    className="w-full bg-green-600 text-white rounded-xl py-4 text-base font-semibold flex items-center justify-center gap-2 hover:bg-green-700 transition"
+                  >
+                    Payer {p.amount} $ par Interac (recommandé)
+                  </button>
                   <button
                     onClick={() => payByCard(p.id)}
                     disabled={payingId === p.id}
-                    className="flex-1 bg-[#0a1f3f] text-white rounded-xl py-3 text-sm font-semibold flex items-center justify-center gap-2 hover:bg-[#0d2a52] transition disabled:opacity-50"
+                    className="w-full bg-gray-100 text-gray-700 rounded-xl py-3 text-sm font-medium flex items-center justify-center gap-2 hover:bg-gray-200 transition disabled:opacity-50"
                   >
-                    <CreditCard size={15} />
-                    {payingId === p.id ? "Chargement..." : "Payer par carte"}
-                  </button>
-                  <button
-                    onClick={() => setShowInterac(showInterac === p.id ? null : p.id)}
-                    className={`rounded-xl py-3 px-4 text-sm font-semibold transition ${showInterac === p.id ? "bg-green-700 text-white" : "bg-green-600 text-white hover:bg-green-700"}`}
-                  >
-                    Interac
+                    <CreditCard size={16} />
+                    {payingId === p.id ? "Chargement..." : "Ou payer par carte de crédit"}
                   </button>
                 </div>
                 {showInterac === p.id && (
