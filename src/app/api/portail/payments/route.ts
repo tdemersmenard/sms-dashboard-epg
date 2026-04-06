@@ -23,13 +23,14 @@ export async function GET(req: NextRequest) {
 
   const { data: allPayments } = await supabaseAdmin
     .from("payments")
-    .select("id, amount, status, method, received_date, notes, created_at")
+    .select("id, amount, status, method, received_date, due_date, notes, created_at")
     .eq("contact_id", contact.id)
     .order("created_at", { ascending: false });
 
   // Exclude Stripe-generated pending (method=stripe) — keep all others
   const payments = (allPayments || []).filter(p => !(p.status === "en_attente" && p.method === "stripe"));
 
+  // Calculate totals using ALL payments (including future versements)
   const totalReceived = payments
     .filter(p => p.status === "reçu")
     .reduce((sum, p) => sum + (p.amount || 0), 0);
@@ -39,8 +40,20 @@ export async function GET(req: NextRequest) {
 
   const balance = totalDemanded - totalReceived;
 
+  // Hide future versements until 14 days before due date
+  const now = new Date();
+  const visiblePayments = payments.filter(p => {
+    if (p.status === "en_attente" && p.due_date) {
+      const dueDate = new Date(p.due_date);
+      const showDate = new Date(dueDate);
+      showDate.setDate(showDate.getDate() - 14);
+      if (now < showDate) return false;
+    }
+    return true;
+  });
+
   return NextResponse.json({
-    payments,
+    payments: visiblePayments,
     total: totalDemanded,
     total_paid: totalReceived,
     balance,

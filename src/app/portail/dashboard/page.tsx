@@ -64,14 +64,14 @@ const JOB_TYPE_COLORS: Record<string, string> = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  brouillon: "bg-gray-100 text-gray-600",
-  envoyé: "bg-blue-100 text-blue-700",
-  signé: "bg-green-100 text-green-700",
-  en_attente: "bg-yellow-100 text-yellow-700",
-  reçu: "bg-green-100 text-green-700",
-  planifié: "bg-blue-100 text-blue-700",
-  confirmé: "bg-green-100 text-green-700",
-  complété: "bg-gray-100 text-gray-600",
+  brouillon: "bg-gray-100 text-gray-600 border border-gray-200",
+  envoyé: "bg-blue-100 text-blue-700 border border-blue-200",
+  signé: "bg-green-100 text-green-700 border border-green-200",
+  en_attente: "bg-yellow-100 text-yellow-700 border border-yellow-200",
+  reçu: "bg-green-100 text-green-700 border border-green-200",
+  planifié: "bg-blue-100 text-blue-700 border border-blue-200",
+  confirmé: "bg-green-100 text-green-700 border border-green-200",
+  complété: "bg-gray-100 text-gray-600 border border-gray-200",
 };
 
 function fmt(n: number) {
@@ -96,6 +96,7 @@ export default function PortailDashboard() {
   const [contactMsg, setContactMsg] = useState("");
   const [sendingMsg, setSendingMsg] = useState(false);
   const [msgSent, setMsgSent] = useState(false);
+  const [msgError, setMsgError] = useState(false);
   const [loading, setLoading] = useState(true);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [showInteracId, setShowInteracId] = useState<string | null>(null);
@@ -170,16 +171,25 @@ export default function PortailDashboard() {
   const handleSendMessage = async () => {
     if (!contactMsg.trim()) return;
     setSendingMsg(true);
+    setMsgError(false);
     try {
-      await fetch("/api/portail/contact", {
+      const res = await fetch("/api/portail/contact", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({ message: contactMsg }),
       });
-      setContactMsg("");
-      setMsgSent(true);
-      setTimeout(() => setMsgSent(false), 4000);
-    } catch { /* ignore */ }
+      if (res.ok) {
+        setContactMsg("");
+        setMsgSent(true);
+        setTimeout(() => setMsgSent(false), 4000);
+      } else {
+        setMsgError(true);
+        setTimeout(() => setMsgError(false), 4000);
+      }
+    } catch {
+      setMsgError(true);
+      setTimeout(() => setMsgError(false), 4000);
+    }
     setSendingMsg(false);
   };
 
@@ -200,7 +210,7 @@ export default function PortailDashboard() {
       {/* Welcome */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Bonjour {firstName}!</h1>
-        <p className="text-sm text-gray-500 mt-0.5 capitalize">{today}</p>
+        <p className="text-sm text-gray-500 mt-0.5 capitalize">Nous sommes le {today}.</p>
       </div>
 
       {/* Documents */}
@@ -210,7 +220,7 @@ export default function PortailDashboard() {
           <h2 className="text-sm font-bold text-gray-800">Mes documents</h2>
         </div>
         {docs.length === 0 ? (
-          <p className="text-sm text-gray-400">Aucun document pour le moment</p>
+          <p className="text-sm text-gray-400">Aucun document pour le moment. Vos factures et contrats apparaîtront ici.</p>
         ) : (
           <div className="space-y-3">
             {docs.map(d => (
@@ -248,7 +258,7 @@ export default function PortailDashboard() {
           <h2 className="text-sm font-bold text-gray-800">Mes rendez-vous</h2>
         </div>
         {upcomingJobs.length === 0 && pastJobs.length === 0 ? (
-          <p className="text-sm text-gray-400">Aucun rendez-vous planifié pour le moment</p>
+          <p className="text-sm text-gray-400">Aucun rendez-vous planifié. Contactez-nous pour planifier un service!</p>
         ) : (
           <>
             {upcomingJobs.length > 0 && (
@@ -350,7 +360,7 @@ export default function PortailDashboard() {
 
         {/* Payment list */}
         {payments.length === 0 ? (
-          <p className="text-sm text-gray-400">Aucun paiement enregistré</p>
+          <p className="text-sm text-gray-400">Aucun paiement en cours.</p>
         ) : (
           <div className="space-y-2">
             {payments.map(p => (
@@ -373,7 +383,10 @@ export default function PortailDashboard() {
 
       {/* Contact */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <h2 className="text-sm font-bold text-gray-800 mb-4">Nous contacter</h2>
+        <div className="flex items-center gap-2 mb-4">
+          <Phone size={18} className="text-[#0a1f3f]" />
+          <h2 className="text-sm font-bold text-gray-800">Nous contacter</h2>
+        </div>
         <div className="flex flex-wrap gap-4 mb-4">
           <a
             href="tel:4509942215"
@@ -399,6 +412,9 @@ export default function PortailDashboard() {
         />
         {msgSent && (
           <p className="text-sm text-green-600 mt-2">Message envoyé! On vous répond bientôt.</p>
+        )}
+        {msgError && (
+          <p className="text-sm text-red-600 mt-2">Erreur lors de l&apos;envoi. Veuillez réessayer.</p>
         )}
         <button
           onClick={handleSendMessage}

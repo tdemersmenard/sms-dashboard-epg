@@ -147,6 +147,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [showStageDropdown, setShowStageDropdown] = useState(false);
+  const [showAllAdminJobs, setShowAllAdminJobs] = useState(false);
 
   // Job modal
   const [showJobModal, setShowJobModal] = useState(false);
@@ -182,13 +183,6 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   // DocuSign
   const [sendingDocuSign, setSendingDocuSign] = useState<string | null>(null);
   const [docuSignToast, setDocuSignToast] = useState<string | null>(null);
-
-  // Calendrier d'entretien
-  const [calFrequency, setCalFrequency] = useState<"weekly" | "biweekly">("weekly");
-  const [calDay, setCalDay] = useState<number>(4); // 4 = jeudi
-  const [calTime, setCalTime] = useState("09:00");
-  const [generatingCal, setGeneratingCal] = useState(false);
-  const [calToast, setCalToast] = useState<string | null>(null);
 
   // Portail client
   const [showPortalModal, setShowPortalModal] = useState(false);
@@ -442,49 +436,6 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
     setUploadingDoc(false);
   };
 
-  const handleGenerateCalendar = async () => {
-    setGeneratingCal(true);
-    const year = new Date().getFullYear();
-    const startDate = new Date(year, 3, 15); // April 15
-    const endDate = new Date(year, 8, 30);   // Sept 30
-
-    // Find first occurrence of chosen weekday >= startDate
-    const current = new Date(startDate);
-    const dayDiff = (calDay - current.getDay() + 7) % 7;
-    current.setDate(current.getDate() + dayDiff);
-
-    // Existing entretien dates to avoid duplicates
-    const existingDates = new Set(
-      jobs.filter(j => j.job_type === "entretien").map(j => j.scheduled_date)
-    );
-
-    const interval = calFrequency === "weekly" ? 7 : 14;
-    const toInsert: { contact_id: string; job_type: string; scheduled_date: string; scheduled_time_start: string; status: string }[] = [];
-
-    while (current <= endDate) {
-      const dateStr = current.toISOString().split("T")[0];
-      if (!existingDates.has(dateStr)) {
-        toInsert.push({
-          contact_id: id,
-          job_type: "entretien",
-          scheduled_date: dateStr,
-          scheduled_time_start: calTime,
-          status: "planifié",
-        });
-      }
-      current.setDate(current.getDate() + interval);
-    }
-
-    if (toInsert.length > 0) {
-      await supabaseBrowser.from("jobs").insert(toInsert);
-    }
-
-    await load();
-    setGeneratingCal(false);
-    setCalToast(`${toInsert.length} passage${toInsert.length !== 1 ? "s" : ""} planifié${toInsert.length !== 1 ? "s" : ""}!`);
-    setTimeout(() => setCalToast(null), 4000);
-  };
-
   const handleDeleteJob = async (jobId: string) => {
     setJobs(prev => prev.filter(j => j.id !== jobId));
     await fetch(`/api/jobs/delete?id=${jobId}`, { method: "DELETE" });
@@ -706,128 +657,6 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
             </div>
           </div>
 
-          {/* Services & Prix */}
-          <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
-            <h2 className="text-sm font-bold text-gray-800 mb-4">Services & Prix</h2>
-            <div className="flex gap-4 mb-4">
-              {(["ouverture", "entretien", "fermeture"] as const).map((s) => (
-                <label key={s} className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={(contact.services ?? []).includes(s)}
-                    onChange={() => {
-                      const curr = contact.services ?? [];
-                      save({ services: curr.includes(s) ? curr.filter((x) => x !== s) : [...curr, s] });
-                    }}
-                    className="rounded"
-                  />
-                  <span className="text-sm text-gray-700">{s}</span>
-                </label>
-              ))}
-            </div>
-            <div>
-              <p className="text-xs font-medium text-gray-500 mb-0.5">Prix saison ($)</p>
-              <input
-                type="number" min="0" step="0.01"
-                defaultValue={contact.season_price ?? ""}
-                onBlur={(e) => save({ season_price: e.target.value ? parseFloat(e.target.value) : null })}
-                className="border border-gray-200 rounded-md px-2 py-1.5 text-sm w-40 focus:outline-none focus:ring-2 focus:ring-blue-200"
-              />
-            </div>
-          </div>
-
-          {/* Calendrier d'entretien */}
-          {(contact.services ?? []).some(s => s.includes("entretien")) && (
-            <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
-              <h2 className="text-sm font-bold text-gray-800 mb-4">Calendrier d&apos;entretien</h2>
-              <div className="grid grid-cols-2 gap-3 mb-3">
-                <div>
-                  <label className="text-xs font-medium text-gray-500 mb-0.5 block">Fréquence</label>
-                  <select
-                    value={calFrequency}
-                    onChange={(e) => setCalFrequency(e.target.value as "weekly" | "biweekly")}
-                    className="w-full border border-gray-200 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
-                  >
-                    <option value="weekly">Hebdomadaire</option>
-                    <option value="biweekly">Aux 2 semaines</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-gray-500 mb-0.5 block">Jour préféré</label>
-                  <select
-                    value={calDay}
-                    onChange={(e) => setCalDay(parseInt(e.target.value))}
-                    className="w-full border border-gray-200 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
-                  >
-                    <option value={1}>Lundi</option>
-                    <option value={2}>Mardi</option>
-                    <option value={3}>Mercredi</option>
-                    <option value={4}>Jeudi</option>
-                    <option value={5}>Vendredi</option>
-                    <option value={6}>Samedi</option>
-                    <option value={0}>Dimanche</option>
-                  </select>
-                </div>
-              </div>
-              <div className="mb-3">
-                <label className="text-xs font-medium text-gray-500 mb-0.5 block">Heure préférée</label>
-                <input
-                  type="time"
-                  value={calTime}
-                  onChange={(e) => setCalTime(e.target.value)}
-                  className="border border-gray-200 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
-                />
-              </div>
-              <button
-                onClick={handleGenerateCalendar}
-                disabled={generatingCal}
-                className="w-full py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition"
-              >
-                {generatingCal ? "Génération..." : "Générer le calendrier"}
-              </button>
-              {jobs.filter(j => j.job_type === "entretien").length > 0 && (
-                <div className="mt-3 pt-3 border-t border-gray-100">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-xs font-medium text-gray-500">
-                      {jobs.filter(j => j.job_type === "entretien").length} passage(s) planifié(s)
-                    </p>
-                    <button
-                      onClick={handleDeleteBulkEntretiens}
-                      className="flex items-center gap-1 text-[10px] font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg px-2 py-1 hover:bg-red-100 transition"
-                    >
-                      <Trash2 size={10} />
-                      Tout supprimer
-                    </button>
-                  </div>
-                  <div className="space-y-1 max-h-40 overflow-y-auto">
-                    {jobs.filter(j => j.job_type === "entretien").slice(0, 8).map(j => {
-                      const jsc = JOB_STATUS_COLORS[j.status];
-                      return (
-                        <div key={j.id} className="flex items-center justify-between text-xs group">
-                          <span className="text-gray-700">{formatDate(j.scheduled_date)}{j.scheduled_time_start ? ` à ${j.scheduled_time_start.slice(0,5)}` : ""}</span>
-                          <div className="flex items-center gap-1.5">
-                            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${jsc?.bg ?? "bg-gray-100"} ${jsc?.text ?? "text-gray-600"}`}>
-                              {j.status}
-                            </span>
-                            <button
-                              onClick={() => handleDeleteJob(j.id)}
-                              className="text-red-300 hover:text-red-600 opacity-0 group-hover:opacity-100 transition"
-                            >
-                              <X size={12} />
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                    {jobs.filter(j => j.job_type === "entretien").length > 8 && (
-                      <p className="text-xs text-gray-400">+ {jobs.filter(j => j.job_type === "entretien").length - 8} autres...</p>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
           {/* Notes */}
           <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
             <h2 className="text-sm font-bold text-gray-800 mb-3">Notes</h2>
@@ -876,24 +705,41 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
             </div>
             {jobs.length === 0 ? (
               <p className="text-xs text-gray-400">Aucun rendez-vous</p>
-            ) : (
-              <div className="space-y-2">
-                {jobs.map((j) => {
-                  const jsc = JOB_STATUS_COLORS[j.status];
-                  return (
-                    <div key={j.id} className="flex items-center justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="text-xs font-medium text-gray-800">{formatDate(j.scheduled_date)}</p>
-                        <p className="text-xs text-gray-500">{j.job_type}{j.scheduled_time_start ? ` · ${j.scheduled_time_start}` : ""}</p>
+            ) : (() => {
+              const today = new Date().toISOString().slice(0, 10);
+              const upcoming = jobs.filter(j => j.scheduled_date >= today).sort((a, b) => a.scheduled_date.localeCompare(b.scheduled_date));
+              const past = jobs.filter(j => j.scheduled_date < today).sort((a, b) => b.scheduled_date.localeCompare(a.scheduled_date));
+              const displayedUpcoming = showAllAdminJobs ? upcoming : upcoming.slice(0, 5);
+              return (
+                <div className="space-y-2">
+                  {displayedUpcoming.map((j) => {
+                    const jsc = JOB_STATUS_COLORS[j.status];
+                    return (
+                      <div key={j.id} className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium text-gray-800">{formatDate(j.scheduled_date)}</p>
+                          <p className="text-xs text-gray-500">{j.job_type}{j.scheduled_time_start ? ` · ${j.scheduled_time_start}` : ""}</p>
+                        </div>
+                        <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full flex-shrink-0 ${jsc?.bg ?? "bg-gray-100"} ${jsc?.text ?? "text-gray-600"}`}>
+                          {j.status}
+                        </span>
                       </div>
-                      <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full flex-shrink-0 ${jsc?.bg ?? "bg-gray-100"} ${jsc?.text ?? "text-gray-600"}`}>
-                        {j.status}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+                    );
+                  })}
+                  {upcoming.length > 5 && (
+                    <button
+                      onClick={() => setShowAllAdminJobs(v => !v)}
+                      className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                    >
+                      {showAllAdminJobs ? "Voir moins" : `Voir tous les rendez-vous (${upcoming.length})`}
+                    </button>
+                  )}
+                  {past.length > 0 && (
+                    <p className="text-[10px] text-gray-400 pt-1">{past.length} rendez-vous passé{past.length > 1 ? "s" : ""}</p>
+                  )}
+                </div>
+              );
+            })()}
           </div>
 
           {/* Documents */}
@@ -1260,14 +1106,6 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
       {/* Close dropdown on outside click */}
       {showStageDropdown && (
         <div className="fixed inset-0 z-10" onClick={() => setShowStageDropdown(false)} />
-      )}
-
-      {/* Calendar toast */}
-      {calToast && (
-        <div className="fixed bottom-32 right-6 z-50 bg-blue-600 text-white px-5 py-3 rounded-xl shadow-xl text-sm font-medium flex items-center gap-2">
-          <CalendarPlus size={16} />
-          {calToast}
-        </div>
       )}
 
       {/* Close toast */}

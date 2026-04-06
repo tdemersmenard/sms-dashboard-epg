@@ -35,14 +35,15 @@ export default function PortailLoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-start sm:items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-blue-50/30 flex items-start sm:items-center justify-center p-4">
       <div className="w-full sm:max-w-md bg-white sm:rounded-2xl sm:shadow-lg p-6 sm:p-8 mt-8 sm:mt-0 rounded-2xl shadow-lg">
         <div className="text-center mb-8">
           <div className="w-14 h-14 rounded-2xl bg-[#0a1f3f] flex items-center justify-center mx-auto mb-4">
             <span className="text-white font-bold text-xl">EPG</span>
           </div>
           <h1 className="text-2xl font-bold text-[#0a1f3f]">Entretien Piscine Granby</h1>
-          <p className="text-gray-500 mt-1 text-sm">Portail client</p>
+          <p className="text-gray-500 mt-1 text-sm font-medium">Portail client</p>
+          <p className="text-gray-400 mt-0.5 text-xs">Consultez vos documents, rendez-vous et paiements</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
