@@ -92,17 +92,37 @@ export default function RoutesPage() {
     finally { setConfirming(false); }
   };
 
-  const moveStop = (stop: any, fromDay: string, toDay: string) => {
+  const moveStop = async (stop: any, fromDay: string, toDay: string) => {
     if (fromDay === toDay) return;
+
+    // Update local state d'abord (optimistic)
     setData((prev: any) => {
       if (!prev) return prev;
       const newRoutes = prev.routes.map((r: any) => {
-        if (r.day === fromDay) return { ...r, stops: r.stops.filter((s: any) => s.id !== stop.id).map((s: any, i: number) => ({ ...s, order: i + 1 })) };
-        if (r.day === toDay) return { ...r, stops: [...r.stops, { ...stop, order: r.stops.length + 1 }] };
+        if (r.day === fromDay) {
+          const newStops = r.stops.filter((s: any) => s.id !== stop.id).map((s: any, i: number) => ({ ...s, order: i + 1 }));
+          return { ...r, stops: newStops };
+        }
+        if (r.day === toDay) {
+          return { ...r, stops: [...r.stops, { ...stop, order: r.stops.length + 1 }] };
+        }
         return r;
       });
       return { ...prev, routes: newRoutes };
     });
+
+    // Recalculer les temps via l'API
+    setTimeout(async () => {
+      try {
+        const res = await fetch("/api/routes/recalculate-times", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ routes: data.routes }),
+        });
+        const result = await res.json();
+        if (result.routes) setData((prev: any) => ({ ...prev, routes: result.routes, totalKm: result.totalKm }));
+      } catch {} // eslint-disable-line no-empty
+    }, 100);
   };
 
   return (

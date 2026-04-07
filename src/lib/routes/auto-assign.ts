@@ -25,5 +25,5 @@ export async function autoAssignNewClients(): Promise<string[]> {
 
   // Recalcule et confirme tout
   const result = await calculateRoutes();
-  return await confirmRoutes(result.routes, true);
+  return await confirmRoutes(result.routes, false);
 }
