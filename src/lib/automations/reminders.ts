@@ -54,7 +54,7 @@ export async function sendJobReminders() {
 
   for (const job of tomorrowJobs || []) {
     // Envoyer SEULEMENT entre 19h00 et 19h15 Montreal
-    if (currentH !== 23 || currentM > 30) continue;
+    if (currentH !== 19 || currentM > 15) continue;
 
     const actionKey = `reminder_1day_${job.id}`;
     if (await wasAlreadySent(actionKey, job.contact_id)) continue;
