@@ -193,7 +193,7 @@ export default function RoutesPage() {
           {/* Stats */}
           <div className="grid grid-cols-3 gap-3">
             <div className="bg-white rounded-xl border p-4 text-center">
-              <p className="text-2xl font-bold text-gray-900">{data.totalClients}</p>
+              <p className="text-2xl font-bold text-gray-900">{data.routes.reduce((sum: number, r: any) => sum + r.stops.length, 0)}</p>
               <p className="text-xs text-gray-500">Clients</p>
             </div>
             <div className="bg-white rounded-xl border p-4 text-center">
