@@ -500,6 +500,69 @@ export async function executeActions(actions: AIAction[], contactId: string) {
         }
 
         case "UPDATE_NOTES": {
+          const info = action.info;
+          const updates: any = {};
+
+          // Détecter et extraire les infos structurées
+          const lowerInfo = info.toLowerCase();
+
+          // Email
+          const emailMatch = info.match(/[\w.-]+@[\w.-]+\.\w+/);
+          if (emailMatch) updates.email = emailMatch[0].toLowerCase();
+
+          // Nom (formats: "nom: X", "je m'appelle X", "mon nom est X", "moi c'est X")
+          const namePatterns = [
+            /nom\s*[:\-]\s*([a-zà-ÿ\s\-']+?)(?:[,.\n]|$)/i,
+            /je m'?appelle\s+([a-zà-ÿ\s\-']+?)(?:[,.\n]|$)/i,
+            /mon nom est\s+([a-zà-ÿ\s\-']+?)(?:[,.\n]|$)/i,
+            /moi c'?est\s+([a-zà-ÿ\s\-']+?)(?:[,.\n]|$)/i,
+            /^([a-zà-ÿ]+\s+[a-zà-ÿ]+)$/i,
+          ];
+
+          for (const pattern of namePatterns) {
+            const match = info.match(pattern);
+            if (match) {
+              const fullName = match[1].trim();
+              const parts = fullName.split(/\s+/);
+              if (parts.length >= 2) {
+                updates.first_name = parts[0];
+                updates.last_name = parts.slice(1).join(" ");
+              } else if (parts.length === 1) {
+                updates.first_name = parts[0];
+              }
+              break;
+            }
+          }
+
+          // Adresse (format: "adresse: X" ou contient un numéro civique)
+          const addrPatterns = [
+            /adresse\s*[:\-]\s*(.+?)(?:[,.\n]|$)/i,
+            /j'?habite\s+(?:au\s+)?(.+?)(?:[,.\n]|$)/i,
+            /(\d+\s+(?:rue|avenue|boulevard|chemin|rang|impasse|place|allée|côte|montée|route)\s+[a-zà-ÿ\s\-']+)/i,
+          ];
+
+          for (const pattern of addrPatterns) {
+            const match = info.match(pattern);
+            if (match && match[1].length > 5) {
+              updates.address = match[1].trim();
+              break;
+            }
+          }
+
+          // Type de piscine
+          if (lowerInfo.includes("hors-terre") || lowerInfo.includes("hors terre")) {
+            updates.pool_type = "hors-terre";
+          } else if (lowerInfo.includes("creusée") || lowerInfo.includes("creuse")) {
+            updates.pool_type = "creusée";
+          }
+
+          // Si on a extrait des infos structurées, les sauver
+          if (Object.keys(updates).length > 0) {
+            await supabaseAdmin.from("contacts").update(updates).eq("id", contactId);
+            console.log("[ai-actions] Updated contact fields:", Object.keys(updates));
+          }
+
+          // Toujours append dans les notes pour avoir l'historique
           const { data: contact } = await supabaseAdmin
             .from("contacts")
             .select("notes")
@@ -507,15 +570,10 @@ export async function executeActions(actions: AIAction[], contactId: string) {
             .single();
 
           const existingNotes = contact?.notes || "";
-          const newNotes = existingNotes
-            ? existingNotes + "\n" + action.info
-            : action.info;
+          const newNotes = existingNotes ? existingNotes + "\n" + info : info;
 
-          await supabaseAdmin.from("contacts")
-            .update({ notes: newNotes })
-            .eq("id", contactId);
-
-          console.log("[ai-actions] Notes updated:", action.info);
+          await supabaseAdmin.from("contacts").update({ notes: newNotes }).eq("id", contactId);
+          console.log("[ai-actions] Notes updated:", info);
           break;
         }
 

@@ -286,8 +286,43 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
 
   const handleDeletePayment = async (paymentId: string) => {
     if (!confirm("Supprimer ce paiement ?")) return;
-    setPayments((prev) => prev.filter((p) => p.id !== paymentId));
+
     await supabaseBrowser.from("payments").delete().eq("id", paymentId);
+
+    // Recalculer le season_price total
+    const { data: remainingPayments } = await supabaseBrowser
+      .from("payments")
+      .select("amount")
+      .eq("contact_id", id);
+
+    const newTotal = (remainingPayments || []).reduce((sum, p) => sum + parseFloat(String(p.amount)), 0);
+
+    // Update season_price
+    await supabaseBrowser.from("contacts").update({ season_price: newTotal }).eq("id", id);
+
+    // Si le total est 0, supprimer les jobs futurs et retirer des routes
+    if (newTotal === 0) {
+      const today = new Date().toISOString().split("T")[0];
+      await supabaseBrowser
+        .from("jobs")
+        .delete()
+        .eq("contact_id", id)
+        .eq("job_type", "entretien")
+        .gte("scheduled_date", today);
+
+      // Retirer du route_state si présent
+      const { data: routeState } = await supabaseBrowser.from("route_state").select("data").eq("id", 1).single();
+      if (routeState?.data?.routes) {
+        const newRoutes = routeState.data.routes.map((r: any) => ({
+          ...r,
+          stops: r.stops.filter((s: any) => s.id !== id),
+        }));
+        await supabaseBrowser.from("route_state").update({ data: { ...routeState.data, routes: newRoutes } }).eq("id", 1);
+      }
+    }
+
+    setPayments((prev) => prev.filter((p) => p.id !== paymentId));
+    await load();
   };
 
   const handleMarkPaid = async (paymentId: string, method: Payment["method"]) => {
@@ -341,6 +376,13 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
     const contactUpdate: Record<string, unknown> = { stage: "closé", services: updatedServices, season_price: amount };
     if (cat?.isEntretien && newPayOuvertureDate) contactUpdate.ouverture_date = newPayOuvertureDate;
     await supabaseBrowser.from("contacts").update(contactUpdate).eq("id", id);
+
+    // Trigger auto-assign immédiat pour ce client
+    fetch("/api/routes/auto-assign-single", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contactId: id }),
+    }).catch(console.error);
 
     await load();
     setSavingNewPay(false);
