@@ -30,16 +30,19 @@ async function logAction(action: string, contactId: string) {
 
 export async function sendJobReminders() {
   const results: string[] = [];
+  // Date de demain en Montreal time
   const now = new Date();
-  const montrealNow = new Date(now.toLocaleString("en-US", { timeZone: "America/Montreal" }));
+  const montrealOffset = -4 * 60; // EDT (été)
+  const localOffset = now.getTimezoneOffset();
+  const montrealNow = new Date(now.getTime() + (montrealOffset - localOffset) * 60 * 1000);
+
   const today = montrealNow.toISOString().split("T")[0];
+  const tomorrowDate = new Date(montrealNow);
+  tomorrowDate.setUTCDate(tomorrowDate.getUTCDate() + 1);
+  const tomorrowStr = tomorrowDate.toISOString().split("T")[0];
 
-  const tomorrow = new Date(montrealNow);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const tomorrowStr = tomorrow.toISOString().split("T")[0];
-
-  const currentHour = montrealNow.getHours();
-  const currentMinute = montrealNow.getMinutes();
+  const currentH = montrealNow.getUTCHours();
+  const currentM = montrealNow.getUTCMinutes();
 
   // ─── RAPPEL 1 JOUR AVANT ───
   const { data: tomorrowJobs } = await supabaseAdmin
@@ -63,7 +66,7 @@ export async function sendJobReminders() {
 
     const name = contact.first_name || "Bonjour";
     const heure = job.scheduled_time_start ? ` à ${job.scheduled_time_start.slice(0, 5)}` : "";
-    const jour = tomorrow.toLocaleDateString("fr-CA", { weekday: "long", day: "numeric", month: "long" });
+    const jour = tomorrowDate.toLocaleDateString("fr-CA", { weekday: "long", day: "numeric", month: "long" });
 
     await sendSMS(job.contact_id, `Bonjour ${name}! Petit rappel que votre ${job.job_type} de piscine est prévue demain (${jour})${heure}. Si vous avez des questions, contactez-nous au 450-994-2215. À demain!`);
     await logAction(actionKey, job.contact_id);
@@ -83,7 +86,7 @@ export async function sendJobReminders() {
 
     const [jobH, jobM] = job.scheduled_time_start.split(":").map(Number);
     const jobMinutes = jobH * 60 + jobM;
-    const nowMinutes = currentHour * 60 + currentMinute;
+    const nowMinutes = currentH * 60 + currentM;
 
     // Handle midnight wrap-around (e.g. job at 00:03, cron runs at 23:15)
     let minutesBefore = jobMinutes - nowMinutes;
