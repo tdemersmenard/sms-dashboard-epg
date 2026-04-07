@@ -1,22 +1,17 @@
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
 
-import { NextResponse } from "next/server";
-import { calculateRoutes } from "@/lib/routes/calculator";
+import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 
-export async function POST() {
+export async function POST(req: NextRequest) {
   try {
-    const result = await calculateRoutes();
-
-    // Sauvegarder dans la DB
+    const data = await req.json();
     await supabaseAdmin.from("route_state").upsert({
       id: 1,
-      data: result,
+      data,
       updated_at: new Date().toISOString(),
     });
-
-    return NextResponse.json(result);
+    return NextResponse.json({ success: true });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }

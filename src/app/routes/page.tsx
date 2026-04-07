@@ -16,6 +16,18 @@ export default function RoutesPage() {
   const [confirmingIds, setConfirmingIds] = useState<string[]>([]);
   const [confirmedIds, setConfirmedIds] = useState<string[]>([]);
 
+  // Charger l'état sauvegardé au mount
+  useEffect(() => {
+    fetch("/api/routes/state", { cache: "no-store" })
+      .then(r => r.json())
+      .then(d => {
+        if (d.exists) {
+          setData(d);
+          if (d.confirmedIds) setConfirmedIds(d.confirmedIds);
+        }
+      });
+  }, []);
+
   // Load Google Maps
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -97,7 +109,6 @@ export default function RoutesPage() {
       if (!prev) return prev;
       const newRoutes = prev.routes.map((r: any) => {
         if (r.day === fromDay && fromDay === toDay) {
-          // Réordonner dans la même journée
           const stops = r.stops.filter((s: any) => s.id !== stop.id);
           const insertAt = toIndex !== undefined ? toIndex : stops.length;
           stops.splice(insertAt, 0, stop);
@@ -117,7 +128,7 @@ export default function RoutesPage() {
       return { ...prev, routes: newRoutes };
     });
 
-    // Recalculer les temps après le drop
+    // Recalculer les temps puis sauvegarder
     setTimeout(async () => {
       const currentData = await new Promise<any>(resolve => setData((prev: any) => { resolve(prev); return prev; }));
       try {
@@ -127,7 +138,18 @@ export default function RoutesPage() {
           body: JSON.stringify({ routes: currentData.routes }),
         });
         const result = await res.json();
-        if (result.routes) setData((prev: any) => ({ ...prev, routes: result.routes, totalKm: result.totalKm }));
+        if (result.routes) {
+          setData((prev: any) => {
+            const updated = { ...prev, routes: result.routes, totalKm: result.totalKm };
+            // Sauvegarder après recalcul
+            fetch("/api/routes/save-state", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(updated),
+            });
+            return updated;
+          });
+        }
       } catch {} // eslint-disable-line no-empty
     }, 100);
   };
@@ -185,21 +207,21 @@ export default function RoutesPage() {
           </div>
 
           {/* Problems */}
-          {(data.problems.noAddress.length > 0 || data.problems.noOuverture.length > 0 || data.problems.failedGeocode.length > 0) && (
+          {(data.problems?.noAddress?.length > 0 || data.problems?.noOuverture?.length > 0 || data.problems?.failedGeocode?.length > 0) && (
             <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 space-y-2">
-              {data.problems.noAddress.length > 0 && (
+              {data.problems.noAddress?.length > 0 && (
                 <div>
                   <p className="text-sm font-semibold text-orange-800">⚠ Sans adresse:</p>
                   <p className="text-xs text-orange-700">{data.problems.noAddress.join(", ")}</p>
                 </div>
               )}
-              {data.problems.noOuverture.length > 0 && (
+              {data.problems.noOuverture?.length > 0 && (
                 <div>
                   <p className="text-sm font-semibold text-orange-800">⚠ Sans date d&apos;ouverture:</p>
                   <p className="text-xs text-orange-700">{data.problems.noOuverture.join(", ")}</p>
                 </div>
               )}
-              {data.problems.failedGeocode.length > 0 && (
+              {data.problems.failedGeocode?.length > 0 && (
                 <div>
                   <p className="text-sm font-semibold text-orange-800">⚠ Adresses non reconnues:</p>
                   <p className="text-xs text-orange-700">{data.problems.failedGeocode.join(", ")}</p>
@@ -270,34 +292,59 @@ export default function RoutesPage() {
                         <p className="text-sm font-medium text-gray-900">{stop.name}</p>
                         <p className="text-xs text-gray-500 truncate">{stop.address}</p>
                       </div>
-                      <button
-                        onClick={async (e) => {
-                          e.stopPropagation();
-                          if (confirmingIds.includes(stop.id)) return;
-                          setConfirmingIds(prev => [...prev, stop.id]);
-                          try {
-                            const res = await fetch("/api/routes/confirm-single", {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ stop, day: route.day }),
-                            });
-                            const result = await res.json();
-                            if (result.success) {
-                              setConfirmedIds(prev => [...prev, stop.id]);
-                              setSuccess(`${stop.name} confirmé et SMS envoyé!`);
-                              setTimeout(() => setSuccess(""), 3000);
-                            } else {
-                              setError(result.error || "Erreur");
+
+                      {/* Confirm button / confirmed state */}
+                      {confirmedIds.includes(stop.id) ? (
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <span className="text-xs px-2 py-1 rounded bg-green-100 text-green-700">✓ Confirmé</span>
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              if (!window.confirm("Annuler la confirmation? Le client ne sera pas notifié à nouveau.")) return;
+                              await fetch("/api/routes/unconfirm", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ contactId: stop.id }),
+                              });
+                              setConfirmedIds(prev => prev.filter(id => id !== stop.id));
+                            }}
+                            className="text-red-400 hover:text-red-600 text-xs"
+                            title="Annuler la confirmation"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            if (confirmingIds.includes(stop.id)) return;
+                            setConfirmingIds(prev => [...prev, stop.id]);
+                            try {
+                              const res = await fetch("/api/routes/confirm-single", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ stop, day: route.day }),
+                              });
+                              const result = await res.json();
+                              if (result.success) {
+                                setConfirmedIds(prev => [...prev, stop.id]);
+                                setSuccess(`${stop.name} confirmé et SMS envoyé!`);
+                                setTimeout(() => setSuccess(""), 3000);
+                              } else {
+                                setError(result.error || "Erreur");
+                              }
+                            } finally {
+                              setConfirmingIds(prev => prev.filter(id => id !== stop.id));
                             }
-                          } finally {
-                            setConfirmingIds(prev => prev.filter(id => id !== stop.id));
-                          }
-                        }}
-                        disabled={confirmingIds.includes(stop.id) || confirmedIds.includes(stop.id)}
-                        className={`text-xs px-2 py-1 rounded flex-shrink-0 ${confirmedIds.includes(stop.id) ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700 hover:bg-blue-200"} disabled:opacity-50`}
-                      >
-                        {confirmedIds.includes(stop.id) ? "✓ Confirmé" : confirmingIds.includes(stop.id) ? "..." : "Confirmer"}
-                      </button>
+                          }}
+                          disabled={confirmingIds.includes(stop.id)}
+                          className="text-xs px-2 py-1 rounded flex-shrink-0 bg-blue-100 text-blue-700 hover:bg-blue-200 disabled:opacity-50"
+                        >
+                          {confirmingIds.includes(stop.id) ? "..." : "Confirmer"}
+                        </button>
+                      )}
+
                       <div className="text-right text-xs text-gray-500 flex-shrink-0 space-y-0.5">
                         <p className="text-sm font-semibold text-gray-900">{stop.arrivalTime} → {stop.departureTime}</p>
                         <p>{stop.distFromPrev} km • {stop.driveMinFromPrev} min route</p>
@@ -335,7 +382,7 @@ export default function RoutesPage() {
                 disabled={loading}
                 className="bg-gray-100 text-gray-700 rounded-lg py-3 px-4 font-medium hover:bg-gray-200 transition disabled:opacity-50"
               >
-                Recalculer
+                {loading ? <Loader2 size={16} className="animate-spin inline" /> : "Recalculer"}
               </button>
             </div>
           </div>
