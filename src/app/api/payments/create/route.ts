@@ -29,6 +29,19 @@ export async function POST(req: NextRequest) {
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+    // Recalculer le season_price total du contact
+    const { data: allPayments } = await supabaseAdmin
+      .from("payments")
+      .select("amount")
+      .eq("contact_id", contactId);
+
+    const totalSeasonPrice = (allPayments || []).reduce((sum, p) => sum + parseFloat(String(p.amount)), 0);
+
+    await supabaseAdmin
+      .from("contacts")
+      .update({ season_price: totalSeasonPrice })
+      .eq("id", contactId);
+
     const clientName = contact.first_name || "Bonjour";
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
 
