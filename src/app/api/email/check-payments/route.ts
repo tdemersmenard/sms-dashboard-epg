@@ -76,21 +76,67 @@ export async function GET() {
         }
       }
 
-      if (matchedContact) {
-        await supabaseAdmin.from("payments").insert({
-          contact_id: matchedContact.id,
-          amount,
-          method: "interac",
-          status: "reçu",
-          received_date: new Date().toISOString().split("T")[0],
-          notes: `Virement Interac de ${senderName} — détecté automatiquement`,
-        });
+if (matchedContact) {
+        // Chercher un payment en_attente avec un montant qui matche
+        const { data: pendingPayments } = await supabaseAdmin
+          .from("payments")
+          .select("id, amount, notes")
+          .eq("contact_id", matchedContact.id)
+          .eq("status", "en_attente")
+          .order("due_date", { ascending: true });
 
-        processed.push(
-          `${senderName}: ${amount}$ → ${matchedContact.first_name} ${matchedContact.last_name}`
+        const matchingPayment = (pendingPayments || []).find(
+          (p) => Math.abs(parseFloat(String(p.amount)) - amount) < 0.01
         );
+
+        if (matchingPayment) {
+          // Marquer le payment existant comme reçu
+          await supabaseAdmin
+            .from("payments")
+            .update({
+              status: "reçu",
+              method: "interac",
+              received_date: new Date().toISOString().split("T")[0],
+            })
+            .eq("id", matchingPayment.id);
+
+          processed.push(
+            `${senderName}: ${amount}$ → ${matchedContact.first_name} ${matchedContact.last_name} (matched: ${matchingPayment.notes})`
+          );
+
+          // Notifier Thomas
+          const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
+          const { data: thomas } = await supabaseAdmin
+            .from("contacts")
+            .select("id")
+            .eq("phone", "+14509942215")
+            .single();
+          if (thomas) {
+            await fetch(`${baseUrl}/api/sms/send`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                contactId: thomas.id,
+                body: `CHLORE: Paiement Interac reçu! ${matchedContact.first_name} ${matchedContact.last_name} — ${amount}$ (${matchingPayment.notes})`,
+              }),
+            });
+          }
+        } else {
+          // Pas de payment qui matche → créer un nouveau
+          await supabaseAdmin.from("payments").insert({
+            contact_id: matchedContact.id,
+            amount,
+            method: "interac",
+            status: "reçu",
+            received_date: new Date().toISOString().split("T")[0],
+            notes: `Virement Interac de ${senderName} — montant ne match aucun paiement en attente`,
+          });
+          processed.push(
+            `${senderName}: ${amount}$ → ${matchedContact.first_name} (nouveau payment, aucun match)`
+          );
+        }
       } else {
-        processed.push(`${senderName}: ${amount}$ → PAS DE MATCH (à vérifier manuellement)`);
+        processed.push(`${senderName}: ${amount}$ → PAS DE MATCH CONTACT (à vérifier manuellement)`);
       }
 
       // Mark as processed
