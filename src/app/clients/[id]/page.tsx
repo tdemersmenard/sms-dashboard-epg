@@ -299,31 +299,47 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
 
     await supabaseBrowser.from("contacts").update({ season_price: newTotal }).eq("id", id);
 
-    // Si plus aucun paiement, supprimer des routes ET supprimer les jobs futurs
     if (newTotal === 0) {
-      const today = new Date().toISOString().split("T")[0];
-
       // Supprimer les jobs futurs
+      const today = new Date().toISOString().split("T")[0];
       await supabaseBrowser
         .from("jobs")
         .delete()
         .eq("contact_id", id)
         .gte("scheduled_date", today);
 
-      // Supprimer du route_state
+      // Retirer le client du route_state ET recalculer les totalKm
       const { data: routeState } = await supabaseBrowser.from("route_state").select("data").eq("id", 1).single();
       if (routeState?.data?.routes) {
         const newRoutes = routeState.data.routes.map((r: any) => ({
           ...r,
           stops: r.stops.filter((s: any) => s.id !== id),
         }));
-        await supabaseBrowser.from("route_state").update({
-          data: { ...routeState.data, routes: newRoutes },
-          updated_at: new Date().toISOString(),
-        }).eq("id", 1);
+
+        // Recalculer les totalKm via l'API recalculate-times
+        try {
+          const res = await fetch("/api/routes/recalculate-times", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ routes: newRoutes }),
+          });
+          const recalcResult = await res.json();
+          if (recalcResult.routes) {
+            await supabaseBrowser.from("route_state").update({
+              data: { ...routeState.data, routes: recalcResult.routes },
+              updated_at: new Date().toISOString(),
+            }).eq("id", 1);
+          }
+        } catch {
+          // Si le recalcul échoue, sauvegarder quand même sans recalcul
+          await supabaseBrowser.from("route_state").update({
+            data: { ...routeState.data, routes: newRoutes },
+            updated_at: new Date().toISOString(),
+          }).eq("id", 1);
+        }
       }
 
-      // Supprimer les logs anti-doublon (pour permettre une re-confirmation future)
+      // Supprimer les logs anti-doublon
       await supabaseBrowser
         .from("automation_logs")
         .delete()
