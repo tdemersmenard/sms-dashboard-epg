@@ -19,7 +19,7 @@ interface Client {
   isBiweekly: boolean;
 }
 
-export interface RouteStop extends Client {
+interface RouteStop extends Client {
   order: number;
   arrivalTime: string;
   departureTime: string;
@@ -28,7 +28,7 @@ export interface RouteStop extends Client {
   firstEntretienDate: string;
 }
 
-export interface DayRoute {
+interface DayRoute {
   day: string;
   stops: RouteStop[];
   totalKm: number;
@@ -38,7 +38,16 @@ export interface DayRoute {
   returnHomeMin: number;
 }
 
-async function geocode(addr: string): Promise<{ lat: number; lng: number } | null> {
+// ─── HELPERS ───
+function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+async function geocode(addr: string) {
   try {
     const res = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(addr)}&key=${GMAPS}`);
     const data = await res.json();
@@ -46,20 +55,28 @@ async function geocode(addr: string): Promise<{ lat: number; lng: number } | nul
   } catch { return null; }
 }
 
+// Cache de distances pour éviter de refaire les mêmes calls
+const distanceCache = new Map<string, { km: number; min: number }>();
+
 async function getDriving(lat1: number, lng1: number, lat2: number, lng2: number): Promise<{ km: number; min: number }> {
+  const key = `${lat1.toFixed(4)},${lng1.toFixed(4)}->${lat2.toFixed(4)},${lng2.toFixed(4)}`;
+  if (distanceCache.has(key)) return distanceCache.get(key)!;
+
   try {
     const res = await fetch(`https://maps.googleapis.com/maps/api/distancematrix/json?origins=${lat1},${lng1}&destinations=${lat2},${lng2}&mode=driving&key=${GMAPS}`);
     const data = await res.json();
     const el = data.rows?.[0]?.elements?.[0];
-    if (el?.status === "OK") return { km: Math.round(el.distance.value / 100) / 10, min: Math.round(el.duration.value / 60) };
-  } catch {} // eslint-disable-line no-empty
-  // Fallback: estimate from straight line
-  const R = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLng = (lng2 - lng1) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
-  const km = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return { km: Math.round(km * 1.5 * 10) / 10, min: Math.round(km * 2.5) };
+    if (el?.status === "OK") {
+      const result = { km: Math.round(el.distance.value / 100) / 10, min: Math.round(el.duration.value / 60) };
+      distanceCache.set(key, result);
+      return result;
+    }
+  } catch {}
+
+  const km = Math.round(haversine(lat1, lng1, lat2, lng2) * 1.4 * 10) / 10;
+  const result = { km, min: Math.round(km * 1.5) };
+  distanceCache.set(key, result);
+  return result;
 }
 
 function calcFirstEntretien(ouvertureDate: string, dayName: string): string {
@@ -71,42 +88,149 @@ function calcFirstEntretien(ouvertureDate: string, dayName: string): string {
   return first.toISOString().split("T")[0];
 }
 
-function nearestNeighbor(clients: Client[], homeLat: number, homeLng: number): Client[] {
-  if (clients.length <= 1) return clients;
-  const result: Client[] = [];
-  const remaining = [...clients];
-  let curLat = homeLat;
-  let curLng = homeLng;
-  while (remaining.length > 0) {
-    let bestIdx = 0;
-    let bestDist = Infinity;
-    for (let i = 0; i < remaining.length; i++) {
-      const dlat = remaining[i].lat - curLat;
-      const dlng = remaining[i].lng - curLng;
-      const d = dlat * dlat + dlng * dlng;
-      if (d < bestDist) { bestDist = d; bestIdx = i; }
+// ─── CLUSTERING K-MEANS ───
+function kMeansCluster(clients: Client[], k: number, iterations: number = 30): Client[][] {
+  if (clients.length <= k) return clients.map(c => [c]);
+
+  // Initialize centroids randomly from clients
+  const centroids: { lat: number; lng: number }[] = [];
+  const used = new Set<number>();
+  while (centroids.length < k) {
+    const idx = Math.floor(Math.random() * clients.length);
+    if (!used.has(idx)) {
+      used.add(idx);
+      centroids.push({ lat: clients[idx].lat, lng: clients[idx].lng });
     }
-    const next = remaining.splice(bestIdx, 1)[0];
-    result.push(next);
-    curLat = next.lat;
-    curLng = next.lng;
   }
+
+  let clusters: Client[][] = [];
+
+  for (let iter = 0; iter < iterations; iter++) {
+    // Assign each client to nearest centroid (with capacity constraint)
+    clusters = Array.from({ length: k }, () => []);
+
+    // Sort clients by distance to nearest centroid (most "stuck" first)
+    const sortedClients = [...clients].sort((a, b) => {
+      const distA = Math.min(...centroids.map(c => haversine(a.lat, a.lng, c.lat, c.lng)));
+      const distB = Math.min(...centroids.map(c => haversine(b.lat, b.lng, c.lat, c.lng)));
+      return distA - distB;
+    });
+
+    for (const client of sortedClients) {
+      // Find best centroid (closest with capacity available)
+      const distances = centroids.map((c, i) => ({ idx: i, dist: haversine(client.lat, client.lng, c.lat, c.lng) }));
+      distances.sort((a, b) => a.dist - b.dist);
+
+      let assigned = false;
+      for (const { idx } of distances) {
+        if (clusters[idx].length < MAX_PER_DAY) {
+          clusters[idx].push(client);
+          assigned = true;
+          break;
+        }
+      }
+      if (!assigned) clusters[0].push(client); // Fallback
+    }
+
+    // Recalculate centroids
+    for (let i = 0; i < k; i++) {
+      if (clusters[i].length === 0) continue;
+      centroids[i] = {
+        lat: clusters[i].reduce((s, c) => s + c.lat, 0) / clusters[i].length,
+        lng: clusters[i].reduce((s, c) => s + c.lng, 0) / clusters[i].length,
+      };
+    }
+  }
+
+  return clusters;
+}
+
+// ─── 2-OPT pour optimiser l'ordre dans un cluster ───
+function twoOptSwap(stops: Client[], homeLat: number, homeLng: number): Client[] {
+  if (stops.length < 4) return stops;
+
+  let best = [...stops];
+  let bestDist = calculateTourDistance(best, homeLat, homeLng);
+  let improved = true;
+
+  while (improved) {
+    improved = false;
+    for (let i = 1; i < best.length - 1; i++) {
+      for (let j = i + 1; j < best.length; j++) {
+        const newRoute = [...best.slice(0, i), ...best.slice(i, j + 1).reverse(), ...best.slice(j + 1)];
+        const newDist = calculateTourDistance(newRoute, homeLat, homeLng);
+        if (newDist < bestDist) {
+          best = newRoute;
+          bestDist = newDist;
+          improved = true;
+        }
+      }
+    }
+  }
+
+  return best;
+}
+
+function calculateTourDistance(stops: Client[], homeLat: number, homeLng: number): number {
+  if (stops.length === 0) return 0;
+  let total = haversine(homeLat, homeLng, stops[0].lat, stops[0].lng);
+  for (let i = 0; i < stops.length - 1; i++) {
+    total += haversine(stops[i].lat, stops[i].lng, stops[i + 1].lat, stops[i + 1].lng);
+  }
+  total += haversine(stops[stops.length - 1].lat, stops[stops.length - 1].lng, homeLat, homeLng);
+  return total;
+}
+
+// ─── CROSS-DAY SWAPS pour équilibrer entre jours ───
+function crossDaySwaps(clusters: Client[][], homeLat: number, homeLng: number, iterations: number = 50): Client[][] {
+  const result = clusters.map(c => [...c]);
+
+  for (let iter = 0; iter < iterations; iter++) {
+    let improved = false;
+
+    for (let d1 = 0; d1 < result.length; d1++) {
+      for (let d2 = d1 + 1; d2 < result.length; d2++) {
+        for (let i = 0; i < result[d1].length; i++) {
+          for (let j = 0; j < result[d2].length; j++) {
+            // Try swapping clients i and j between days d1 and d2
+            const before = calculateTourDistance(result[d1], homeLat, homeLng) + calculateTourDistance(result[d2], homeLat, homeLng);
+
+            const newD1 = [...result[d1]];
+            const newD2 = [...result[d2]];
+            [newD1[i], newD2[j]] = [newD2[j], newD1[i]];
+
+            const after = calculateTourDistance(newD1, homeLat, homeLng) + calculateTourDistance(newD2, homeLat, homeLng);
+
+            if (after < before - 0.5) { // Significant improvement (>500m)
+              result[d1] = newD1;
+              result[d2] = newD2;
+              improved = true;
+            }
+          }
+        }
+      }
+    }
+
+    if (!improved) break;
+  }
+
   return result;
 }
 
+// ─── MAIN CALCULATOR ───
 export interface CalculationResult {
   routes: DayRoute[];
   totalClients: number;
   totalKm: number;
-  problems: {
-    noAddress: string[];
-    noOuverture: string[];
-    failedGeocode: string[];
-  };
+  problems: { noAddress: string[]; noOuverture: string[]; failedGeocode: string[] };
   home: { lat: number; lng: number; address: string };
+  fuel: { weeklyFuelLitres: number; weeklyFuelCost: number; seasonFuelCost: number };
 }
 
 export async function calculateRoutes(): Promise<CalculationResult> {
+  console.log("[routes] Starting optimized calculation...");
+  distanceCache.clear();
+
   const homeGeo = await geocode(HOME_ADDR);
   if (!homeGeo) throw new Error("Impossible de géocoder l'adresse de base");
 
@@ -141,42 +265,45 @@ export async function calculateRoutes(): Promise<CalculationResult> {
     });
   }
 
-  // Cluster: distribute by proximity + load
-  const buckets: Record<string, Client[]> = {};
-  for (const d of DAYS) buckets[d] = [];
+  console.log(`[routes] ${valid.length} valid clients to optimize`);
 
-  // Sort by latitude for rough geographic grouping
-  valid.sort((a, b) => a.lat - b.lat);
+  // ─── PHASE 1: K-MEANS CLUSTERING ───
+  // Run k-means multiple times with different random seeds and keep best
+  let bestClusters: Client[][] = [];
+  let bestTotalDist = Infinity;
 
-  for (const client of valid) {
-    let bestDay = DAYS[0];
-    let bestScore = Infinity;
-    for (const d of DAYS) {
-      if (buckets[d].length >= MAX_PER_DAY) continue;
-      const load = buckets[d].length;
-      let prox = 50;
-      if (load > 0) {
-        let totalDist = 0;
-        for (const ex of buckets[d]) {
-          const dlat = client.lat - ex.lat;
-          const dlng = client.lng - ex.lng;
-          totalDist += Math.sqrt(dlat * dlat + dlng * dlng);
-        }
-        prox = (totalDist / load) * 1000;
-      }
-      const score = prox + load * 20;
-      if (score < bestScore) { bestScore = score; bestDay = d; }
+  const numDays = DAYS.length;
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const clusters = kMeansCluster(valid, numDays, 30);
+    const totalDist = clusters.reduce((sum, c) => sum + calculateTourDistance(c, homeGeo.lat, homeGeo.lng), 0);
+    if (totalDist < bestTotalDist) {
+      bestTotalDist = totalDist;
+      bestClusters = clusters;
     }
-    buckets[bestDay].push(client);
   }
+  console.log(`[routes] Phase 1 K-means: ${Math.round(bestTotalDist * 10) / 10} km`);
 
-  // Optimize each day + calculate real driving info
+  // ─── PHASE 2: 2-OPT par jour ───
+  bestClusters = bestClusters.map(c => twoOptSwap(c, homeGeo.lat, homeGeo.lng));
+  const phase2Dist = bestClusters.reduce((sum, c) => sum + calculateTourDistance(c, homeGeo.lat, homeGeo.lng), 0);
+  console.log(`[routes] Phase 2 2-opt: ${Math.round(phase2Dist * 10) / 10} km`);
+
+  // ─── PHASE 3: CROSS-DAY SWAPS ───
+  bestClusters = crossDaySwaps(bestClusters, homeGeo.lat, homeGeo.lng, 100);
+  // Ré-optimiser chaque jour après les swaps
+  bestClusters = bestClusters.map(c => twoOptSwap(c, homeGeo.lat, homeGeo.lng));
+  const phase3Dist = bestClusters.reduce((sum, c) => sum + calculateTourDistance(c, homeGeo.lat, homeGeo.lng), 0);
+  console.log(`[routes] Phase 3 cross-day: ${Math.round(phase3Dist * 10) / 10} km`);
+
+  // ─── BUILD FINAL ROUTES avec vrais temps Google Maps ───
   const routes: DayRoute[] = [];
   let totalKm = 0;
 
-  for (const day of DAYS) {
-    if (buckets[day].length === 0) continue;
-    const ordered = nearestNeighbor(buckets[day], homeGeo.lat, homeGeo.lng);
+  for (let dayIdx = 0; dayIdx < numDays; dayIdx++) {
+    const day = DAYS[dayIdx];
+    const clients = bestClusters[dayIdx] || [];
+    if (clients.length === 0) continue;
+
     let dayKm = 0;
     let dayMin = 0;
     let prevLat = homeGeo.lat;
@@ -184,8 +311,8 @@ export async function calculateRoutes(): Promise<CalculationResult> {
     let curMin = START_HOUR * 60;
 
     const stops: RouteStop[] = [];
-    for (let i = 0; i < ordered.length; i++) {
-      const c = ordered[i];
+    for (let i = 0; i < clients.length; i++) {
+      const c = clients[i];
       const driving = await getDriving(prevLat, prevLng, c.lat, c.lng);
       dayKm += driving.km;
       dayMin += driving.min;
@@ -197,11 +324,8 @@ export async function calculateRoutes(): Promise<CalculationResult> {
       dayMin += SERVICE_DURATION_MIN;
 
       stops.push({
-        ...c,
-        order: i + 1,
-        arrivalTime, departureTime,
-        distFromPrev: driving.km,
-        driveMinFromPrev: driving.min,
+        ...c, order: i + 1, arrivalTime, departureTime,
+        distFromPrev: driving.km, driveMinFromPrev: driving.min,
         firstEntretienDate: calcFirstEntretien(c.ouvertureDate, day),
       });
 
@@ -225,15 +349,20 @@ export async function calculateRoutes(): Promise<CalculationResult> {
     });
   }
 
+  const finalKm = Math.round(totalKm * 10) / 10;
+  const fuelL = Math.round(finalKm * 9 / 100 * 10) / 10;
+  const fuelCost = Math.round(fuelL * 1.65 * 100) / 100;
+
+  console.log(`[routes] Final: ${finalKm} km, ${fuelL} L, ${fuelCost}$`);
+
   return {
-    routes,
-    totalClients: valid.length,
-    totalKm: Math.round(totalKm * 10) / 10,
-    problems,
+    routes, totalClients: valid.length, totalKm: finalKm, problems,
     home: { ...homeGeo, address: HOME_ADDR },
+    fuel: { weeklyFuelLitres: fuelL, weeklyFuelCost: fuelCost, seasonFuelCost: Math.round(fuelCost * 22 * 100) / 100 },
   };
 }
 
+// ─── CONFIRM (inchangé, garde l'ancienne logique) ───
 export async function confirmRoutes(routes: DayRoute[], sendSMS: boolean): Promise<string[]> {
   const results: string[] = [];
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
@@ -241,12 +370,7 @@ export async function confirmRoutes(routes: DayRoute[], sendSMS: boolean): Promi
 
   for (const dayRoute of routes) {
     for (const stop of dayRoute.stops) {
-      // Supprimer les anciens entretiens planifiés de ce client
-      await supabaseAdmin.from("jobs")
-        .delete()
-        .eq("contact_id", stop.id)
-        .eq("job_type", "entretien")
-        .eq("status", "planifié");
+      await supabaseAdmin.from("jobs").delete().eq("contact_id", stop.id).eq("job_type", "entretien").eq("status", "planifié");
 
       const first = new Date(stop.firstEntretienDate + "T12:00:00");
       const cur = new Date(first);
@@ -257,13 +381,10 @@ export async function confirmRoutes(routes: DayRoute[], sendSMS: boolean): Promi
       let count = 0;
       while (cur <= endDate) {
         await supabaseAdmin.from("jobs").insert({
-          contact_id: stop.id,
-          job_type: "entretien",
+          contact_id: stop.id, job_type: "entretien",
           scheduled_date: cur.toISOString().split("T")[0],
-          scheduled_time_start: stop.arrivalTime,
-          scheduled_time_end: endTime,
-          status: "planifié",
-          notes: `Route ${dayRoute.day} — Arrêt #${stop.order}`,
+          scheduled_time_start: stop.arrivalTime, scheduled_time_end: endTime,
+          status: "planifié", notes: `Route ${dayRoute.day} — Arrêt #${stop.order}`,
         });
         count++;
         cur.setDate(cur.getDate() + increment);
@@ -272,7 +393,6 @@ export async function confirmRoutes(routes: DayRoute[], sendSMS: boolean): Promi
       results.push(`${stop.name}: ${count} passages chaque ${dayRoute.day}, début ${stop.firstEntretienDate}`);
 
       if (sendSMS && stop.phone?.startsWith("+")) {
-        // Check anti-doublon
         const { data: alreadyConfirmed } = await supabaseAdmin
           .from("automation_logs")
           .select("id")
