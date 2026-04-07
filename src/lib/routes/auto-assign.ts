@@ -73,33 +73,58 @@ export async function autoAssignNewClients(): Promise<string[]> {
     const name = [candidate.first_name, candidate.last_name].filter(Boolean).join(" ") || candidate.phone || "?";
     const isBiweekly = (candidate.services || []).some((s: string) => s.includes("2 semaines"));
 
-    // Trouver le meilleur jour basé sur le route_state existant
+    // Calculer le coût actuel de chaque jour
+    const dayCost = (stops: any[], homeLat: number, homeLng: number): number => {
+      if (stops.length === 0) return 0;
+      let total = 0;
+      let prevLat = homeLat;
+      let prevLng = homeLng;
+      for (const s of stops) {
+        const dlat = s.lat - prevLat;
+        const dlng = s.lng - prevLng;
+        total += Math.sqrt(dlat * dlat + dlng * dlng);
+        prevLat = s.lat;
+        prevLng = s.lng;
+      }
+      // Retour maison
+      const dlat = homeLat - prevLat;
+      const dlng = homeLng - prevLng;
+      total += Math.sqrt(dlat * dlat + dlng * dlng);
+      return total;
+    }
+
+    const homeGeoForCalc = await geocode(HOME_ADDR);
+    if (!homeGeoForCalc) continue;
+
     let bestDay = DAYS[0];
-    let bestScore = Infinity;
+    let bestPosition = 0;
+    let bestCostIncrease = Infinity;
 
     for (const d of DAYS) {
       const dayRoute = routes.find((r: any) => r.day === d);
       const stops = dayRoute?.stops || [];
       if (stops.length >= MAX_PER_DAY) continue;
 
-      let prox = 50;
-      if (stops.length > 0) {
-        let totalDist = 0;
-        for (const s of stops) {
-          const dlat = geo.lat - s.lat;
-          const dlng = geo.lng - s.lng;
-          totalDist += Math.sqrt(dlat * dlat + dlng * dlng);
+      const currentCost = dayCost(stops, homeGeoForCalc.lat, homeGeoForCalc.lng);
+
+      // Tester l'insertion à chaque position possible
+      for (let pos = 0; pos <= stops.length; pos++) {
+        const newStops = [...stops];
+        newStops.splice(pos, 0, { lat: geo.lat, lng: geo.lng, id: candidate.id });
+        const newCost = dayCost(newStops, homeGeoForCalc.lat, homeGeoForCalc.lng);
+        const increase = newCost - currentCost;
+
+        if (increase < bestCostIncrease) {
+          bestCostIncrease = increase;
+          bestDay = d;
+          bestPosition = pos;
         }
-        prox = (totalDist / stops.length) * 1000;
       }
-      const score = prox + stops.length * 20;
-      if (score < bestScore) { bestScore = score; bestDay = d; }
     }
 
     // Calculer position et heure
     const dayRouteIdx = routes.findIndex((r: any) => r.day === bestDay);
-    const dayStops = dayRouteIdx >= 0 ? routes[dayRouteIdx].stops : [];
-    const position = dayStops.length + 1;
+    const position = bestPosition + 1;
     const startMinutes = 8 * 60 + (position - 1) * 60;
     const arrivalTime = `${String(Math.floor(startMinutes / 60)).padStart(2, "0")}:${String(startMinutes % 60).padStart(2, "0")}`;
     const endMinutes = startMinutes + 60;
@@ -131,7 +156,7 @@ export async function autoAssignNewClients(): Promise<string[]> {
     };
 
     if (dayRouteIdx >= 0) {
-      routes[dayRouteIdx].stops.push(newStop);
+      routes[dayRouteIdx].stops.splice(bestPosition, 0, newStop);
     } else {
       routes.push({
         day: bestDay,
