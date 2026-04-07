@@ -197,7 +197,7 @@ export default function RoutesPage() {
               <p className="text-xs text-gray-500">Clients</p>
             </div>
             <div className="bg-white rounded-xl border p-4 text-center">
-              <p className="text-2xl font-bold text-blue-600">{data.totalKm} km</p>
+              <p className="text-2xl font-bold text-blue-600">{Math.round(data.routes.reduce((sum: number, r: any) => sum + (r.totalKm || 0), 0) * 10) / 10} km</p>
               <p className="text-xs text-gray-500">Distance/semaine</p>
             </div>
             <div className="bg-white rounded-xl border p-4 text-center">

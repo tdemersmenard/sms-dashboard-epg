@@ -387,6 +387,51 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
     if (cat?.isEntretien && newPayOuvertureDate) contactUpdate.ouverture_date = newPayOuvertureDate;
     await supabaseBrowser.from("contacts").update(contactUpdate).eq("id", id);
 
+    // Si c'est un entretien avec date d'ouverture, créer le job d'ouverture dans le calendrier
+    if (cat?.isEntretien && newPayOuvertureDate) {
+      // Vérifier qu'il n'y a pas déjà un job d'ouverture pour ce client
+      const { data: existingOuverture } = await supabaseBrowser
+        .from("jobs")
+        .select("id")
+        .eq("contact_id", id)
+        .eq("job_type", "ouverture")
+        .limit(1);
+
+      if (!existingOuverture || existingOuverture.length === 0) {
+        await supabaseBrowser.from("jobs").insert({
+          contact_id: id,
+          job_type: "ouverture",
+          scheduled_date: newPayOuvertureDate,
+          scheduled_time_start: "08:00",
+          scheduled_time_end: "10:00",
+          status: "planifié",
+          notes: "Ouverture saison 2026 — à confirmer",
+        });
+      }
+    }
+
+    // Aussi, pour les ouvertures seules (pas dans entretien), créer aussi le job
+    if (cat?.label?.toLowerCase().includes("ouverture") && newPayOuvertureDate) {
+      const { data: existingOuverture } = await supabaseBrowser
+        .from("jobs")
+        .select("id")
+        .eq("contact_id", id)
+        .eq("job_type", "ouverture")
+        .limit(1);
+
+      if (!existingOuverture || existingOuverture.length === 0) {
+        await supabaseBrowser.from("jobs").insert({
+          contact_id: id,
+          job_type: "ouverture",
+          scheduled_date: newPayOuvertureDate,
+          scheduled_time_start: "08:00",
+          scheduled_time_end: "10:00",
+          status: "planifié",
+          notes: "Ouverture — à confirmer",
+        });
+      }
+    }
+
     // Trigger auto-assign immédiat pour ce client
     fetch("/api/routes/auto-assign-single", {
       method: "POST",
