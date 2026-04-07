@@ -272,6 +272,18 @@ export async function confirmRoutes(routes: DayRoute[], sendSMS: boolean): Promi
       results.push(`${stop.name}: ${count} passages chaque ${dayRoute.day}, début ${stop.firstEntretienDate}`);
 
       if (sendSMS && stop.phone?.startsWith("+")) {
+        // Check anti-doublon
+        const { data: alreadyConfirmed } = await supabaseAdmin
+          .from("automation_logs")
+          .select("id")
+          .eq("action", `route_confirmed_${stop.id}`)
+          .limit(1);
+
+        if (alreadyConfirmed && alreadyConfirmed.length > 0) {
+          results.push(`${stop.name}: SMS skipé (déjà confirmé)`);
+          continue;
+        }
+
         const freq = stop.isBiweekly ? "aux deux semaines" : "chaque semaine";
         const debutStr = new Date(stop.firstEntretienDate + "T12:00:00").toLocaleDateString("fr-CA", { weekday: "long", day: "numeric", month: "long" });
         const firstName = stop.name.split(" ")[0];
@@ -282,6 +294,12 @@ export async function confirmRoutes(routes: DayRoute[], sendSMS: boolean): Promi
             contactId: stop.id,
             body: `Bonjour ${firstName}! Votre entretien de piscine est planifié ${freq} le ${dayRoute.day.toLowerCase()}, arrivée vers ${stop.arrivalTime}. Premier passage: ${debutStr}. Bonne saison!`,
           }),
+        });
+
+        await supabaseAdmin.from("automation_logs").insert({
+          action: `route_confirmed_${stop.id}`,
+          contact_id: stop.id,
+          status: "success",
         });
       }
     }
