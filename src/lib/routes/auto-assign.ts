@@ -25,10 +25,24 @@ export async function autoAssignNewClients(): Promise<string[]> {
     .select("id, first_name, last_name, phone, address, city, services, ouverture_date")
     .not("services", "is", null);
 
-  const candidates = (contacts || []).filter(c => {
+  const candidates: any[] = [];
+  for (const c of contacts || []) {
     const svcs = c.services || [];
-    return svcs.some((s: string) => s.toLowerCase().includes("entretien")) && c.address && c.address.length > 5 && c.ouverture_date;
-  });
+    if (!svcs.some((s: string) => s.toLowerCase().includes("entretien"))) continue;
+    if (!c.address || c.address.length < 5) continue;
+    if (!c.ouverture_date) continue;
+
+    // Vérifier que le client a au moins un payment
+    const { data: payments } = await supabaseAdmin
+      .from("payments")
+      .select("id")
+      .eq("contact_id", c.id)
+      .limit(1);
+
+    if (!payments || payments.length === 0) continue;
+
+    candidates.push(c);
+  }
 
   if (candidates.length === 0) return [];
 
