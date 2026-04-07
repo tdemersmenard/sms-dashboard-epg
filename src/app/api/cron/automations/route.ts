@@ -33,10 +33,10 @@ export async function GET(req: NextRequest) {
 
   // 3. Auto-assign nouveaux clients aux routes
   try {
-    const { checkAndAutoAssign } = await import("@/lib/routes/auto-assign");
-    results.routes_assigned = await checkAndAutoAssign();
+    const { autoAssignNewClients } = await import("@/lib/routes/auto-assign");
+    results.routes_auto = await autoAssignNewClients();
   } catch (e) {
-    results.routes_error = String(e);
+    results.routes_auto_error = String(e);
   }
 
   return NextResponse.json({ ok: true, ...results });

@@ -1,388 +1,248 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { MapPin, Loader2, AlertCircle, ChevronDown, ChevronUp, Check, Send, RefreshCw, Trash2, Calendar, X } from "lucide-react";
+import { Loader2, MapPin, Send, Check, AlertCircle, X } from "lucide-react";
 
-const DAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
-const DAY_COLORS: Record<string, string> = {
-  Lundi: "bg-blue-500", Mardi: "bg-green-500", Mercredi: "bg-purple-500",
-  Jeudi: "bg-orange-500", Vendredi: "bg-pink-500", Samedi: "bg-teal-500", Dimanche: "bg-red-500",
-};
+const DAY_COLORS: Record<string, string> = { Lundi: "#3b82f6", Mardi: "#10b981", Mercredi: "#a855f7", Jeudi: "#f97316", Vendredi: "#ec4899" };
 
 export default function RoutesPage() {
-  // Config
-  const [selectedDays, setSelectedDays] = useState(["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi"]);
-  const [maxPerDay, setMaxPerDay] = useState(5);
-  const [startTime, setStartTime] = useState("08:00");
-  const [fuelPer100, setFuelPer100] = useState(9);
-  const [fuelPrice, setFuelPrice] = useState(1.65);
-
-  // State
-  const [currentRoutes, setCurrentRoutes] = useState<any>(null);
-  const [calculatedRoutes, setCalculatedRoutes] = useState<any>(null);
+  const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [expandedDay, setExpandedDay] = useState<string | null>(null);
-  const [loadingCurrent, setLoadingCurrent] = useState(true);
+  const [draggedStop, setDraggedStop] = useState<any>(null);
+  const [mapLoaded, setMapLoaded] = useState(false);
 
-  // Fetch routes actuelles au mount
+  // Load Google Maps
   useEffect(() => {
-    fetchCurrentRoutes();
+    if (typeof window === "undefined") return;
+    if ((window as any).google?.maps) { setMapLoaded(true); return; }
+    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY || "";
+    const script = document.createElement("script");
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}`;
+    script.async = true;
+    script.onload = () => setMapLoaded(true);
+    document.head.appendChild(script);
   }, []);
 
-  const fetchCurrentRoutes = async () => {
-    setLoadingCurrent(true);
-    try {
-      const res = await fetch("/api/routes/current", { cache: "no-store" });
-      const data = await res.json();
-      setCurrentRoutes(data);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoadingCurrent(false);
-    }
-  };
+  // Render map when data is loaded
+  useEffect(() => {
+    if (!mapLoaded || !data?.routes) return;
+    const mapEl = document.getElementById("routes-map");
+    if (!mapEl) return;
 
-  // Calculer les routes optimales
+    const google = (window as any).google;
+    const map = new google.maps.Map(mapEl, {
+      center: { lat: data.home.lat, lng: data.home.lng },
+      zoom: 11,
+    });
+
+    // Home marker
+    new google.maps.Marker({
+      position: { lat: data.home.lat, lng: data.home.lng },
+      map, title: "Maison",
+      icon: { path: google.maps.SymbolPath.CIRCLE, scale: 10, fillColor: "#0a1f3f", fillOpacity: 1, strokeColor: "white", strokeWeight: 2 },
+    });
+
+    // Client markers grouped by day
+    for (const route of data.routes) {
+      const color = DAY_COLORS[route.day] || "#666";
+      route.stops.forEach((stop: any, idx: number) => {
+        const marker = new google.maps.Marker({
+          position: { lat: stop.lat, lng: stop.lng },
+          map, title: stop.name,
+          label: { text: String(idx + 1), color: "white", fontSize: "12px", fontWeight: "bold" },
+          icon: { path: google.maps.SymbolPath.CIRCLE, scale: 12, fillColor: color, fillOpacity: 1, strokeColor: "white", strokeWeight: 2 },
+        });
+        const info = new google.maps.InfoWindow({
+          content: `<div style="padding:4px"><strong>${stop.name}</strong><br>${stop.address}<br><small>${route.day} ${stop.arrivalTime}</small></div>`,
+        });
+        marker.addListener("click", () => info.open(map, marker));
+      });
+    }
+  }, [data, mapLoaded]);
+
   const calculate = async () => {
     setLoading(true);
-    setError("");
-    setSuccess("");
-    setCalculatedRoutes(null);
+    setError(""); setSuccess("");
     try {
-      const res = await fetch("/api/routes/optimize", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ days: selectedDays, maxPerDay, startTime, fuelPer100km: fuelPer100, fuelPricePerLitre: fuelPrice }),
-      });
-      const data = await res.json();
-      if (data.error) { setError(data.error); return; }
-      setCalculatedRoutes(data);
+      const res = await fetch("/api/routes/calculate", { method: "POST" });
+      const result = await res.json();
+      if (result.error) { setError(result.error); return; }
+      setData(result);
     } catch { setError("Erreur lors du calcul"); }
     finally { setLoading(false); }
   };
 
-  // Confirmer les routes
-  const confirmRoutes = async (sendSMS: boolean) => {
-    if (!calculatedRoutes) return;
+  const confirm = async (sendSMS: boolean) => {
+    if (!data?.routes) return;
     setConfirming(true);
-    setError("");
     try {
       const res = await fetch("/api/routes/confirm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          routes: calculatedRoutes.routes,
-          startDate: new Date().toISOString().split("T")[0],
-          sendSMS,
-        }),
+        body: JSON.stringify({ routes: data.routes, sendSMS }),
       });
-      const data = await res.json();
-      if (data.success) {
-        setSuccess(`Routes confirmées! ${data.results.length} actions effectuées.${sendSMS ? " SMS envoyés aux clients." : ""}`);
-        setCalculatedRoutes(null);
-        fetchCurrentRoutes();
-      } else {
-        setError(data.error || "Erreur lors de la confirmation");
-      }
+      const result = await res.json();
+      if (result.success) {
+        setSuccess(`${result.results.length} actions effectuées${sendSMS ? " + SMS envoyés" : ""}`);
+      } else setError(result.error);
     } catch { setError("Erreur lors de la confirmation"); }
     finally { setConfirming(false); }
   };
 
-  // Supprimer tous les entretiens
-  const deleteAllEntretiens = async () => {
-    if (!window.confirm("Êtes-vous sûr de vouloir supprimer TOUS les entretiens planifiés? Cette action est irréversible.")) return;
-    try {
-      const res = await fetch("/api/jobs/delete?bulk=true&type=entretien", { method: "DELETE" });
-      if (res.ok) {
-        setSuccess("Tous les entretiens ont été supprimés.");
-        fetchCurrentRoutes();
-      }
-    } catch { setError("Erreur lors de la suppression"); }
+  const moveStop = (stop: any, fromDay: string, toDay: string) => {
+    if (fromDay === toDay) return;
+    setData((prev: any) => {
+      if (!prev) return prev;
+      const newRoutes = prev.routes.map((r: any) => {
+        if (r.day === fromDay) return { ...r, stops: r.stops.filter((s: any) => s.id !== stop.id).map((s: any, i: number) => ({ ...s, order: i + 1 })) };
+        if (r.day === toDay) return { ...r, stops: [...r.stops, { ...stop, order: r.stops.length + 1 }] };
+        return r;
+      });
+      return { ...prev, routes: newRoutes };
+    });
   };
 
-  const displayRoutes = calculatedRoutes || null;
-
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Routes d&apos;entretien</h1>
-          <p className="text-sm text-gray-500 mt-1">Optimisation automatique des routes hebdomadaires</p>
-        </div>
-        <button onClick={fetchCurrentRoutes} className="text-gray-400 hover:text-gray-600 transition">
-          <RefreshCw size={18} />
-        </button>
+    <div className="p-6 max-w-6xl mx-auto space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Routes d&apos;entretien</h1>
+        <p className="text-sm text-gray-500 mt-1">Calcul automatique optimisé pour minimiser les déplacements</p>
       </div>
 
-      {/* Messages */}
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3">
-          <AlertCircle size={18} className="text-red-500 flex-shrink-0" />
-          <p className="text-sm text-red-700">{error}</p>
-          <button onClick={() => setError("")} className="ml-auto text-red-400"><X size={16} /></button>
+          <AlertCircle size={18} className="text-red-500" />
+          <p className="text-sm text-red-700 flex-1">{error}</p>
+          <button onClick={() => setError("")}><X size={16} /></button>
         </div>
       )}
       {success && (
         <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center gap-3">
-          <Check size={18} className="text-green-500 flex-shrink-0" />
-          <p className="text-sm text-green-700">{success}</p>
-          <button onClick={() => setSuccess("")} className="ml-auto text-green-400"><X size={16} /></button>
+          <Check size={18} className="text-green-500" />
+          <p className="text-sm text-green-700 flex-1">{success}</p>
+          <button onClick={() => setSuccess("")}><X size={16} /></button>
         </div>
       )}
 
-      {/* Routes actuelles */}
-      <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Calendar size={18} className="text-blue-600" />
-            <h2 className="font-semibold text-gray-900">Routes actuelles</h2>
-            {currentRoutes && <span className="text-sm text-gray-400">({currentRoutes.totalClients || 0} clients)</span>}
-          </div>
-          {currentRoutes && currentRoutes.totalClients > 0 && (
-            <button onClick={deleteAllEntretiens} className="text-xs text-red-500 hover:text-red-700 flex items-center gap-1">
-              <Trash2 size={14} /> Tout supprimer
-            </button>
-          )}
-        </div>
+      {!data && (
+        <button
+          onClick={calculate}
+          disabled={loading}
+          className="w-full bg-[#0a1f3f] text-white rounded-xl py-4 font-semibold flex items-center justify-center gap-2 hover:bg-[#0d2a52] transition disabled:opacity-50"
+        >
+          {loading
+            ? <><Loader2 size={20} className="animate-spin" /> Calcul en cours (peut prendre 30-60s)...</>
+            : <><MapPin size={20} /> Calculer les routes optimales</>}
+        </button>
+      )}
 
-        {loadingCurrent ? (
-          <div className="p-8 flex justify-center"><Loader2 size={24} className="animate-spin text-gray-300" /></div>
-        ) : currentRoutes && currentRoutes.totalClients > 0 ? (
-          <div className="divide-y divide-gray-50">
-            {Object.entries(currentRoutes.routes || {}).map(([day, clients]: [string, any]) => (
-              <div key={day} className="px-5 py-3">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className={`w-2.5 h-2.5 rounded-full ${DAY_COLORS[day] || "bg-gray-400"}`} />
-                  <span className="font-medium text-sm text-gray-900">{day}</span>
-                  <span className="text-xs text-gray-400">{clients.length} clients</span>
+      {data && (
+        <>
+          {/* Stats */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="bg-white rounded-xl border p-4 text-center">
+              <p className="text-2xl font-bold text-gray-900">{data.totalClients}</p>
+              <p className="text-xs text-gray-500">Clients</p>
+            </div>
+            <div className="bg-white rounded-xl border p-4 text-center">
+              <p className="text-2xl font-bold text-blue-600">{data.totalKm} km</p>
+              <p className="text-xs text-gray-500">Distance/semaine</p>
+            </div>
+            <div className="bg-white rounded-xl border p-4 text-center">
+              <p className="text-2xl font-bold text-orange-500">{data.routes.length}</p>
+              <p className="text-xs text-gray-500">Jours utilisés</p>
+            </div>
+          </div>
+
+          {/* Problems */}
+          {(data.problems.noAddress.length > 0 || data.problems.noOuverture.length > 0 || data.problems.failedGeocode.length > 0) && (
+            <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 space-y-2">
+              {data.problems.noAddress.length > 0 && (
+                <div>
+                  <p className="text-sm font-semibold text-orange-800">⚠ Sans adresse:</p>
+                  <p className="text-xs text-orange-700">{data.problems.noAddress.join(", ")}</p>
                 </div>
-                <div className="ml-5 space-y-1">
-                  {clients.map((client: any, idx: number) => (
-                    <div key={client.id} className="flex items-center gap-3 text-sm py-1">
-                      <span className="w-5 h-5 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center text-xs font-medium">{idx + 1}</span>
-                      <span className="font-medium text-gray-800 flex-1">{client.name}</span>
-                      <span className="text-gray-400 text-xs hidden md:block">{client.address}</span>
-                      <span className="text-gray-500 text-xs">{client.time}</span>
-                      <span className="text-gray-300 text-xs">{client.remainingJobs}x</span>
+              )}
+              {data.problems.noOuverture.length > 0 && (
+                <div>
+                  <p className="text-sm font-semibold text-orange-800">⚠ Sans date d&apos;ouverture:</p>
+                  <p className="text-xs text-orange-700">{data.problems.noOuverture.join(", ")}</p>
+                </div>
+              )}
+              {data.problems.failedGeocode.length > 0 && (
+                <div>
+                  <p className="text-sm font-semibold text-orange-800">⚠ Adresses non reconnues:</p>
+                  <p className="text-xs text-orange-700">{data.problems.failedGeocode.join(", ")}</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Map */}
+          <div className="bg-white rounded-xl border overflow-hidden">
+            <div id="routes-map" style={{ width: "100%", height: 400 }}></div>
+          </div>
+
+          {/* Routes list */}
+          <div className="space-y-3">
+            {data.routes.map((route: any) => (
+              <div
+                key={route.day}
+                className="bg-white rounded-xl border overflow-hidden"
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (draggedStop && draggedStop.fromDay !== route.day) {
+                    moveStop(draggedStop.stop, draggedStop.fromDay, route.day);
+                    setDraggedStop(null);
+                  }
+                }}
+              >
+                <div className="px-4 py-3 flex items-center gap-3 border-b" style={{ borderLeftWidth: 4, borderLeftColor: DAY_COLORS[route.day] }}>
+                  <span className="font-semibold text-gray-900">{route.day}</span>
+                  <span className="text-sm text-gray-500">{route.stops.length} clients</span>
+                  <span className="text-sm text-gray-400">• {route.totalKm} km</span>
+                  <span className="text-sm text-gray-400">• Fin {route.endTime}</span>
+                </div>
+                <div className="divide-y divide-gray-50">
+                  {route.stops.map((stop: any) => (
+                    <div
+                      key={stop.id}
+                      draggable
+                      onDragStart={() => setDraggedStop({ stop, fromDay: route.day })}
+                      className="px-4 py-3 flex items-center gap-3 hover:bg-gray-50 cursor-move"
+                    >
+                      <span
+                        className="w-6 h-6 rounded-full text-white text-xs font-bold flex items-center justify-center flex-shrink-0"
+                        style={{ backgroundColor: DAY_COLORS[route.day] }}
+                      >
+                        {stop.order}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900">{stop.name}</p>
+                        <p className="text-xs text-gray-500 truncate">{stop.address}</p>
+                        <p className="text-xs text-blue-500">1er entretien: {stop.firstEntretienDate}</p>
+                      </div>
+                      <div className="text-right text-xs text-gray-400 flex-shrink-0">
+                        <p className="font-medium text-gray-900">{stop.arrivalTime}</p>
+                        <p>{stop.distFromPrev} km • {stop.driveMinFromPrev} min</p>
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
             ))}
           </div>
-        ) : (
-          <div className="p-8 text-center">
-            <MapPin size={32} className="text-gray-200 mx-auto mb-2" />
-            <p className="text-sm text-gray-400">Aucune route planifiée</p>
-            <p className="text-xs text-gray-300 mt-1">Calculez les routes optimales ci-dessous</p>
-          </div>
-        )}
-      </div>
 
-      {/* Calculer de nouvelles routes */}
-      <div className="bg-white rounded-xl shadow-sm border p-5 space-y-4">
-        <h2 className="font-semibold text-gray-900">Calculer les routes optimales</h2>
-
-        {/* Jours */}
-        <div>
-          <label className="block text-sm text-gray-600 mb-2">Jours disponibles</label>
-          <div className="flex flex-wrap gap-2">
-            {DAYS.map(day => (
+          {/* Confirm */}
+          <div className="bg-white rounded-xl border p-5 space-y-3">
+            <p className="text-sm text-gray-500">Confirmer va créer tous les rendez-vous d&apos;entretien jusqu&apos;au 30 septembre 2026.</p>
+            <div className="flex flex-col md:flex-row gap-3">
               <button
-                key={day}
-                onClick={() => setSelectedDays(prev => prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day])}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
-                  selectedDays.includes(day) ? `${DAY_COLORS[day]} text-white` : "bg-gray-100 text-gray-500"
-                }`}
-              >
-                {day}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Options */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Max clients/jour</label>
-            <input type="number" value={maxPerDay} onChange={e => setMaxPerDay(parseInt(e.target.value) || 5)} className="w-full border rounded-lg px-3 py-2 text-sm" />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Heure de départ</label>
-            <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm" />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Consommation (L/100km)</label>
-            <input type="number" value={fuelPer100} onChange={e => setFuelPer100(parseFloat(e.target.value) || 9)} step="0.5" className="w-full border rounded-lg px-3 py-2 text-sm" />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Prix essence ($/L)</label>
-            <input type="number" value={fuelPrice} onChange={e => setFuelPrice(parseFloat(e.target.value) || 1.65)} step="0.05" className="w-full border rounded-lg px-3 py-2 text-sm" />
-          </div>
-        </div>
-
-        <button
-          onClick={calculate}
-          disabled={loading || selectedDays.length === 0}
-          className="w-full bg-[#0a1f3f] text-white rounded-lg py-3 font-medium flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-[#0d2a52] transition"
-        >
-          {loading ? <><Loader2 size={18} className="animate-spin" /> Calcul en cours...</> : <><MapPin size={18} /> Calculer les routes optimales</>}
-        </button>
-      </div>
-
-      {/* Résultats du calcul */}
-      {displayRoutes && (
-        <div className="space-y-4">
-          {/* Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            <div className="bg-white rounded-xl shadow-sm border p-4 text-center">
-              <p className="text-2xl font-bold text-gray-900">{displayRoutes.totalClients}</p>
-              <p className="text-xs text-gray-500">Clients</p>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm border p-4 text-center">
-              <p className="text-2xl font-bold text-blue-600">{displayRoutes.totalKm} km</p>
-              <p className="text-xs text-gray-500">Dist./semaine</p>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm border p-4 text-center">
-              <p className="text-2xl font-bold text-orange-500">{displayRoutes.fuel?.wkL ?? "?"} L</p>
-              <p className="text-xs text-gray-500">Essence/sem.</p>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm border p-4 text-center">
-              <p className="text-2xl font-bold text-red-500">{displayRoutes.fuel?.wkCost?.toFixed(2) ?? "?"} $</p>
-              <p className="text-xs text-gray-500">Coût/sem.</p>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm border p-4 text-center">
-              <p className="text-2xl font-bold text-purple-600">{displayRoutes.fuel?.seasonCost?.toFixed(0) ?? "?"} $</p>
-              <p className="text-xs text-gray-500">Coût/saison</p>
-            </div>
-          </div>
-
-          {displayRoutes?.problems?.noAddress?.length > 0 && (
-            <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-              <p className="font-semibold text-red-800 text-sm">⚠ Clients sans adresse (non inclus):</p>
-              <ul className="mt-1">{displayRoutes.problems.noAddress.map((n: string, i: number) => (
-                <li key={i} className="text-sm text-red-700">• {n}</li>
-              ))}</ul>
-            </div>
-          )}
-
-          {displayRoutes?.problems?.noOuverture?.length > 0 && (
-            <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
-              <p className="font-semibold text-orange-800 text-sm">⚠ Clients sans date d&apos;ouverture:</p>
-              <ul className="mt-1">{displayRoutes.problems.noOuverture.map((n: string, i: number) => (
-                <li key={i} className="text-sm text-orange-700">• {n}</li>
-              ))}</ul>
-            </div>
-          )}
-
-          {displayRoutes?.problems?.failedGeocode?.length > 0 && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
-              <p className="font-semibold text-yellow-800 text-sm">⚠ Adresses non reconnues par Google:</p>
-              <ul className="mt-1">{displayRoutes.problems.failedGeocode.map((n: string, i: number) => (
-                <li key={i} className="text-sm text-yellow-700">• {n}</li>
-              ))}</ul>
-            </div>
-          )}
-
-          {/* Routes par jour */}
-          {Object.entries(displayRoutes.routes || {}).map(([day, data]: [string, any]) => (
-            <div key={day} className="bg-white rounded-xl shadow-sm border overflow-hidden">
-              <button
-                onClick={() => setExpandedDay(expandedDay === day ? null : day)}
-                className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition"
-              >
-                <div className="flex items-center gap-3">
-                  <div className={`w-3 h-3 rounded-full ${DAY_COLORS[day] || "bg-gray-400"}`} />
-                  <span className="font-semibold text-gray-900">{day}</span>
-                  <span className="text-sm text-gray-500">{data.clients?.length || 0} clients</span>
-                  <span className="text-sm text-gray-400 hidden md:inline">• {data.totalKm} km • ~{Math.floor((data.totalMin || 0) / 60)}h{String((data.totalMin || 0) % 60).padStart(2, "0")}</span>
-                </div>
-                {expandedDay === day ? <ChevronUp size={18} className="text-gray-400" /> : <ChevronDown size={18} className="text-gray-400" />}
-              </button>
-
-              {expandedDay === day && (
-                <div className="border-t divide-y divide-gray-50">
-                  <div className="px-4 py-2 bg-green-50 flex items-center gap-3">
-                    <div className="w-7 h-7 rounded-full bg-green-500 text-white flex items-center justify-center text-xs">🏠</div>
-                    <div>
-                      <p className="text-sm font-medium text-green-800">Départ — 86 rue de Windsor, Granby</p>
-                      <p className="text-xs text-green-600">{startTime}</p>
-                    </div>
-                  </div>
-
-                  {(data.clients || []).map((client: any) => (
-                    <div key={client.id} className="px-4 py-3 flex items-center gap-3">
-                      <div className={`w-7 h-7 rounded-full ${DAY_COLORS[day] || "bg-gray-400"} text-white flex items-center justify-center text-xs font-bold flex-shrink-0`}>
-                        {client.order}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-medium text-gray-900">{client.name}</p>
-                          <select
-                            className="text-xs border rounded px-1 py-0.5 text-gray-500 bg-white"
-                            defaultValue=""
-                            onChange={(e) => {
-                              if (!e.target.value) return;
-                              const newDay = e.target.value;
-                              setCalculatedRoutes((prev: any) => {
-                                if (!prev) return prev;
-                                const updated = { ...prev, routes: { ...prev.routes } };
-                                updated.routes[day] = {
-                                  ...updated.routes[day],
-                                  clients: updated.routes[day].clients.filter((c: any) => c.id !== client.id),
-                                };
-                                if (!updated.routes[newDay]) {
-                                  updated.routes[newDay] = { clients: [], totalKm: 0, totalMin: 0, endTime: "", returnKm: 0, returnMin: 0 };
-                                }
-                                updated.routes[newDay] = {
-                                  ...updated.routes[newDay],
-                                  clients: [...updated.routes[newDay].clients, { ...client, order: updated.routes[newDay].clients.length + 1 }],
-                                };
-                                return updated;
-                              });
-                              e.target.value = "";
-                            }}
-                          >
-                            <option value="">Déplacer...</option>
-                            {Object.keys(displayRoutes.routes).filter((d: string) => d !== day).map((d: string) => (
-                              <option key={d} value={d}>{d}</option>
-                            ))}
-                          </select>
-                        </div>
-                        <p className="text-xs text-gray-500 truncate">{client.address}</p>
-                        {client.ouvertureDate && (
-                          <p className="text-xs text-blue-500">Ouverture: {client.ouvertureDate} → 1er entretien: {client.firstEntretien || "—"}</p>
-                        )}
-                      </div>
-                      <div className="text-right flex-shrink-0">
-                        <p className="text-sm font-medium text-gray-900">{client.arrival} → {client.departure}</p>
-                        <p className="text-xs text-gray-400">{client.distKm} km • {client.driveMin} min</p>
-                      </div>
-                    </div>
-                  ))}
-
-                  <div className="px-4 py-2 bg-green-50 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-7 h-7 rounded-full bg-green-500 text-white flex items-center justify-center text-xs">🏠</div>
-                      <p className="text-sm font-medium text-green-800">Retour à la maison</p>
-                    </div>
-                    <p className="text-xs text-green-600">{data.returnKm} km • {data.returnMin} min</p>
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
-
-          {/* Boutons confirmer */}
-          <div className="bg-white rounded-xl shadow-sm border p-5 space-y-3">
-            <h3 className="font-semibold text-gray-900">Confirmer les routes</h3>
-            <p className="text-sm text-gray-500">Les entretiens seront planifiés 7 jours après l&apos;ouverture de chaque client, jusqu&apos;à fin septembre 2026.</p>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <button
-                onClick={() => confirmRoutes(false)}
+                onClick={() => confirm(false)}
                 disabled={confirming}
                 className="flex-1 bg-[#0a1f3f] text-white rounded-lg py-3 font-medium flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-[#0d2a52] transition"
               >
@@ -390,16 +250,23 @@ export default function RoutesPage() {
                 Confirmer sans SMS
               </button>
               <button
-                onClick={() => confirmRoutes(true)}
+                onClick={() => confirm(true)}
                 disabled={confirming}
                 className="flex-1 bg-green-600 text-white rounded-lg py-3 font-medium flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-green-700 transition"
               >
                 {confirming ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
                 Confirmer + SMS aux clients
               </button>
+              <button
+                onClick={calculate}
+                disabled={loading}
+                className="bg-gray-100 text-gray-700 rounded-lg py-3 px-4 font-medium hover:bg-gray-200 transition disabled:opacity-50"
+              >
+                Recalculer
+              </button>
             </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   );
