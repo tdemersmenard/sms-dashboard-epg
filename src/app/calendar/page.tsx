@@ -1,239 +1,358 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { supabaseBrowser } from "@/lib/supabase-browser";
 import {
-  startOfWeek, endOfWeek, addWeeks, subWeeks,
-  format, eachDayOfInterval, isToday, parseISO,
+  format, eachDayOfInterval, isToday, parseISO, addDays, addMonths, addWeeks,
+  startOfWeek, endOfWeek, startOfMonth, endOfMonth, isSameMonth,
+  startOfDay, subDays, subWeeks, subMonths,
 } from "date-fns";
 import { fr } from "date-fns/locale";
-import { supabaseBrowser } from "@/lib/supabase-browser";
-import type { Job, Contact } from "@/lib/types";
+import { ChevronLeft, ChevronRight, Plus, Check, X, Clock } from "lucide-react";
 
-const HOUR_START = 8;
-const HOUR_END = 20;
-const HOUR_HEIGHT = 64; // px per hour
+type JobType = "ouverture" | "fermeture" | "entretien" | "réparation" | "spa" | "autre";
 
-const JOB_TYPE_COLORS: Record<string, { bg: string; border: string; text: string }> = {
-  ouverture: { bg: "bg-green-100",  border: "border-green-500",  text: "text-green-800" },
-  entretien: { bg: "bg-blue-100",   border: "border-blue-500",   text: "text-blue-800" },
-  fermeture: { bg: "bg-orange-100", border: "border-orange-500", text: "text-orange-800" },
-  visite:    { bg: "bg-purple-100", border: "border-purple-500", text: "text-purple-800" },
-  autre:     { bg: "bg-gray-100",   border: "border-gray-500",   text: "text-gray-800" },
+const JOB_TYPE_COLORS: Record<string, { bg: string; text: string; border: string; dot: string }> = {
+  ouverture:  { bg: "bg-emerald-50",  text: "text-emerald-700",  border: "border-emerald-300",  dot: "bg-emerald-500" },
+  fermeture:  { bg: "bg-orange-50",   text: "text-orange-700",   border: "border-orange-300",   dot: "bg-orange-500" },
+  entretien:  { bg: "bg-blue-50",     text: "text-blue-700",     border: "border-blue-300",     dot: "bg-blue-500" },
+  réparation: { bg: "bg-red-50",      text: "text-red-700",      border: "border-red-300",      dot: "bg-red-500" },
+  spa:        { bg: "bg-purple-50",   text: "text-purple-700",   border: "border-purple-300",   dot: "bg-purple-500" },
+  autre:      { bg: "bg-gray-50",     text: "text-gray-700",     border: "border-gray-300",     dot: "bg-gray-500" },
 };
 
-function timeToMinutes(t: string): number {
-  const [h, m] = t.split(":").map(Number);
-  return h * 60 + (m ?? 0);
+interface JobWithContact {
+  id: string;
+  contact_id: string;
+  job_type: JobType;
+  scheduled_date: string;
+  scheduled_time_start: string | null;
+  scheduled_time_end: string | null;
+  status: string;
+  notes: string | null;
+  confirmed_at: string | null;
+  contactName: string;
+  contactPhone: string;
 }
 
-function minutesFromDayStart(t: string): number {
-  return timeToMinutes(t) - HOUR_START * 60;
+interface Contact {
+  id: string;
+  first_name: string;
+  last_name: string | null;
+  phone: string;
 }
 
-type JobWithContact = Job & { contactName: string };
+type ViewMode = "day" | "week" | "month";
 
 export default function CalendarPage() {
-  const [weekStart, setWeekStart] = useState(() =>
-    startOfWeek(new Date(), { weekStartsOn: 1 })
-  );
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    if (typeof window === "undefined") return "week";
+    return (localStorage.getItem("calendar_view") as ViewMode) || "week";
+  });
+
+  const [currentDate, setCurrentDate] = useState<Date>(() => {
+    if (typeof window === "undefined") return new Date();
+    const saved = localStorage.getItem("calendar_date");
+    return saved ? new Date(saved) : new Date();
+  });
+
   const [jobs, setJobs] = useState<JobWithContact[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [selectedJob, setSelectedJob] = useState<JobWithContact | null>(null);
   const [showNewJobModal, setShowNewJobModal] = useState(false);
   const [savingJob, setSavingJob] = useState(false);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+
   const [jobForm, setJobForm] = useState({
     contact_id: "",
-    job_type: "ouverture" as Job["job_type"],
-    scheduled_date: "",
+    job_type: "entretien" as JobType,
+    scheduled_date: format(new Date(), "yyyy-MM-dd"),
     scheduled_time_start: "08:00",
     scheduled_time_end: "10:00",
     notes: "",
   });
-  const [contactSearch, setContactSearch] = useState("");
 
-  const weekEnd = endOfWeek(weekStart, { weekStartsOn: 1 });
-  const days = eachDayOfInterval({ start: weekStart, end: weekEnd });
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("calendar_view", viewMode);
+      localStorage.setItem("calendar_date", currentDate.toISOString());
+    }
+  }, [viewMode, currentDate]);
 
   const loadJobs = useCallback(async () => {
-    const from = format(weekStart, "yyyy-MM-dd");
-    const to = format(weekEnd, "yyyy-MM-dd");
-    const { data } = await supabaseBrowser
+    let from: Date, to: Date;
+    if (viewMode === "day") {
+      from = startOfDay(currentDate);
+      to = startOfDay(currentDate);
+    } else if (viewMode === "week") {
+      from = startOfWeek(currentDate, { weekStartsOn: 1 });
+      to = endOfWeek(currentDate, { weekStartsOn: 1 });
+    } else {
+      from = startOfMonth(currentDate);
+      to = endOfMonth(currentDate);
+    }
+
+    const fromStr = format(from, "yyyy-MM-dd");
+    const toStr = format(to, "yyyy-MM-dd");
+
+    const { data: jobsData } = await supabaseBrowser
       .from("jobs")
       .select("*")
-      .gte("scheduled_date", from)
-      .lte("scheduled_date", to);
-    if (!data) return;
+      .gte("scheduled_date", fromStr)
+      .lte("scheduled_date", toStr)
+      .order("scheduled_date", { ascending: true })
+      .order("scheduled_time_start", { ascending: true });
 
-    // fetch contacts for names
-    const contactIds = Array.from(new Set(data.map((j) => j.contact_id)));
-    let contactMap: Record<string, string> = {};
-    if (contactIds.length > 0) {
-      const { data: cs } = await supabaseBrowser
+    if (jobsData) {
+      const contactIds = Array.from(new Set(jobsData.map((j) => j.contact_id)));
+      const { data: contactsData } = await supabaseBrowser
         .from("contacts")
-        .select("id,first_name,last_name,name,phone")
+        .select("id, first_name, last_name, phone")
         .in("id", contactIds);
-      if (cs) {
-        contactMap = Object.fromEntries(
-          cs.map((c) => {
-            const first = c.first_name && c.first_name !== "Inconnu" ? c.first_name : null;
-            const last = c.last_name && c.last_name?.trim() !== "" ? c.last_name : null;
-            const name = first || last ? [first, last].filter(Boolean).join(" ") : (c.name && c.name !== "Inconnu" ? c.name : c.phone);
-            return [c.id, name];
-          })
-        );
-      }
+
+      const contactMap = new Map(contactsData?.map((c) => [c.id, c]) || []);
+      const enriched = jobsData.map((j) => {
+        const c = contactMap.get(j.contact_id);
+        return {
+          ...j,
+          contactName: c ? `${c.first_name || ""} ${c.last_name || ""}`.trim() : "Inconnu",
+          contactPhone: (c as any)?.phone || "",
+        };
+      });
+      setJobs(enriched as JobWithContact[]);
     }
-    setJobs(data.map((j) => ({ ...j, contactName: contactMap[j.contact_id] ?? "Client" })) as JobWithContact[]);
-  }, [weekStart]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [viewMode, currentDate]);
 
   useEffect(() => { loadJobs(); }, [loadJobs]);
 
   useEffect(() => {
     supabaseBrowser
       .from("contacts")
-      .select("id,first_name,last_name,name,phone")
-      .order("first_name")
-      .then(({ data }) => setContacts((data ?? []) as Contact[]));
+      .select("id, first_name, last_name, phone")
+      .order("first_name", { ascending: true })
+      .then(({ data }) => setContacts(data || []));
   }, []);
 
-  const openNewJob = (date: string, time: string) => {
-    setJobForm((p) => ({ ...p, scheduled_date: date, scheduled_time_start: time, scheduled_time_end: "" }));
-    setShowNewJobModal(true);
+  const navigatePrev = () => {
+    if (viewMode === "day") setCurrentDate(subDays(currentDate, 1));
+    else if (viewMode === "week") setCurrentDate(subWeeks(currentDate, 1));
+    else setCurrentDate(subMonths(currentDate, 1));
   };
 
-  const handleJobCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!jobForm.contact_id || !jobForm.scheduled_date) return;
+  const navigateNext = () => {
+    if (viewMode === "day") setCurrentDate(addDays(currentDate, 1));
+    else if (viewMode === "week") setCurrentDate(addWeeks(currentDate, 1));
+    else setCurrentDate(addMonths(currentDate, 1));
+  };
+
+  const goToday = () => setCurrentDate(new Date());
+
+  const confirmOpening = async (jobId: string) => {
+    if (!confirm("Envoyer le SMS de confirmation au client?")) return;
+    setConfirmingId(jobId);
+    try {
+      const res = await fetch("/api/jobs/confirm-opening", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId }),
+      });
+      if (res.ok) {
+        await loadJobs();
+        setSelectedJob(null);
+      }
+    } finally {
+      setConfirmingId(null);
+    }
+  };
+
+  const unconfirmOpening = async (jobId: string) => {
+    if (!confirm("Annuler la confirmation?")) return;
+    await fetch("/api/jobs/unconfirm-opening", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jobId }),
+    });
+    await loadJobs();
+    setSelectedJob(null);
+  };
+
+  const handleNewJob = async () => {
+    if (!jobForm.contact_id || savingJob) return;
     setSavingJob(true);
+
+    if (jobForm.job_type === "ouverture" || jobForm.job_type === "fermeture") {
+      const { data: existing } = await supabaseBrowser
+        .from("jobs")
+        .select("id, scheduled_date")
+        .eq("contact_id", jobForm.contact_id)
+        .eq("job_type", jobForm.job_type)
+        .limit(1);
+
+      if (existing && existing.length > 0) {
+        alert(`Ce client a déjà une ${jobForm.job_type} planifiée le ${existing[0].scheduled_date}. Supprimez-la d'abord si vous voulez la déplacer.`);
+        setSavingJob(false);
+        return;
+      }
+    }
+
     await supabaseBrowser.from("jobs").insert({
       contact_id: jobForm.contact_id,
       job_type: jobForm.job_type,
       scheduled_date: jobForm.scheduled_date,
-      scheduled_time_start: jobForm.scheduled_time_start || null,
-      scheduled_time_end: jobForm.scheduled_time_end || null,
-      notes: jobForm.notes || null,
+      scheduled_time_start: jobForm.scheduled_time_start,
+      scheduled_time_end: jobForm.scheduled_time_end,
       status: "planifié",
+      notes: jobForm.notes || null,
     });
-    await loadJobs();
-    setShowNewJobModal(false);
+
+    if (jobForm.job_type === "ouverture") {
+      await supabaseBrowser
+        .from("contacts")
+        .update({ ouverture_date: jobForm.scheduled_date })
+        .eq("id", jobForm.contact_id);
+    }
+
     setSavingJob(false);
-    setJobForm({ contact_id: "", job_type: "ouverture", scheduled_date: "", scheduled_time_start: "08:00", scheduled_time_end: "10:00", notes: "" });
-    setContactSearch("");
+    setShowNewJobModal(false);
+    setJobForm({ ...jobForm, contact_id: "", notes: "" });
+    await loadJobs();
   };
 
-  const filteredContacts = contacts.filter((c) => {
-    const q = contactSearch.toLowerCase();
-    if (!q) return true;
-    const first = c.first_name && c.first_name !== "Inconnu" ? c.first_name : null;
-    const last = c.last_name && c.last_name?.trim() !== "" ? c.last_name : null;
-    const name = first || last ? [first, last].filter(Boolean).join(" ") : (c.phone ?? "");
-    return name.toLowerCase().includes(q) || (c.phone ?? "").includes(q);
-  });
+  const deleteJob = async (jobId: string) => {
+    if (!confirm("Supprimer ce rendez-vous?")) return;
+    await supabaseBrowser.from("jobs").delete().eq("id", jobId);
+    setSelectedJob(null);
+    await loadJobs();
+  };
 
-  const totalH = (HOUR_END - HOUR_START) * HOUR_HEIGHT;
-  const hours = Array.from({ length: HOUR_END - HOUR_START + 1 }, (_, i) => HOUR_START + i);
+  const headerLabel = () => {
+    if (viewMode === "day") return format(currentDate, "EEEE d MMMM yyyy", { locale: fr });
+    if (viewMode === "week") {
+      const start = startOfWeek(currentDate, { weekStartsOn: 1 });
+      const end = endOfWeek(currentDate, { weekStartsOn: 1 });
+      return `${format(start, "d MMM", { locale: fr })} – ${format(end, "d MMM yyyy", { locale: fr })}`;
+    }
+    return format(currentDate, "MMMM yyyy", { locale: fr });
+  };
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
-      {/* Header */}
-      <div className="flex-shrink-0 flex items-center justify-between px-6 py-4 bg-white border-b border-gray-200">
-        <div className="flex items-center gap-3">
-          <button onClick={() => setWeekStart((w) => subWeeks(w, 1))} className="p-1.5 rounded-lg hover:bg-gray-100 transition">
+    <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-4">
+      {/* HEADER */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 capitalize">{headerLabel()}</h1>
+          <p className="text-sm text-gray-500">{jobs.length} rendez-vous</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex bg-gray-100 rounded-lg p-1">
+            {(["day", "week", "month"] as ViewMode[]).map(v => (
+              <button
+                key={v}
+                onClick={() => setViewMode(v)}
+                className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${viewMode === v ? "bg-white text-[#0a1f3f] shadow-sm" : "text-gray-600 hover:text-gray-900"}`}
+              >
+                {v === "day" ? "Jour" : v === "week" ? "Semaine" : "Mois"}
+              </button>
+            ))}
+          </div>
+          <button onClick={navigatePrev} className="p-2 bg-gray-100 rounded-lg hover:bg-gray-200">
             <ChevronLeft size={18} />
           </button>
-          <h1 className="text-base font-bold text-gray-900">
-            Semaine du {format(weekStart, "d MMMM yyyy", { locale: fr })}
-          </h1>
-          <button onClick={() => setWeekStart((w) => addWeeks(w, 1))} className="p-1.5 rounded-lg hover:bg-gray-100 transition">
+          <button onClick={goToday} className="px-3 py-1.5 bg-gray-100 rounded-lg text-sm font-medium hover:bg-gray-200">
+            Aujourd&apos;hui
+          </button>
+          <button onClick={navigateNext} className="p-2 bg-gray-100 rounded-lg hover:bg-gray-200">
             <ChevronRight size={18} />
           </button>
+          <button
+            onClick={() => setShowNewJobModal(true)}
+            className="bg-[#0a1f3f] text-white px-3 py-2 rounded-lg flex items-center gap-2 text-sm font-medium hover:bg-[#0d2a52]"
+          >
+            <Plus size={16} /> Nouveau
+          </button>
         </div>
-        <button
-          onClick={() => setWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }))}
-          className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition"
-        >
-          Aujourd&apos;hui
-        </button>
       </div>
 
-      {/* Calendar grid */}
-      <div className="flex-1 overflow-auto">
-        <div className="flex min-h-full">
-          {/* Time column */}
-          <div className="flex-shrink-0 w-14 border-r border-gray-200 bg-white">
-            <div className="h-10 border-b border-gray-200" />
-            <div className="relative" style={{ height: totalH }}>
-              {hours.map((h) => (
-                <div
-                  key={h}
-                  className="absolute left-0 right-0 flex items-start justify-end pr-2"
-                  style={{ top: (h - HOUR_START) * HOUR_HEIGHT - 8 }}
-                >
-                  <span className="text-[10px] text-gray-400">{h}h</span>
-                </div>
-              ))}
-            </div>
+      {/* VUE JOUR */}
+      {viewMode === "day" && (
+        <div className="bg-white rounded-xl border overflow-hidden">
+          <div className={`px-4 py-3 border-b ${isToday(currentDate) ? "bg-blue-50" : ""}`}>
+            <p className="text-sm text-gray-500 uppercase">{format(currentDate, "EEEE", { locale: fr })}</p>
+            <p className="text-2xl font-bold text-gray-900">{format(currentDate, "d MMMM", { locale: fr })}</p>
           </div>
+          <div className="divide-y">
+            {jobs.length === 0 ? (
+              <p className="p-8 text-center text-sm text-gray-500">Aucun rendez-vous</p>
+            ) : (
+              jobs.map((job) => {
+                const colors = JOB_TYPE_COLORS[job.job_type] || JOB_TYPE_COLORS.autre;
+                const isConfirmed = !!job.confirmed_at;
+                return (
+                  <div
+                    key={job.id}
+                    onClick={() => setSelectedJob(job)}
+                    className={`p-4 cursor-pointer hover:bg-gray-50 ${isConfirmed ? "border-l-4 border-l-green-500" : ""}`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-3 flex-1 min-w-0">
+                        <span className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${colors.dot}`}></span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-semibold text-gray-900">{job.contactName}</p>
+                            {isConfirmed && (
+                              <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-green-100 text-green-700 flex items-center gap-1">
+                                <Check size={10} /> Confirmé
+                              </span>
+                            )}
+                          </div>
+                          <p className={`text-xs ${colors.text} font-medium capitalize`}>{job.job_type}</p>
+                          {job.notes && <p className="text-xs text-gray-500 mt-1">{job.notes}</p>}
+                        </div>
+                      </div>
+                      <div className="text-right text-xs text-gray-500 flex-shrink-0">
+                        <p className="font-semibold text-gray-900 flex items-center gap-1">
+                          <Clock size={12} /> {job.scheduled_time_start?.slice(0, 5) || "?"}
+                        </p>
+                        <p>{job.scheduled_time_end?.slice(0, 5)}</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
 
-          {/* Day columns */}
-          <div className="flex flex-1 divide-x divide-gray-200 bg-white">
-            {days.map((day) => {
+      {/* VUE SEMAINE */}
+      {viewMode === "week" && (
+        <div className="bg-white rounded-xl border overflow-hidden">
+          <div className="grid grid-cols-7 divide-x">
+            {eachDayOfInterval({
+              start: startOfWeek(currentDate, { weekStartsOn: 1 }),
+              end: endOfWeek(currentDate, { weekStartsOn: 1 }),
+            }).map((day) => {
               const dateStr = format(day, "yyyy-MM-dd");
               const dayJobs = jobs.filter((j) => j.scheduled_date === dateStr);
-
               return (
-                <div key={dateStr} className="flex-1 flex flex-col min-w-0">
-                  {/* Day header */}
-                  <div className={`h-10 flex flex-col items-center justify-center border-b border-gray-200 flex-shrink-0 ${isToday(day) ? "bg-blue-50" : ""}`}>
-                    <span className="text-[10px] text-gray-500 uppercase">{format(day, "EEE", { locale: fr })}</span>
-                    <span className={`text-sm font-semibold ${isToday(day) ? "text-blue-600" : "text-gray-800"}`}>
-                      {format(day, "d")}
-                    </span>
+                <div key={dateStr} className="min-h-[300px]">
+                  <div className={`p-2 text-center border-b ${isToday(day) ? "bg-blue-50" : ""}`}>
+                    <p className="text-[10px] text-gray-500 uppercase">{format(day, "EEE", { locale: fr })}</p>
+                    <p className={`text-sm font-bold ${isToday(day) ? "text-blue-600" : "text-gray-900"}`}>{format(day, "d")}</p>
                   </div>
-
-                  {/* Hour cells + job blocks */}
-                  <div
-                    className="relative flex-1"
-                    style={{ height: totalH }}
-                    onClick={(e) => {
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      const y = e.clientY - rect.top;
-                      const totalMinutes = (y / totalH) * (HOUR_END - HOUR_START) * 60;
-                      const h = Math.floor(totalMinutes / 60) + HOUR_START;
-                      const m = Math.round((totalMinutes % 60) / 30) * 30;
-                      const time = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-                      openNewJob(dateStr, time);
-                    }}
-                  >
-                    {/* Hour lines */}
-                    {hours.map((h) => (
-                      <div
-                        key={h}
-                        className="absolute left-0 right-0 border-t border-gray-100"
-                        style={{ top: (h - HOUR_START) * HOUR_HEIGHT }}
-                      />
-                    ))}
-
-                    {/* Job blocks */}
+                  <div className="p-1.5 space-y-1">
                     {dayJobs.map((job) => {
-                      const startT = job.scheduled_time_start ?? `${HOUR_START}:00`;
-                      const endT = job.scheduled_time_end ?? `${Math.min(timeToMinutes(startT) / 60 + 1, HOUR_END)}:00`;
-                      const topMin = minutesFromDayStart(startT);
-                      const durationMin = timeToMinutes(endT) - timeToMinutes(startT);
-                      const topPx = (topMin / 60) * HOUR_HEIGHT;
-                      const heightPx = Math.max((durationMin / 60) * HOUR_HEIGHT, 24);
-                      const c = JOB_TYPE_COLORS[job.job_type] ?? JOB_TYPE_COLORS.autre;
-
+                      const colors = JOB_TYPE_COLORS[job.job_type] || JOB_TYPE_COLORS.autre;
+                      const isConfirmed = !!job.confirmed_at;
                       return (
                         <div
                           key={job.id}
-                          className={`absolute left-1 right-1 rounded border-l-2 px-1.5 py-0.5 overflow-hidden cursor-pointer hover:opacity-90 ${c.bg} ${c.border} ${c.text}`}
-                          style={{ top: topPx, height: heightPx }}
-                          onClick={(e) => { e.stopPropagation(); setSelectedJob(job); }}
+                          onClick={() => setSelectedJob(job)}
+                          className={`text-[10px] p-1.5 rounded cursor-pointer ${colors.bg} border ${colors.border} hover:shadow-sm ${isConfirmed ? "ring-2 ring-green-400" : ""}`}
                         >
-                          <p className="text-[10px] font-semibold truncate">{job.contactName}</p>
-                          <p className="text-[10px] truncate">{startT}</p>
+                          <p className={`font-semibold ${colors.text} truncate`}>{job.scheduled_time_start?.slice(0, 5)}</p>
+                          <p className="text-gray-700 truncate">{job.contactName}</p>
+                          {isConfirmed && <p className="text-green-600 font-bold">✓ OK</p>}
                         </div>
                       );
                     })}
@@ -243,161 +362,163 @@ export default function CalendarPage() {
             })}
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Job detail popup */}
-      {selectedJob && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setSelectedJob(null)}>
-          <div className="bg-white rounded-xl shadow-xl p-5 w-72 mx-4" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-start justify-between mb-3">
-              <div>
-                <p className="font-bold text-gray-900">{selectedJob.contactName}</p>
-                <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${JOB_TYPE_COLORS[selectedJob.job_type]?.bg} ${JOB_TYPE_COLORS[selectedJob.job_type]?.text}`}>
-                  {selectedJob.job_type}
-                </span>
-              </div>
-              <button onClick={() => setSelectedJob(null)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
-            </div>
-            <div className="space-y-1.5 text-sm text-gray-600">
-              <p>📅 {format(parseISO(selectedJob.scheduled_date), "d MMMM yyyy", { locale: fr })}</p>
-              {selectedJob.scheduled_time_start && (
-                <p>🕐 {selectedJob.scheduled_time_start}{selectedJob.scheduled_time_end ? ` – ${selectedJob.scheduled_time_end}` : ""}</p>
-              )}
-              <p>📌 {selectedJob.status}</p>
-              {selectedJob.notes && <p className="text-gray-500 text-xs mt-2">{selectedJob.notes}</p>}
-            </div>
-            {selectedJob.job_type === "ouverture" && !selectedJob.confirmed_at && (
-              <button
-                onClick={async (e) => {
-                  e.stopPropagation();
-                  if (!confirm(`Envoyer le SMS de confirmation pour ${selectedJob.contactName}?`)) return;
-                  await fetch("/api/jobs/confirm-opening", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ jobId: selectedJob.id }),
-                  });
-                  window.location.reload();
-                }}
-                className="mt-3 w-full text-xs px-2 py-1.5 rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
-              >
-                Confirmer ouverture
-              </button>
-            )}
-            {selectedJob.job_type === "ouverture" && selectedJob.confirmed_at && (
-              <div className="mt-3 flex items-center gap-2">
-                <span className="text-xs px-2 py-1 rounded bg-green-100 text-green-700 flex-1 text-center">✓ Confirmée</span>
-                <button
-                  onClick={async (e) => {
-                    e.stopPropagation();
-                    if (!confirm("Annuler la confirmation? Le client ne sera pas re-notifié.")) return;
-                    await fetch("/api/jobs/unconfirm-opening", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ jobId: selectedJob.id }),
-                    });
-                    window.location.reload();
-                  }}
-                  className="text-red-400 hover:text-red-600 text-xs px-2 py-1"
+      {/* VUE MOIS */}
+      {viewMode === "month" && (
+        <div className="bg-white rounded-xl border overflow-hidden">
+          <div className="grid grid-cols-7 border-b text-center text-xs text-gray-500 uppercase">
+            {["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map(d => (
+              <div key={d} className="py-2">{d}</div>
+            ))}
+          </div>
+          <div className="grid grid-cols-7">
+            {eachDayOfInterval({
+              start: startOfWeek(startOfMonth(currentDate), { weekStartsOn: 1 }),
+              end: endOfWeek(endOfMonth(currentDate), { weekStartsOn: 1 }),
+            }).map((day) => {
+              const dateStr = format(day, "yyyy-MM-dd");
+              const dayJobs = jobs.filter((j) => j.scheduled_date === dateStr);
+              const inMonth = isSameMonth(day, currentDate);
+              return (
+                <div
+                  key={dateStr}
+                  className={`min-h-[100px] border-r border-b p-1 ${inMonth ? "bg-white" : "bg-gray-50"} ${isToday(day) ? "ring-2 ring-inset ring-blue-400" : ""}`}
                 >
-                  ✕
-                </button>
-              </div>
-            )}
+                  <p className={`text-xs font-semibold ${inMonth ? "text-gray-900" : "text-gray-400"} ${isToday(day) ? "text-blue-600" : ""}`}>
+                    {format(day, "d")}
+                  </p>
+                  <div className="space-y-0.5 mt-1">
+                    {dayJobs.slice(0, 3).map(job => {
+                      const colors = JOB_TYPE_COLORS[job.job_type] || JOB_TYPE_COLORS.autre;
+                      return (
+                        <div
+                          key={job.id}
+                          onClick={() => setSelectedJob(job)}
+                          className={`text-[9px] px-1 py-0.5 rounded cursor-pointer ${colors.bg} ${colors.text} truncate ${job.confirmed_at ? "border-l-2 border-green-500" : ""}`}
+                        >
+                          {job.scheduled_time_start?.slice(0, 5)} {job.contactName}
+                        </div>
+                      );
+                    })}
+                    {dayJobs.length > 3 && <p className="text-[9px] text-gray-500">+{dayJobs.length - 3}</p>}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
 
-      {/* New job modal */}
-      {showNewJobModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-              <h2 className="text-base font-bold text-gray-900">Nouveau rendez-vous</h2>
-              <button onClick={() => setShowNewJobModal(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
-            </div>
-            <form onSubmit={handleJobCreate} className="px-5 py-4 space-y-3">
+      {/* MODAL JOB */}
+      {selectedJob && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end md:items-center justify-center p-0 md:p-4" onClick={() => setSelectedJob(null)}>
+          <div className="bg-white rounded-t-2xl md:rounded-2xl w-full md:max-w-md max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="p-5 border-b flex items-center justify-between">
               <div>
-                <label className="text-xs font-medium text-gray-600 mb-1 block">Client *</label>
-                <input
-                  type="text"
-                  placeholder="Rechercher un client..."
-                  value={contactSearch}
-                  onChange={(e) => setContactSearch(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 mb-1"
-                />
+                <p className="text-xs text-gray-500 capitalize">{selectedJob.job_type}</p>
+                <p className="text-lg font-bold text-gray-900">{selectedJob.contactName}</p>
+                {selectedJob.confirmed_at && (
+                  <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-green-100 text-green-700 inline-flex items-center gap-1 mt-1">
+                    <Check size={10} /> Confirmé
+                  </span>
+                )}
+              </div>
+              <button onClick={() => setSelectedJob(null)}><X size={20} /></button>
+            </div>
+            <div className="p-5 space-y-3">
+              <div className="text-sm text-gray-600 space-y-1">
+                <p>📅 {format(parseISO(selectedJob.scheduled_date), "EEEE d MMMM yyyy", { locale: fr })}</p>
+                <p>⏰ {selectedJob.scheduled_time_start?.slice(0, 5)} – {selectedJob.scheduled_time_end?.slice(0, 5)}</p>
+                {selectedJob.notes && <p className="mt-2">📝 {selectedJob.notes}</p>}
+              </div>
+
+              {selectedJob.job_type === "ouverture" && !selectedJob.confirmed_at && (
+                <button
+                  onClick={() => confirmOpening(selectedJob.id)}
+                  disabled={confirmingId === selectedJob.id}
+                  className="w-full bg-green-600 text-white rounded-lg py-3 font-medium flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  <Check size={16} /> {confirmingId === selectedJob.id ? "Envoi..." : "Confirmer + envoyer SMS au client"}
+                </button>
+              )}
+
+              {selectedJob.job_type === "ouverture" && selectedJob.confirmed_at && (
+                <button
+                  onClick={() => unconfirmOpening(selectedJob.id)}
+                  className="w-full bg-gray-100 text-gray-700 rounded-lg py-2 text-sm font-medium"
+                >
+                  Annuler la confirmation
+                </button>
+              )}
+
+              <button onClick={() => deleteJob(selectedJob.id)} className="w-full bg-red-50 text-red-700 rounded-lg py-2 text-sm font-medium hover:bg-red-100">
+                Supprimer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL NEW JOB */}
+      {showNewJobModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end md:items-center justify-center p-0 md:p-4" onClick={() => setShowNewJobModal(false)}>
+          <div className="bg-white rounded-t-2xl md:rounded-2xl w-full md:max-w-md max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="p-5 border-b flex items-center justify-between">
+              <p className="font-bold text-gray-900">Nouveau rendez-vous</p>
+              <button onClick={() => setShowNewJobModal(false)}><X size={20} /></button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="text-xs font-medium text-gray-700">Client</label>
                 <select
                   value={jobForm.contact_id}
-                  onChange={(e) => setJobForm((p) => ({ ...p, contact_id: e.target.value }))}
-                  required
-                  size={4}
-                  className="w-full border border-gray-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                  onChange={(e) => setJobForm({ ...jobForm, contact_id: e.target.value })}
+                  className="w-full mt-1 border rounded-lg px-3 py-2 text-sm"
                 >
-                  <option value="">— Sélectionner —</option>
-                  {filteredContacts.slice(0, 50).map((c) => {
-                    const first = c.first_name && c.first_name !== "Inconnu" ? c.first_name : null;
-                    const last = c.last_name && c.last_name?.trim() !== "" ? c.last_name : null;
-                    const name = first || last ? [first, last].filter(Boolean).join(" ") : (c.phone ?? "");
-                    return <option key={c.id} value={c.id}>{name}</option>;
-                  })}
+                  <option value="">Sélectionner un client</option>
+                  {contacts.map(c => (
+                    <option key={c.id} value={c.id}>{c.first_name} {c.last_name || ""}</option>
+                  ))}
                 </select>
               </div>
               <div>
-                <label className="text-xs font-medium text-gray-600 mb-1 block">Type</label>
+                <label className="text-xs font-medium text-gray-700">Type</label>
                 <select
                   value={jobForm.job_type}
-                  onChange={(e) => setJobForm((p) => ({ ...p, job_type: e.target.value as Job["job_type"] }))}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                  onChange={(e) => setJobForm({ ...jobForm, job_type: e.target.value as JobType })}
+                  className="w-full mt-1 border rounded-lg px-3 py-2 text-sm"
                 >
                   <option value="ouverture">Ouverture</option>
-                  <option value="entretien">Entretien</option>
                   <option value="fermeture">Fermeture</option>
-                  <option value="visite">Visite</option>
+                  <option value="entretien">Entretien</option>
+                  <option value="réparation">Réparation</option>
+                  <option value="spa">Spa</option>
                   <option value="autre">Autre</option>
                 </select>
               </div>
-              <div>
-                <label className="text-xs font-medium text-gray-600 mb-1 block">Date</label>
-                <input
-                  type="date" value={jobForm.scheduled_date} required
-                  onChange={(e) => setJobForm((p) => ({ ...p, scheduled_date: e.target.value }))}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
-                />
-              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-medium text-gray-600 mb-1 block">Heure début</label>
-                  <input
-                    type="time" value={jobForm.scheduled_time_start}
-                    onChange={(e) => setJobForm((p) => ({ ...p, scheduled_time_start: e.target.value }))}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
-                  />
+                  <label className="text-xs font-medium text-gray-700">Date</label>
+                  <input type="date" value={jobForm.scheduled_date} onChange={(e) => setJobForm({ ...jobForm, scheduled_date: e.target.value })} className="w-full mt-1 border rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-gray-600 mb-1 block">Heure fin</label>
-                  <input
-                    type="time" value={jobForm.scheduled_time_end}
-                    onChange={(e) => setJobForm((p) => ({ ...p, scheduled_time_end: e.target.value }))}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
-                  />
+                  <label className="text-xs font-medium text-gray-700">Heure début</label>
+                  <input type="time" value={jobForm.scheduled_time_start} onChange={(e) => setJobForm({ ...jobForm, scheduled_time_start: e.target.value })} className="w-full mt-1 border rounded-lg px-3 py-2 text-sm" />
                 </div>
               </div>
               <div>
-                <label className="text-xs font-medium text-gray-600 mb-1 block">Notes</label>
-                <textarea
-                  rows={3} value={jobForm.notes}
-                  onChange={(e) => setJobForm((p) => ({ ...p, notes: e.target.value }))}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-200"
-                />
+                <label className="text-xs font-medium text-gray-700">Notes</label>
+                <textarea value={jobForm.notes} onChange={(e) => setJobForm({ ...jobForm, notes: e.target.value })} className="w-full mt-1 border rounded-lg px-3 py-2 text-sm" rows={2} />
               </div>
-              <div className="flex justify-end gap-2 pt-2">
-                <button type="button" onClick={() => setShowNewJobModal(false)} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition">
-                  Annuler
-                </button>
-                <button type="submit" disabled={savingJob} className="px-5 py-2 bg-[#0a1f3f] text-white text-sm font-medium rounded-lg hover:bg-[#0f2855] disabled:opacity-50 transition">
-                  {savingJob ? "Création..." : "Créer"}
-                </button>
-              </div>
-            </form>
+              <button
+                onClick={handleNewJob}
+                disabled={!jobForm.contact_id || savingJob}
+                className="w-full bg-[#0a1f3f] text-white rounded-lg py-3 font-medium disabled:opacity-50"
+              >
+                {savingJob ? "Création..." : "Créer le rendez-vous"}
+              </button>
+            </div>
           </div>
         </div>
       )}

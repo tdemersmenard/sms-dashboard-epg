@@ -588,6 +588,136 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
             </div>
           </div>
 
+          {/* Services & Dates */}
+          <div className="bg-white rounded-xl border p-5 space-y-4">
+            <h3 className="font-semibold text-gray-900">Services &amp; Dates</h3>
+
+            {/* Services actuels */}
+            <div>
+              <label className="text-xs font-medium text-gray-500 uppercase">Services actifs</label>
+              {(contact?.services || []).length > 0 ? (
+                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                  {(contact?.services || []).map((s: string, i: number) => (
+                    <span key={i} className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded-full">
+                      {s}
+                      <button
+                        onClick={async () => {
+                          if (!confirm(`Retirer le service "${s}"?`)) return;
+                          const newServices = (contact?.services || []).filter((x: string) => x !== s);
+                          await supabaseBrowser.from("contacts").update({ services: newServices }).eq("id", id);
+                          await load();
+                        }}
+                        className="hover:text-red-600"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-400 italic mt-1">Aucun service</p>
+              )}
+
+              <select
+                value=""
+                onChange={async (e) => {
+                  if (!e.target.value) return;
+                  const newServices = Array.from(new Set([...(contact?.services || []), e.target.value]));
+                  await supabaseBrowser.from("contacts").update({ services: newServices }).eq("id", id);
+                  e.target.value = "";
+                  await load();
+                }}
+                className="mt-2 w-full text-xs border rounded-lg px-2 py-1.5 text-gray-600"
+              >
+                <option value="">+ Ajouter un service</option>
+                <option value="entretien hebdo hors-terre">Entretien hebdo hors-terre</option>
+                <option value="entretien hebdo creusée">Entretien hebdo creusée</option>
+                <option value="entretien aux 2 semaines hors-terre">Entretien aux 2 semaines hors-terre</option>
+                <option value="entretien aux 2 semaines creusée">Entretien aux 2 semaines creusée</option>
+                <option value="ouverture">Ouverture seule</option>
+                <option value="fermeture">Fermeture seule</option>
+                <option value="spa">Spa</option>
+                <option value="réparation">Réparation</option>
+              </select>
+            </div>
+
+            {/* Date d'ouverture */}
+            <div>
+              <label className="text-xs font-medium text-gray-500 uppercase">Date d&apos;ouverture</label>
+              <input
+                type="date"
+                value={contact?.ouverture_date || ""}
+                onChange={async (e) => {
+                  const newDate = e.target.value || null;
+                  await supabaseBrowser.from("contacts").update({ ouverture_date: newDate }).eq("id", id);
+
+                  if (newDate) {
+                    const { data: existing } = await supabaseBrowser
+                      .from("jobs")
+                      .select("id")
+                      .eq("contact_id", id)
+                      .eq("job_type", "ouverture")
+                      .limit(1);
+
+                    if (existing && existing.length > 0) {
+                      await supabaseBrowser.from("jobs").update({ scheduled_date: newDate }).eq("id", existing[0].id);
+                    } else {
+                      await supabaseBrowser.from("jobs").insert({
+                        contact_id: id,
+                        job_type: "ouverture",
+                        scheduled_date: newDate,
+                        scheduled_time_start: "08:00",
+                        scheduled_time_end: "10:00",
+                        status: "planifié",
+                        notes: "Ouverture saison 2026",
+                      });
+                    }
+                  }
+                  await load();
+                }}
+                className="mt-1 w-full text-sm border rounded-lg px-3 py-2"
+              />
+            </div>
+
+            {/* Date de fermeture */}
+            <div>
+              <label className="text-xs font-medium text-gray-500 uppercase">Date de fermeture</label>
+              <input
+                type="date"
+                value={(contact as any)?.fermeture_date || ""}
+                onChange={async (e) => {
+                  const newDate = e.target.value || null;
+                  await supabaseBrowser.from("contacts").update({ fermeture_date: newDate } as any).eq("id", id);
+
+                  if (newDate) {
+                    const { data: existing } = await supabaseBrowser
+                      .from("jobs")
+                      .select("id")
+                      .eq("contact_id", id)
+                      .eq("job_type", "fermeture")
+                      .limit(1);
+
+                    if (existing && existing.length > 0) {
+                      await supabaseBrowser.from("jobs").update({ scheduled_date: newDate }).eq("id", existing[0].id);
+                    } else {
+                      await supabaseBrowser.from("jobs").insert({
+                        contact_id: id,
+                        job_type: "fermeture",
+                        scheduled_date: newDate,
+                        scheduled_time_start: "08:00",
+                        scheduled_time_end: "10:00",
+                        status: "planifié",
+                        notes: "Fermeture saison 2026",
+                      });
+                    }
+                  }
+                  await load();
+                }}
+                className="mt-1 w-full text-sm border rounded-lg px-3 py-2"
+              />
+            </div>
+          </div>
+
           {/* Notes */}
           <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
             <h2 className="text-sm font-bold text-gray-800 mb-3">Notes</h2>
