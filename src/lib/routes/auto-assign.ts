@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "@/lib/supabase";
 
 const GMAPS = process.env.GOOGLE_MAPS_API_KEY!;
+const HOME_ADDR = "86 rue de Windsor, Granby, QC, Canada";
 const DAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi"];
 const DAY_TO_JS: Record<string, number> = { Lundi: 1, Mardi: 2, Mercredi: 3, Jeudi: 4, Vendredi: 5 };
 const MAX_PER_DAY = 5;
@@ -127,6 +128,103 @@ export async function autoAssignNewClients(): Promise<string[]> {
         returnHomeKm: 0,
         returnHomeMin: 0,
       });
+    }
+
+    // Recalculer la journée complète avec les vrais temps Google Maps
+    const targetDayIdx = routes.findIndex((r: any) => r.day === bestDay);
+    if (targetDayIdx >= 0) {
+      const homeGeoForRecalc = await geocode(HOME_ADDR);
+      if (homeGeoForRecalc) {
+        // Re-optimiser l'ordre avec nearest-neighbor
+        const dayStopsToOrder = [...routes[targetDayIdx].stops];
+        const ordered: any[] = [];
+        const remaining = [...dayStopsToOrder];
+        let curLat = homeGeoForRecalc.lat;
+        let curLng = homeGeoForRecalc.lng;
+
+        while (remaining.length > 0) {
+          let bestIdx = 0;
+          let bestD = Infinity;
+          for (let i = 0; i < remaining.length; i++) {
+            const dlat = remaining[i].lat - curLat;
+            const dlng = remaining[i].lng - curLng;
+            const d = dlat * dlat + dlng * dlng;
+            if (d < bestD) { bestD = d; bestIdx = i; }
+          }
+          const next = remaining.splice(bestIdx, 1)[0];
+          ordered.push(next);
+          curLat = next.lat;
+          curLng = next.lng;
+        }
+
+        // Recalculer les vrais temps via Google Maps
+        let dayKm = 0;
+        let dayMin = 0;
+        let prevLat = homeGeoForRecalc.lat;
+        let prevLng = homeGeoForRecalc.lng;
+        let curMin = 8 * 60;
+        const newStops: any[] = [];
+
+        for (let i = 0; i < ordered.length; i++) {
+          const c = ordered[i];
+
+          let driving = { km: 5, min: 10 };
+          try {
+            const res = await fetch(`https://maps.googleapis.com/maps/api/distancematrix/json?origins=${prevLat},${prevLng}&destinations=${c.lat},${c.lng}&mode=driving&key=${GMAPS}`);
+            const data = await res.json();
+            const el = data.rows?.[0]?.elements?.[0];
+            if (el?.status === "OK") {
+              driving = { km: Math.round(el.distance.value / 100) / 10, min: Math.round(el.duration.value / 60) };
+            }
+          } catch {}
+
+          dayKm += driving.km;
+          dayMin += driving.min;
+          curMin += driving.min;
+
+          const arrival = `${String(Math.floor(curMin / 60)).padStart(2, "0")}:${String(curMin % 60).padStart(2, "0")}`;
+          curMin += 60;
+          const departure = `${String(Math.floor(curMin / 60)).padStart(2, "0")}:${String(curMin % 60).padStart(2, "0")}`;
+          dayMin += 60;
+
+          newStops.push({
+            ...c,
+            order: i + 1,
+            arrivalTime: arrival,
+            departureTime: departure,
+            distFromPrev: driving.km,
+            driveMinFromPrev: driving.min,
+          });
+
+          prevLat = c.lat;
+          prevLng = c.lng;
+        }
+
+        // Retour maison
+        let returnDriving = { km: 5, min: 10 };
+        try {
+          const res = await fetch(`https://maps.googleapis.com/maps/api/distancematrix/json?origins=${prevLat},${prevLng}&destinations=${homeGeoForRecalc.lat},${homeGeoForRecalc.lng}&mode=driving&key=${GMAPS}`);
+          const data = await res.json();
+          const el = data.rows?.[0]?.elements?.[0];
+          if (el?.status === "OK") {
+            returnDriving = { km: Math.round(el.distance.value / 100) / 10, min: Math.round(el.duration.value / 60) };
+          }
+        } catch {}
+
+        dayKm += returnDriving.km;
+        dayMin += returnDriving.min;
+        curMin += returnDriving.min;
+
+        routes[targetDayIdx] = {
+          ...routes[targetDayIdx],
+          stops: newStops,
+          totalKm: Math.round(dayKm * 10) / 10,
+          totalMin: dayMin,
+          endTime: `${String(Math.floor(curMin / 60)).padStart(2, "0")}:${String(curMin % 60).padStart(2, "0")}`,
+          returnHomeKm: returnDriving.km,
+          returnHomeMin: returnDriving.min,
+        };
+      }
     }
 
     existingClientIds.add(candidate.id);
