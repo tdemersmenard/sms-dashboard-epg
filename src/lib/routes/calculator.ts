@@ -253,10 +253,24 @@ export async function calculateRoutes(): Promise<CalculationResult> {
     .select("id, first_name, last_name, phone, address, city, services, ouverture_date")
     .not("services", "is", null);
 
-  const entretien = (contacts || []).filter(c => {
+  const entretienRaw = (contacts || []).filter(c => {
     const svcs = c.services || [];
     return svcs.some((s: string) => s.toLowerCase().includes("entretien") || s.toLowerCase().includes("spa"));
   });
+
+  // Filtrer ceux qui ont au moins un payment
+  const entretien: any[] = [];
+  for (const c of entretienRaw) {
+    const { data: payments } = await supabaseAdmin
+      .from("payments")
+      .select("id")
+      .eq("contact_id", c.id)
+      .limit(1);
+
+    if (payments && payments.length > 0) {
+      entretien.push(c);
+    }
+  }
 
   const problems = { noAddress: [] as string[], noOuverture: [] as string[], failedGeocode: [] as string[] };
   const valid: Client[] = [];

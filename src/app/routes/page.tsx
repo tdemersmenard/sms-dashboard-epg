@@ -382,13 +382,6 @@ export default function RoutesPage() {
                 {confirming ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
                 Confirmer tout + SMS
               </button>
-              <button
-                onClick={calculate}
-                disabled={loading}
-                className="bg-gray-100 text-gray-700 rounded-lg py-3 px-4 font-medium hover:bg-gray-200 transition disabled:opacity-50"
-              >
-                {loading ? <Loader2 size={16} className="animate-spin inline" /> : "Recalculer"}
-              </button>
             </div>
           </div>
         </>
