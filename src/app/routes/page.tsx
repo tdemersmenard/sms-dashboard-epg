@@ -269,18 +269,23 @@ export default function RoutesPage() {
                   {route.stops.map((stop: any, idx: number) => (
                     <div
                       key={stop.id}
-                      draggable
-                      onDragStart={() => setDraggedStop({ stop, fromDay: route.day })}
+                      draggable={!confirmedIds.includes(stop.id)}
+                      onDragStart={() => !confirmedIds.includes(stop.id) && setDraggedStop({ stop, fromDay: route.day })}
                       onDragOver={(e) => e.preventDefault()}
                       onDrop={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
+                        if (confirmedIds.includes(stop.id)) return;
                         if (draggedStop && draggedStop.stop.id !== stop.id) {
                           moveStop(draggedStop.stop, draggedStop.fromDay, route.day, idx);
                           setDraggedStop(null);
                         }
                       }}
-                      className="px-4 py-3 flex items-center gap-3 hover:bg-gray-50 cursor-move border-l-2 border-transparent hover:border-blue-300"
+                      className={`px-4 py-3 flex items-center gap-3 border-l-2 border-transparent ${
+                        confirmedIds.includes(stop.id)
+                          ? "bg-green-50/30 cursor-default"
+                          : "hover:bg-gray-50 cursor-move hover:border-blue-300"
+                      }`}
                     >
                       <span
                         className="w-6 h-6 rounded-full text-white text-xs font-bold flex items-center justify-center flex-shrink-0"
