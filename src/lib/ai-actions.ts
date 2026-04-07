@@ -51,7 +51,13 @@ interface CreatePaymentAction extends BaseAction {
   description: string;
 }
 
-type AIAction = GenerateInvoiceAction | GenerateContractAction | BookJobAction | ReminderAction | NotifyThomasAction | UpdateStageAction | UpdateNotesAction | CreatePaymentAction;
+interface CloseDealAction extends BaseAction {
+  type: "CLOSE_DEAL";
+  serviceType: string;
+  amount: number;
+}
+
+type AIAction = GenerateInvoiceAction | GenerateContractAction | BookJobAction | ReminderAction | NotifyThomasAction | UpdateStageAction | UpdateNotesAction | CreatePaymentAction | CloseDealAction;
 
 export function parseActions(aiResponse: string): { cleanMessage: string; actions: AIAction[] } {
   const actions: AIAction[] = [];
@@ -115,6 +121,17 @@ export function parseActions(aiResponse: string): { cleanMessage: string; action
             type: "CREATE_PAYMENT",
             amount: parseInt(parts[0]),
             description: parts.slice(1).join(":"),
+          } as AIAction);
+        }
+        break;
+      }
+      case "CLOSE_DEAL": {
+        const parts = actionParams.split(":");
+        if (parts.length >= 2) {
+          actions.push({
+            type: "CLOSE_DEAL",
+            serviceType: parts[0],
+            amount: parseInt(parts[1]),
           } as AIAction);
         }
         break;
@@ -556,6 +573,43 @@ export async function executeActions(actions: AIAction[], contactId: string) {
             updates.pool_type = "creusée";
           }
 
+          // Date d'ouverture (formats variés)
+          const datePatterns = [
+            /(?:date|ouverture).*?(\d{4}-\d{2}-\d{2})/i,
+            /(\d{4}-\d{2}-\d{2})/,
+            /(\d{1,2})\s+(janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre)/i,
+            /(\d{1,2})\/(\d{1,2})\/?(\d{2,4})?/,
+          ];
+
+          const monthMap: Record<string, number> = {
+            janvier: 1, février: 2, mars: 3, avril: 4, mai: 5, juin: 6,
+            juillet: 7, août: 8, septembre: 9, octobre: 10, novembre: 11, décembre: 12,
+          };
+
+          for (const pattern of datePatterns) {
+            const match = info.match(pattern);
+            if (match) {
+              let dateStr = "";
+              if (match[1] && match[1].includes("-")) {
+                dateStr = match[1];
+              } else if (match[2] && monthMap[match[2].toLowerCase()]) {
+                const day = parseInt(match[1]);
+                const month = monthMap[match[2].toLowerCase()];
+                dateStr = `2026-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+              } else if (match[1] && match[2]) {
+                const day = parseInt(match[1]);
+                const month = parseInt(match[2]);
+                if (day >= 1 && day <= 31 && month >= 1 && month <= 12) {
+                  dateStr = `2026-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+                }
+              }
+              if (dateStr && (info.toLowerCase().includes("ouverture") || info.toLowerCase().includes("date"))) {
+                updates.ouverture_date = dateStr;
+                break;
+              }
+            }
+          }
+
           // Si on a extrait des infos structurées, les sauver
           if (Object.keys(updates).length > 0) {
             await supabaseAdmin.from("contacts").update(updates).eq("id", contactId);
@@ -661,6 +715,153 @@ export async function executeActions(actions: AIAction[], contactId: string) {
           }
 
           console.log("[ai-actions] Payment created:", action.amount, action.description);
+          break;
+        }
+
+        case "CLOSE_DEAL": {
+          const { serviceType, amount } = action;
+
+          // Mapping des types vers leurs propriétés
+          const serviceMap: Record<string, { service: string; isEntretien: boolean; poolType: string | null; biweekly: boolean }> = {
+            "entretien_hebdo_hors-terre": { service: "entretien hebdo hors-terre", isEntretien: true, poolType: "hors-terre", biweekly: false },
+            "entretien_hebdo_creusée": { service: "entretien hebdo creusée", isEntretien: true, poolType: "creusée", biweekly: false },
+            "entretien_2sem_hors-terre": { service: "entretien aux 2 semaines hors-terre", isEntretien: true, poolType: "hors-terre", biweekly: true },
+            "entretien_2sem_creusée": { service: "entretien aux 2 semaines creusée", isEntretien: true, poolType: "creusée", biweekly: true },
+            "ouverture_hors-terre": { service: "ouverture", isEntretien: false, poolType: "hors-terre", biweekly: false },
+            "ouverture_creusée": { service: "ouverture", isEntretien: false, poolType: "creusée", biweekly: false },
+            "fermeture_hors-terre": { service: "fermeture", isEntretien: false, poolType: "hors-terre", biweekly: false },
+            "fermeture_creusée": { service: "fermeture", isEntretien: false, poolType: "creusée", biweekly: false },
+            "spa": { service: "spa", isEntretien: true, poolType: null, biweekly: false },
+          };
+
+          const config = serviceMap[serviceType];
+          if (!config) {
+            console.log("[ai-actions] CLOSE_DEAL: type inconnu", serviceType);
+            break;
+          }
+
+          // 1. Récupérer le contact
+          const { data: contact } = await supabaseAdmin
+            .from("contacts")
+            .select("first_name, last_name, email, phone, services, address")
+            .eq("id", contactId)
+            .single();
+
+          if (!contact) break;
+
+          // 2. Update les services + season_price + stage + pool_type
+          const newServices = Array.from(new Set([...(contact.services || []), config.service]));
+          const updates: any = {
+            services: newServices,
+            season_price: amount,
+            stage: "closé",
+          };
+          if (config.poolType) updates.pool_type = config.poolType;
+
+          await supabaseAdmin.from("contacts").update(updates).eq("id", contactId);
+          console.log("[ai-actions] CLOSE_DEAL: contact updated", { serviceType, amount });
+
+          // 3. Créer le contrat
+          try {
+            const contractResp = await fetch(`${baseUrl}/api/documents/generate`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                contactId,
+                type: "contrat",
+                service: config.service,
+                amount,
+              }),
+            });
+            const contractData = await contractResp.json();
+            console.log("[ai-actions] CLOSE_DEAL: contract created", contractData);
+          } catch (e) {
+            console.error("[ai-actions] CLOSE_DEAL: contract error", e);
+          }
+
+          // 4. Délai 5 secondes
+          await new Promise(r => setTimeout(r, 5000));
+
+          // 5. Créer les paiements
+          if (config.isEntretien) {
+            const half1 = Math.ceil(amount / 2);
+            const half2 = amount - half1;
+
+            await fetch(`${baseUrl}/api/payments/create`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                contactId,
+                amount: half1,
+                description: `Versement 1/2 — ${config.service}`,
+                dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+              }),
+            });
+
+            await new Promise(r => setTimeout(r, 2000));
+
+            await fetch(`${baseUrl}/api/payments/create`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                contactId,
+                amount: half2,
+                description: `Versement 2/2 — ${config.service} (mi-juillet)`,
+                dueDate: "2026-07-15",
+                silentClient: true,
+              }),
+            });
+          } else {
+            await fetch(`${baseUrl}/api/payments/create`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                contactId,
+                amount,
+                description: config.service,
+                dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+              }),
+            });
+          }
+
+          console.log("[ai-actions] CLOSE_DEAL: payments created");
+
+          // 6. Délai 8 secondes avant l'accès portail
+          await new Promise(r => setTimeout(r, 8000));
+
+          // 7. Envoyer l'accès portail (si pas déjà fait)
+          if (contact.email) {
+            try {
+              await fetch(`${baseUrl}/api/portail/send-welcome`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ contactId }),
+              });
+              console.log("[ai-actions] CLOSE_DEAL: portal access sent");
+            } catch (e) {
+              console.error("[ai-actions] CLOSE_DEAL: portal error", e);
+            }
+          }
+
+          // 8. Notifier Thomas (une seule fois)
+          const { data: thomas } = await supabaseAdmin
+            .from("contacts")
+            .select("id")
+            .eq("phone", "+14509942215")
+            .single();
+
+          if (thomas) {
+            const clientName = [contact.first_name, contact.last_name].filter(Boolean).join(" ") || "Client";
+            await fetch(`${baseUrl}/api/sms/send`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                contactId: thomas.id,
+                body: `CHLORE: ${clientName} a été closé pour ${amount}$ (${config.service}). Contrat + paiements + portail envoyés.`,
+              }),
+            });
+          }
+
           break;
         }
       }
