@@ -65,7 +65,23 @@ export default function RoutesPage() {
           position: { lat: stop.lat, lng: stop.lng },
           map, title: stop.name,
           label: { text: String(idx + 1), color: "white", fontSize: "12px", fontWeight: "bold" },
-          icon: { path: google.maps.SymbolPath.CIRCLE, scale: 12, fillColor: color, fillOpacity: 1, strokeColor: "white", strokeWeight: 2 },
+          icon: stop.isBiweekly
+            ? {
+                path: "M -10,-10 L 10,-10 L 10,10 L -10,10 Z",
+                scale: 1,
+                fillColor: color,
+                fillOpacity: 1,
+                strokeColor: "white",
+                strokeWeight: 2,
+              }
+            : {
+                path: google.maps.SymbolPath.CIRCLE,
+                scale: 12,
+                fillColor: color,
+                fillOpacity: 1,
+                strokeColor: "white",
+                strokeWeight: 2,
+              },
         });
         const info = new google.maps.InfoWindow({
           content: `<div style="padding:4px"><strong>${stop.name}</strong><br>${stop.address}<br><small>${route.day} ${stop.arrivalTime}</small></div>`,
@@ -294,7 +310,14 @@ export default function RoutesPage() {
                         {stop.order}
                       </span>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900">{stop.name}</p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-medium text-gray-900">{stop.name}</p>
+                          {stop.isBiweekly && (
+                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 uppercase">
+                              2 sem
+                            </span>
+                          )}
+                        </div>
                         <p className="text-xs text-gray-500 truncate">{stop.address}</p>
                       </div>
 
