@@ -297,28 +297,38 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
 
     const newTotal = (remainingPayments || []).reduce((sum, p) => sum + parseFloat(String(p.amount)), 0);
 
-    // Update season_price
     await supabaseBrowser.from("contacts").update({ season_price: newTotal }).eq("id", id);
 
-    // Si le total est 0, supprimer les jobs futurs et retirer des routes
+    // Si plus aucun paiement, supprimer des routes ET supprimer les jobs futurs
     if (newTotal === 0) {
       const today = new Date().toISOString().split("T")[0];
+
+      // Supprimer les jobs futurs
       await supabaseBrowser
         .from("jobs")
         .delete()
         .eq("contact_id", id)
-        .eq("job_type", "entretien")
         .gte("scheduled_date", today);
 
-      // Retirer du route_state si présent
+      // Supprimer du route_state
       const { data: routeState } = await supabaseBrowser.from("route_state").select("data").eq("id", 1).single();
       if (routeState?.data?.routes) {
         const newRoutes = routeState.data.routes.map((r: any) => ({
           ...r,
           stops: r.stops.filter((s: any) => s.id !== id),
         }));
-        await supabaseBrowser.from("route_state").update({ data: { ...routeState.data, routes: newRoutes } }).eq("id", 1);
+        await supabaseBrowser.from("route_state").update({
+          data: { ...routeState.data, routes: newRoutes },
+          updated_at: new Date().toISOString(),
+        }).eq("id", 1);
       }
+
+      // Supprimer les logs anti-doublon (pour permettre une re-confirmation future)
+      await supabaseBrowser
+        .from("automation_logs")
+        .delete()
+        .eq("contact_id", id)
+        .like("action", "route_confirmed_%");
     }
 
     setPayments((prev) => prev.filter((p) => p.id !== paymentId));

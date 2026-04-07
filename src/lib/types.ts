@@ -78,6 +78,7 @@ export interface Job {
   status: JobStatus;
   notes: string | null;
   completed_at: string | null;
+  confirmed_at: string | null;
 }
 
 // ---- documents (soumissions, contrats, factures) -----------

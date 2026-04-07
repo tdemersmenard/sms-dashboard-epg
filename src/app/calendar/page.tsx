@@ -266,6 +266,43 @@ export default function CalendarPage() {
               <p>📌 {selectedJob.status}</p>
               {selectedJob.notes && <p className="text-gray-500 text-xs mt-2">{selectedJob.notes}</p>}
             </div>
+            {selectedJob.job_type === "ouverture" && !selectedJob.confirmed_at && (
+              <button
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  if (!confirm(`Envoyer le SMS de confirmation pour ${selectedJob.contactName}?`)) return;
+                  await fetch("/api/jobs/confirm-opening", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ jobId: selectedJob.id }),
+                  });
+                  window.location.reload();
+                }}
+                className="mt-3 w-full text-xs px-2 py-1.5 rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
+              >
+                Confirmer ouverture
+              </button>
+            )}
+            {selectedJob.job_type === "ouverture" && selectedJob.confirmed_at && (
+              <div className="mt-3 flex items-center gap-2">
+                <span className="text-xs px-2 py-1 rounded bg-green-100 text-green-700 flex-1 text-center">✓ Confirmée</span>
+                <button
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    if (!confirm("Annuler la confirmation? Le client ne sera pas re-notifié.")) return;
+                    await fetch("/api/jobs/unconfirm-opening", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ jobId: selectedJob.id }),
+                    });
+                    window.location.reload();
+                  }}
+                  className="text-red-400 hover:text-red-600 text-xs px-2 py-1"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

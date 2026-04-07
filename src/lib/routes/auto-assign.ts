@@ -138,6 +138,8 @@ export async function autoAssignNewClients(): Promise<string[]> {
       cur.setDate(cur.getDate() + increment);
     }
 
+    if (count === 0) continue;
+
     results.push(`${name}: assigné au ${bestDay} à ${arrivalTime} (${count} passages, début ${first.toISOString().split("T")[0]})`);
 
     // 8. Notifier Thomas (PAS le client)

@@ -89,35 +89,50 @@ function calcFirstEntretien(ouvertureDate: string, dayName: string): string {
 }
 
 // ─── CLUSTERING K-MEANS ───
-function kMeansCluster(clients: Client[], k: number, iterations: number = 30): Client[][] {
+function kMeansCluster(clients: Client[], k: number, iterations: number = 100): Client[][] {
   if (clients.length <= k) return clients.map(c => [c]);
 
-  // Initialize centroids randomly from clients
+  // Initialisation déterministe: K-means++ basé sur la distance
+  // Premier centroïde = client le plus proche du centre géographique
+  const centerLat = clients.reduce((s, c) => s + c.lat, 0) / clients.length;
+  const centerLng = clients.reduce((s, c) => s + c.lng, 0) / clients.length;
+
   const centroids: { lat: number; lng: number }[] = [];
-  const used = new Set<number>();
+
+  // Premier centroïde: client le plus proche du centre
+  let closestIdx = 0;
+  let closestDist = Infinity;
+  for (let i = 0; i < clients.length; i++) {
+    const d = haversine(clients[i].lat, clients[i].lng, centerLat, centerLng);
+    if (d < closestDist) { closestDist = d; closestIdx = i; }
+  }
+  centroids.push({ lat: clients[closestIdx].lat, lng: clients[closestIdx].lng });
+
+  // Centroïdes suivants: client le plus loin de tous les centroïdes existants (K-means++)
   while (centroids.length < k) {
-    const idx = Math.floor(Math.random() * clients.length);
-    if (!used.has(idx)) {
-      used.add(idx);
-      centroids.push({ lat: clients[idx].lat, lng: clients[idx].lng });
+    let maxMinDist = -1;
+    let maxIdx = 0;
+    for (let i = 0; i < clients.length; i++) {
+      const minDist = Math.min(...centroids.map(c => haversine(clients[i].lat, clients[i].lng, c.lat, c.lng)));
+      if (minDist > maxMinDist) { maxMinDist = minDist; maxIdx = i; }
     }
+    centroids.push({ lat: clients[maxIdx].lat, lng: clients[maxIdx].lng });
   }
 
   let clusters: Client[][] = [];
 
   for (let iter = 0; iter < iterations; iter++) {
-    // Assign each client to nearest centroid (with capacity constraint)
     clusters = Array.from({ length: k }, () => []);
 
-    // Sort clients by distance to nearest centroid (most "stuck" first)
+    // Trier les clients par distance au centroïde le plus proche (déterministe)
     const sortedClients = [...clients].sort((a, b) => {
       const distA = Math.min(...centroids.map(c => haversine(a.lat, a.lng, c.lat, c.lng)));
       const distB = Math.min(...centroids.map(c => haversine(b.lat, b.lng, c.lat, c.lng)));
-      return distA - distB;
+      if (distA !== distB) return distA - distB;
+      return a.id.localeCompare(b.id); // Tiebreak déterministe
     });
 
     for (const client of sortedClients) {
-      // Find best centroid (closest with capacity available)
       const distances = centroids.map((c, i) => ({ idx: i, dist: haversine(client.lat, client.lng, c.lat, c.lng) }));
       distances.sort((a, b) => a.dist - b.dist);
 
@@ -129,10 +144,9 @@ function kMeansCluster(clients: Client[], k: number, iterations: number = 30): C
           break;
         }
       }
-      if (!assigned) clusters[0].push(client); // Fallback
+      if (!assigned) clusters[0].push(client);
     }
 
-    // Recalculate centroids
     for (let i = 0; i < k; i++) {
       if (clusters[i].length === 0) continue;
       centroids[i] = {
@@ -268,19 +282,9 @@ export async function calculateRoutes(): Promise<CalculationResult> {
   console.log(`[routes] ${valid.length} valid clients to optimize`);
 
   // ─── PHASE 1: K-MEANS CLUSTERING ───
-  // Run k-means multiple times with different random seeds and keep best
-  let bestClusters: Client[][] = [];
-  let bestTotalDist = Infinity;
-
   const numDays = DAYS.length;
-  for (let attempt = 0; attempt < 10; attempt++) {
-    const clusters = kMeansCluster(valid, numDays, 30);
-    const totalDist = clusters.reduce((sum, c) => sum + calculateTourDistance(c, homeGeo.lat, homeGeo.lng), 0);
-    if (totalDist < bestTotalDist) {
-      bestTotalDist = totalDist;
-      bestClusters = clusters;
-    }
-  }
+  let bestClusters = kMeansCluster(valid, numDays, 200);
+  let bestTotalDist = bestClusters.reduce((sum, c) => sum + calculateTourDistance(c, homeGeo.lat, homeGeo.lng), 0);
   console.log(`[routes] Phase 1 K-means: ${Math.round(bestTotalDist * 10) / 10} km`);
 
   // ─── PHASE 2: 2-OPT par jour ───
@@ -289,7 +293,7 @@ export async function calculateRoutes(): Promise<CalculationResult> {
   console.log(`[routes] Phase 2 2-opt: ${Math.round(phase2Dist * 10) / 10} km`);
 
   // ─── PHASE 3: CROSS-DAY SWAPS ───
-  bestClusters = crossDaySwaps(bestClusters, homeGeo.lat, homeGeo.lng, 100);
+  bestClusters = crossDaySwaps(bestClusters, homeGeo.lat, homeGeo.lng, 500);
   // Ré-optimiser chaque jour après les swaps
   bestClusters = bestClusters.map(c => twoOptSwap(c, homeGeo.lat, homeGeo.lng));
   const phase3Dist = bestClusters.reduce((sum, c) => sum + calculateTourDistance(c, homeGeo.lat, homeGeo.lng), 0);
