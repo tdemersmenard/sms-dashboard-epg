@@ -140,6 +140,51 @@ export async function autoAssignNewClients(): Promise<string[]> {
 
     if (count === 0) continue;
 
+    // Ajouter au route_state pour qu'il apparaisse dans /routes
+    const { data: routeState } = await supabaseAdmin.from("route_state").select("data").eq("id", 1).single();
+    if (routeState?.data?.routes) {
+      const newStop = {
+        id: candidate.id,
+        name,
+        phone: candidate.phone,
+        address: candidate.address + (candidate.city ? `, ${candidate.city}` : ""),
+        lat: geo.lat,
+        lng: geo.lng,
+        ouvertureDate: candidate.ouverture_date,
+        isBiweekly,
+        order: position,
+        arrivalTime,
+        departureTime: endTime,
+        distFromPrev: 0,
+        driveMinFromPrev: 0,
+        firstEntretienDate: first.toISOString().split("T")[0],
+      };
+
+      const newRoutes = [...routeState.data.routes];
+      const dayRouteIdx = newRoutes.findIndex((r: any) => r.day === bestDay);
+      if (dayRouteIdx >= 0) {
+        newRoutes[dayRouteIdx] = {
+          ...newRoutes[dayRouteIdx],
+          stops: [...newRoutes[dayRouteIdx].stops, newStop],
+        };
+      } else {
+        newRoutes.push({
+          day: bestDay,
+          stops: [newStop],
+          totalKm: 0,
+          totalMin: 60,
+          endTime,
+          returnHomeKm: 0,
+          returnHomeMin: 0,
+        });
+      }
+
+      await supabaseAdmin.from("route_state").update({
+        data: { ...routeState.data, routes: newRoutes },
+        updated_at: new Date().toISOString(),
+      }).eq("id", 1);
+    }
+
     results.push(`${name}: assigné au ${bestDay} à ${arrivalTime} (${count} passages, début ${first.toISOString().split("T")[0]})`);
 
     // 8. Notifier Thomas (PAS le client)
