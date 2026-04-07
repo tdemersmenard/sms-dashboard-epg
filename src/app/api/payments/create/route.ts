@@ -42,6 +42,25 @@ export async function POST(req: NextRequest) {
       .update({ season_price: totalSeasonPrice })
       .eq("id", contactId);
 
+    // Si le client a entretien + adresse + ouverture, trigger auto-assign immédiat
+    const { data: fullContact } = await supabaseAdmin
+      .from("contacts")
+      .select("services, address, ouverture_date")
+      .eq("id", contactId)
+      .single();
+
+    if (fullContact) {
+      const svcs = fullContact.services || [];
+      const hasEntretien = svcs.some((s: string) => s.toLowerCase().includes("entretien"));
+      if (hasEntretien && fullContact.address && fullContact.ouverture_date) {
+        // Trigger auto-assign en background (non-bloquant)
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
+        fetch(`${baseUrl}/api/cron/automations`, {
+          headers: { "Authorization": `Bearer ${process.env.CRON_SECRET || ""}` },
+        }).catch(() => {});
+      }
+    }
+
     const clientName = contact.first_name || "Bonjour";
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
 
