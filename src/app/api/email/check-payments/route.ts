@@ -42,14 +42,21 @@ export async function GET() {
       // Parse amount and sender name from subject
       // e.g. "INTERAC e-Transfer: John Doe sent you $250.00"
       // or French: "Virement INTERAC : Jean Tremblay vous a envoyé 250,00 $"
-      const amountMatch = subject.match(/\$?([\d,]+\.?\d*)\s*\$?/);
+      // Match les montants avec espaces, virgules, points
+      // Ex: "1 000,00 $", "1,000.00", "$1000", "1000,00 $"
+      const amountMatch = subject.match(/(\d{1,3}(?:[\s,]\d{3})*(?:[.,]\d{1,2})?)\s*\$?/);
       const nameMatch =
         subject.match(/(?:from|de)\s+(.+?)(?:\s+sent|\s+vous|\s*$)/i) ||
         subject.match(/:\s*(.+?)\s+(?:sent|vous)/i);
 
       if (!amountMatch) continue;
 
-      const amount = parseFloat(amountMatch[1].replace(",", "."));
+      // Nettoyer: enlever espaces, remplacer virgule par point
+      const cleanAmount = amountMatch[1]
+        .replace(/\s/g, "") // enlever tous les espaces
+        .replace(/,(\d{2})$/, ".$1") // virgule décimale → point
+        .replace(/,/g, ""); // enlever les virgules de milliers
+      const amount = parseFloat(cleanAmount);
       const senderName = nameMatch?.[1]?.trim() || "Inconnu";
 
       // Try to match with a contact by name
