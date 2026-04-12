@@ -6,6 +6,7 @@ import {
   Depense, CATS, CategorieDepense,
   deleteDepense, montantDeductible, fmt,
 } from "@/lib/depenses";
+import { getVehicleDeduction } from "@/lib/depenses-deduction";
 import RecuModal from "@/components/depenses/RecuModal";
 
 interface Props {
@@ -93,7 +94,8 @@ export default function DepenseTable({ depenses, onDeleted }: Props) {
               <tbody>
                 {filtered.map((d) => {
                   const cat = CATS[d.categorie];
-                  const deductible = montantDeductible(d.montant, cat.pct);
+                  const pct = d.categorie === "vehicule" ? getVehicleDeduction(d.date) : cat.pct;
+                  const deductible = montantDeductible(d.montant, pct);
                   return (
                     <tr
                       key={d.id}
@@ -119,7 +121,7 @@ export default function DepenseTable({ depenses, onDeleted }: Props) {
                         {fmt(d.montant)}
                       </td>
                       <td className="px-4 py-3 text-right text-gray-400 text-xs">
-                        {cat.pct}%
+                        {pct}%
                       </td>
                       <td className="px-4 py-3 text-right font-medium text-green-700 whitespace-nowrap">
                         {fmt(deductible)}

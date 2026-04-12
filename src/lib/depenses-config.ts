@@ -31,7 +31,7 @@ export interface Depense {
 }
 
 export const CATS: Record<CategorieDepense, CatInfo> = {
-  vehicule:   { label: "Véhicule",          pct: 65,  color: "blue",   tailwindBg: "bg-blue-100",   tailwindText: "text-blue-700",   pdfColor: "#1d4ed8" },
+  vehicule:   { label: "Véhicule",          pct: 70,  color: "blue",   tailwindBg: "bg-blue-100",   tailwindText: "text-blue-700",   pdfColor: "#1d4ed8" },
   equipement: { label: "Équipement / tech", pct: 80,  color: "amber",  tailwindBg: "bg-amber-100",  tailwindText: "text-amber-700",  pdfColor: "#b45309" },
   logiciels:  { label: "Logiciels / abo.",  pct: 100, color: "green",  tailwindBg: "bg-green-100",  tailwindText: "text-green-700",  pdfColor: "#15803d" },
   repas:      { label: "Repas clients",     pct: 50,  color: "red",    tailwindBg: "bg-red-100",    tailwindText: "text-red-700",    pdfColor: "#b91c1c" },

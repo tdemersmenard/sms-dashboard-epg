@@ -4,6 +4,7 @@ import {
   Depense, CATS, CategorieDepense, TAUX_MARGINAL,
   montantDeductible, fmt, MOIS_FR,
 } from "@/lib/depenses-config";
+import { getVehicleDeduction } from "@/lib/depenses-deduction";
 
 const { Document, Page, Text, View, StyleSheet } = ReactPDF;
 
@@ -106,7 +107,10 @@ function CatRecapTable(depenses: Depense[]) {
       const items = depenses.filter(d => d.categorie === key);
       if (items.length === 0) return null;
       const totalM = items.reduce((s, d) => s + d.montant, 0);
-      const totalD = items.reduce((s, d) => s + montantDeductible(d.montant, CATS[key].pct), 0);
+      const totalD = items.reduce((s, d) => {
+        const pct = key === "vehicule" ? getVehicleDeduction(d.date) : CATS[key].pct;
+        return s + montantDeductible(d.montant, pct);
+      }, 0);
       return { key, cat: CATS[key], count: items.length, totalM, totalD };
     })
     .filter(Boolean) as { key: CategorieDepense; cat: typeof CATS[CategorieDepense]; count: number; totalM: number; totalD: number }[];
@@ -144,7 +148,10 @@ function CatRecapTable(depenses: Depense[]) {
 
 function DepenseListTable(depenses: Depense[], sectionLabel: string) {
   const grandTotalM = depenses.reduce((s, d) => s + d.montant, 0);
-  const grandTotalD = depenses.reduce((s, d) => s + montantDeductible(d.montant, CATS[d.categorie].pct), 0);
+  const grandTotalD = depenses.reduce((s, d) => {
+    const pct = d.categorie === "vehicule" ? getVehicleDeduction(d.date) : CATS[d.categorie].pct;
+    return s + montantDeductible(d.montant, pct);
+  }, 0);
 
   return React.createElement(View, {},
     React.createElement(Text, { style: S.sectionTitle }, sectionLabel),
@@ -158,7 +165,8 @@ function DepenseListTable(depenses: Depense[], sectionLabel: string) {
     ),
     ...depenses.map((d, i) => {
       const cat = CATS[d.categorie];
-      const deductible = montantDeductible(d.montant, cat.pct);
+      const rowPct = d.categorie === "vehicule" ? getVehicleDeduction(d.date) : cat.pct;
+      const deductible = montantDeductible(d.montant, rowPct);
       return React.createElement(View, { key: d.id, style: i % 2 === 0 ? S.tr : S.trAlt },
         React.createElement(Text, { style: [S.tdGray, { width: 58 }] },
           new Date(d.date + "T12:00:00").toLocaleDateString("fr-CA", { month: "2-digit", day: "2-digit" })
@@ -169,7 +177,7 @@ function DepenseListTable(depenses: Depense[], sectionLabel: string) {
         ),
         React.createElement(Text, { style: [S.td, { width: 80, color: cat.pdfColor, fontSize: 8 }] }, cat.label),
         React.createElement(Text, { style: [S.tdBold, { width: 58, textAlign: "right" }] }, fmt(d.montant)),
-        React.createElement(Text, { style: [S.tdGray, { width: 30, textAlign: "center" }] }, `${cat.pct}%`),
+        React.createElement(Text, { style: [S.tdGray, { width: 30, textAlign: "center" }] }, `${rowPct}%`),
         React.createElement(Text, { style: [S.tdGreen, { width: 65, textAlign: "right" }] }, fmt(deductible)),
       );
     }),
@@ -196,7 +204,10 @@ async function renderToBuffer(element: React.ReactElement): Promise<Buffer> {
 
 export async function generateRapportAnnuelBuffer(depenses: Depense[], annee: number): Promise<Buffer> {
   const totalM = depenses.reduce((s, d) => s + d.montant, 0);
-  const totalD = depenses.reduce((s, d) => s + montantDeductible(d.montant, CATS[d.categorie].pct), 0);
+  const totalD = depenses.reduce((s, d) => {
+    const pct = d.categorie === "vehicule" ? getVehicleDeduction(d.date) : CATS[d.categorie].pct;
+    return s + montantDeductible(d.montant, pct);
+  }, 0);
   const economie = totalD * TAUX_MARGINAL;
   const nbRecus = depenses.filter(d => d.recu_url).length;
   const sansRecu = depenses.filter(d => !d.recu_url);
@@ -245,13 +256,19 @@ export async function generateRapportAnnuelBuffer(depenses: Depense[], annee: nu
 
 export async function generateBilanMensuelBuffer(depenses: Depense[], annee: number): Promise<Buffer> {
   const totalM = depenses.reduce((s, d) => s + d.montant, 0);
-  const totalD = depenses.reduce((s, d) => s + montantDeductible(d.montant, CATS[d.categorie].pct), 0);
+  const totalD = depenses.reduce((s, d) => {
+    const pct = d.categorie === "vehicule" ? getVehicleDeduction(d.date) : CATS[d.categorie].pct;
+    return s + montantDeductible(d.montant, pct);
+  }, 0);
 
   const byMonth = Array.from({ length: 12 }, (_, i) => {
     const moisNum = i + 1;
     const items = depenses.filter(d => parseInt(d.date.split("-")[1]) === moisNum);
     const mTotal = items.reduce((s, d) => s + d.montant, 0);
-    const mDed = items.reduce((s, d) => s + montantDeductible(d.montant, CATS[d.categorie].pct), 0);
+    const mDed = items.reduce((s, d) => {
+      const pct = d.categorie === "vehicule" ? getVehicleDeduction(d.date) : CATS[d.categorie].pct;
+      return s + montantDeductible(d.montant, pct);
+    }, 0);
     return { moisNum, label: MOIS_FR[i], items, mTotal, mDed };
   });
 
@@ -323,7 +340,10 @@ export async function generateRapportMoisBuffer(
 ): Promise<Buffer> {
   const nomMois = MOIS_FR[mois - 1];
   const totalM = depenses.reduce((s, d) => s + d.montant, 0);
-  const totalD = depenses.reduce((s, d) => s + montantDeductible(d.montant, CATS[d.categorie].pct), 0);
+  const totalD = depenses.reduce((s, d) => {
+    const pct = d.categorie === "vehicule" ? getVehicleDeduction(d.date) : CATS[d.categorie].pct;
+    return s + montantDeductible(d.montant, pct);
+  }, 0);
   const economie = totalD * TAUX_MARGINAL;
   const nbRecus = depenses.filter(d => d.recu_url).length;
   const sansRecu = depenses.filter(d => !d.recu_url);

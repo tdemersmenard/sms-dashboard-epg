@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { Plus, Receipt } from "lucide-react";
 import { fetchDepenses, Depense, CATS, montantDeductible, fmt } from "@/lib/depenses";
+import { getVehicleDeduction } from "@/lib/depenses-deduction";
 import DepenseForm from "@/components/depenses/DepenseForm";
 import DepenseTable from "@/components/depenses/DepenseTable";
 import CatCards from "@/components/depenses/CatCards";
@@ -41,10 +42,10 @@ export default function DepensesPage() {
 
   // ── Quick stats ───────────────────────────────────────────────
   const totalMontant = depenses.reduce((s, d) => s + d.montant, 0);
-  const totalDeductible = depenses.reduce(
-    (s, d) => s + montantDeductible(d.montant, CATS[d.categorie].pct),
-    0
-  );
+  const totalDeductible = depenses.reduce((s, d) => {
+    const pct = d.categorie === "vehicule" ? getVehicleDeduction(d.date) : CATS[d.categorie].pct;
+    return s + montantDeductible(d.montant, pct);
+  }, 0);
   const nbRecus = depenses.filter((d) => d.recu_url).length;
 
   return (

@@ -6,6 +6,7 @@ import {
   Depense, CATS, CategorieDepense,
   montantDeductible, fmt, TAUX_MARGINAL, MOIS_FR,
 } from "@/lib/depenses";
+import { getVehicleDeduction } from "@/lib/depenses-deduction";
 
 interface Props {
   depenses: Depense[];
@@ -18,7 +19,10 @@ export default function RapportFiscal({ depenses, annee }: Props) {
   const [sendResult, setSendResult] = useState<"ok" | "error" | null>(null);
 
   const totalMontant   = depenses.reduce((s, d) => s + d.montant, 0);
-  const totalDeductible = depenses.reduce((s, d) => s + montantDeductible(d.montant, CATS[d.categorie].pct), 0);
+  const totalDeductible = depenses.reduce((s, d) => {
+    const pct = d.categorie === "vehicule" ? getVehicleDeduction(d.date) : CATS[d.categorie].pct;
+    return s + montantDeductible(d.montant, pct);
+  }, 0);
   const totalEconomie  = totalDeductible * TAUX_MARGINAL;
   const nbRecus        = depenses.filter(d => d.recu_url).length;
   const sansRecu       = depenses.filter(d => !d.recu_url);
@@ -29,7 +33,10 @@ export default function RapportFiscal({ depenses, annee }: Props) {
       const items = depenses.filter(d => d.categorie === key);
       if (!items.length) return null;
       const totalM = items.reduce((s, d) => s + d.montant, 0);
-      const totalD = items.reduce((s, d) => s + montantDeductible(d.montant, cat.pct), 0);
+      const totalD = items.reduce((s, d) => {
+        const pct = key === "vehicule" ? getVehicleDeduction(d.date) : cat.pct;
+        return s + montantDeductible(d.montant, pct);
+      }, 0);
       return { key, cat, count: items.length, totalM, totalD };
     })
     .filter(Boolean) as {
@@ -163,7 +170,7 @@ export default function RapportFiscal({ depenses, annee }: Props) {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-center text-gray-600">{count}</td>
-                  <td className="px-4 py-3 text-center text-gray-500">{cat.pct}%</td>
+                  <td className="px-4 py-3 text-center text-gray-500">{key === "vehicule" ? "var." : `${cat.pct}%`}</td>
                   <td className="px-4 py-3 text-right font-medium text-gray-900">{fmt(totalM)}</td>
                   <td className="px-5 py-3 text-right font-semibold text-green-700">{fmt(totalD)}</td>
                 </tr>
