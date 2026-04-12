@@ -27,6 +27,7 @@ export interface Depense {
   recu_nom: string | null;
   note: string | null;
   annee: number;
+  source: string | null;
 }
 
 export const CATS: Record<CategorieDepense, CatInfo> = {

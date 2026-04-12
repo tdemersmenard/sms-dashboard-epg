@@ -29,6 +29,10 @@ CREATE POLICY "allow_all_depenses" ON depenses
 -- échouent (les policies storage nécessitent parfois l'UI Supabase).
 -- ================================================================
 
+-- Champ source (manuel vs gmail_auto vs scan_photo)
+ALTER TABLE depenses ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'manuel';
+
+-- ================================================================
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('recus', 'recus', true)
 ON CONFLICT (id) DO NOTHING;

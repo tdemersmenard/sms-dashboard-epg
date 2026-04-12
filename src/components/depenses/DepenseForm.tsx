@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Upload, X } from "lucide-react";
+import { Upload, X, Camera, Loader2 } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { CATS, CategorieDepense, uploadRecu } from "@/lib/depenses";
 
@@ -23,6 +23,43 @@ export default function DepenseForm({ annee, onCreated, onCancel }: Props) {
   const [fileError, setFileError] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [scanning, setScanning] = useState(false);
+  const [scanMsg, setScanMsg] = useState("");
+
+  const handleScanPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setFile(f); // Utilise aussi la photo comme reçu
+    setScanning(true);
+    setScanMsg("");
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const res = await fetch("/api/depenses/scan-photo", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ imageBase64: reader.result as string }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          if (data.amount)      setMontant(String(data.amount));
+          if (data.category)    setCategorie(data.category as CategorieDepense);
+          if (data.date)        setDate(data.date);
+          if (data.vendor && data.description) setDescription(`${data.vendor} — ${data.description}`);
+          else if (data.vendor) setDescription(data.vendor);
+          else if (data.description) setDescription(data.description);
+          setScanMsg("✓ Reçu analysé — vérifiez les champs");
+        } else {
+          setScanMsg("Impossible de lire le reçu, remplis manuellement.");
+        }
+      } catch {
+        setScanMsg("Erreur lors du scan.");
+      } finally {
+        setScanning(false);
+      }
+    };
+    reader.readAsDataURL(f);
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -84,6 +121,30 @@ export default function DepenseForm({ annee, onCreated, onCancel }: Props) {
         <button onClick={onCancel} className="text-gray-400 hover:text-gray-600 transition-colors">
           <X size={18} />
         </button>
+      </div>
+
+      {/* Scan photo */}
+      <div className="mb-3">
+        <label className="block cursor-pointer">
+          <input
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={handleScanPhoto}
+            className="hidden"
+          />
+          <div className={`flex items-center justify-center gap-2 bg-blue-50 border-2 border-dashed border-blue-300 rounded-lg p-3 hover:bg-blue-100 transition ${scanning ? "opacity-60 pointer-events-none" : ""}`}>
+            {scanning
+              ? <><Loader2 size={16} className="text-blue-600 animate-spin" /><span className="text-blue-700 font-medium text-sm">Analyse en cours...</span></>
+              : <><Camera size={16} className="text-blue-600" /><span className="text-blue-700 font-medium text-sm">Prendre une photo du reçu</span><span className="text-xs text-blue-500">· L&apos;IA pré-remplit le formulaire</span></>
+            }
+          </div>
+        </label>
+        {scanMsg && (
+          <p className={`text-xs mt-1.5 ${scanMsg.startsWith("✓") ? "text-green-600" : "text-amber-600"}`}>
+            {scanMsg}
+          </p>
+        )}
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-3">

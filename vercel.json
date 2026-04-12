@@ -15,6 +15,10 @@
     {
       "path": "/api/cron/depenses-mensuel",
       "schedule": "0 12 1 * *"
+    },
+    {
+      "path": "/api/cron/scan-invoices",
+      "schedule": "0 * * * *"
     }
   ]
 }
