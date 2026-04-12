@@ -1,63 +1,10 @@
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
-// ── Types ──────────────────────────────────────────────────────────────────
+// Re-export all shared types/constants (components importent depuis ici)
+export * from "@/lib/depenses-config";
+import type { Depense } from "@/lib/depenses-config";
 
-export type CategorieDepense =
-  | "vehicule" | "equipement" | "logiciels" | "repas"
-  | "telephone" | "materiel" | "formation" | "autre";
-
-export interface CatInfo {
-  label: string;
-  pct: number;
-  color: string;
-  tailwindBg: string;
-  tailwindText: string;
-}
-
-export interface Depense {
-  id: string;
-  created_at: string;
-  date: string;
-  description: string;
-  montant: number;
-  categorie: CategorieDepense;
-  recu_url: string | null;
-  recu_nom: string | null;
-  note: string | null;
-  annee: number;
-}
-
-// ── Constantes ─────────────────────────────────────────────────────────────
-
-export const CATS: Record<CategorieDepense, CatInfo> = {
-  vehicule:   { label: "Véhicule",          pct: 65,  color: "blue",   tailwindBg: "bg-blue-100",   tailwindText: "text-blue-700"   },
-  equipement: { label: "Équipement / tech", pct: 80,  color: "amber",  tailwindBg: "bg-amber-100",  tailwindText: "text-amber-700"  },
-  logiciels:  { label: "Logiciels / abo.",  pct: 100, color: "green",  tailwindBg: "bg-green-100",  tailwindText: "text-green-700"  },
-  repas:      { label: "Repas clients",     pct: 50,  color: "red",    tailwindBg: "bg-red-100",    tailwindText: "text-red-700"    },
-  telephone:  { label: "Téléphone",         pct: 70,  color: "purple", tailwindBg: "bg-purple-100", tailwindText: "text-purple-700" },
-  materiel:   { label: "Matériel piscine",  pct: 100, color: "orange", tailwindBg: "bg-orange-100", tailwindText: "text-orange-700" },
-  formation:  { label: "Formation",         pct: 100, color: "cyan",   tailwindBg: "bg-cyan-100",   tailwindText: "text-cyan-700"   },
-  autre:      { label: "Autre",             pct: 100, color: "gray",   tailwindBg: "bg-gray-100",   tailwindText: "text-gray-700"   },
-};
-
-export const TAUX_MARGINAL = 0.38;
-
-// ── Helpers ────────────────────────────────────────────────────────────────
-
-export function fmt(amount: number): string {
-  return new Intl.NumberFormat("fr-CA", {
-    style: "currency",
-    currency: "CAD",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  }).format(amount);
-}
-
-export function montantDeductible(montant: number, pct: number): number {
-  return (montant * pct) / 100;
-}
-
-// ── Supabase ───────────────────────────────────────────────────────────────
+// ── Supabase CRUD ─────────────────────────────────────────────────
 
 export async function fetchDepenses(annee: number): Promise<Depense[]> {
   const { data, error } = await supabaseBrowser

@@ -11,6 +11,10 @@
     {
       "path": "/api/cron/learn",
       "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/cron/depenses-mensuel",
+      "schedule": "0 12 1 * *"
     }
   ]
 }

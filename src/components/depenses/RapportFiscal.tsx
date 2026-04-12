@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Copy, Check, AlertTriangle } from "lucide-react";
+import { Copy, Check, AlertTriangle, FileDown, Mail, Loader2, CalendarClock } from "lucide-react";
 import {
   Depense, CATS, CategorieDepense,
-  montantDeductible, fmt, TAUX_MARGINAL,
+  montantDeductible, fmt, TAUX_MARGINAL, MOIS_FR,
 } from "@/lib/depenses";
 
 interface Props {
@@ -14,21 +14,20 @@ interface Props {
 
 export default function RapportFiscal({ depenses, annee }: Props) {
   const [copied, setCopied] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [sendResult, setSendResult] = useState<"ok" | "error" | null>(null);
 
-  const totalMontant = depenses.reduce((s, d) => s + d.montant, 0);
-  const totalDeductible = depenses.reduce(
-    (s, d) => s + montantDeductible(d.montant, CATS[d.categorie].pct),
-    0
-  );
-  const totalEconomie = totalDeductible * TAUX_MARGINAL;
-  const nbRecus = depenses.filter((d) => d.recu_url).length;
-  const sansRecu = depenses.filter((d) => !d.recu_url);
+  const totalMontant   = depenses.reduce((s, d) => s + d.montant, 0);
+  const totalDeductible = depenses.reduce((s, d) => s + montantDeductible(d.montant, CATS[d.categorie].pct), 0);
+  const totalEconomie  = totalDeductible * TAUX_MARGINAL;
+  const nbRecus        = depenses.filter(d => d.recu_url).length;
+  const sansRecu       = depenses.filter(d => !d.recu_url);
 
   const bycat = (Object.keys(CATS) as CategorieDepense[])
-    .map((key) => {
-      const cat = CATS[key];
-      const items = depenses.filter((d) => d.categorie === key);
-      if (items.length === 0) return null;
+    .map(key => {
+      const cat   = CATS[key];
+      const items = depenses.filter(d => d.categorie === key);
+      if (!items.length) return null;
       const totalM = items.reduce((s, d) => s + d.montant, 0);
       const totalD = items.reduce((s, d) => s + montantDeductible(d.montant, cat.pct), 0);
       return { key, cat, count: items.length, totalM, totalD };
@@ -36,12 +35,17 @@ export default function RapportFiscal({ depenses, annee }: Props) {
     .filter(Boolean) as {
       key: CategorieDepense;
       cat: (typeof CATS)[CategorieDepense];
-      count: number;
-      totalM: number;
-      totalD: number;
+      count: number; totalM: number; totalD: number;
     }[];
 
-  const handleCopy = () => {
+  // Mois précédent (pour l'envoi manuel)
+  const now = new Date();
+  const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const prevMois  = prevMonth.getMonth() + 1;
+  const prevAnnee = prevMonth.getFullYear();
+  const prevLabel = `${MOIS_FR[prevMois - 1]} ${prevAnnee}`;
+
+  const handleCopyText = () => {
     const lines = [
       `RAPPORT FISCAL ${annee} — Entretien Piscine Granby`,
       `Préparé le ${new Date().toLocaleDateString("fr-CA")}`,
@@ -53,23 +57,36 @@ export default function RapportFiscal({ depenses, annee }: Props) {
       `Reçus attachés       : ${nbRecus}/${depenses.length}`,
       "",
       "=== PAR CATÉGORIE ===",
-      ...bycat.map(
-        (x) =>
-          `${x.cat.label.padEnd(22)} ${fmt(x.totalM).padStart(10)} → ${fmt(x.totalD).padStart(10)} déductible  (${x.count} dép.)`
+      ...bycat.map(x =>
+        `${x.cat.label.padEnd(22)} ${fmt(x.totalM).padStart(10)} → ${fmt(x.totalD).padStart(10)} déductible  (${x.count} dép.)`
       ),
     ];
-
     if (sansRecu.length > 0) {
       lines.push("");
-      lines.push(`⚠️  ${sansRecu.length} dépense(s) sans reçu :`);
-      sansRecu.forEach((d) =>
-        lines.push(`   - ${d.date}  |  ${d.description}  |  ${fmt(d.montant)}`)
-      );
+      lines.push(`⚠  ${sansRecu.length} dépense(s) sans reçu :`);
+      sansRecu.forEach(d => lines.push(`   - ${d.date}  |  ${d.description}  |  ${fmt(d.montant)}`));
     }
-
     navigator.clipboard.writeText(lines.join("\n")).catch(console.error);
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
+  };
+
+  const handleSendNow = async () => {
+    setSending(true);
+    setSendResult(null);
+    try {
+      const res = await fetch("/api/depenses/envoyer-rapport", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ annee: prevAnnee, mois: prevMois }),
+      });
+      setSendResult(res.ok ? "ok" : "error");
+    } catch {
+      setSendResult("error");
+    } finally {
+      setSending(false);
+      setTimeout(() => setSendResult(null), 5000);
+    }
   };
 
   if (depenses.length === 0) {
@@ -91,7 +108,7 @@ export default function RapportFiscal({ depenses, annee }: Props) {
               {sansRecu.length} dépense{sansRecu.length > 1 ? "s" : ""} sans reçu attaché
             </p>
             <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">
-              {sansRecu.map((d) => d.description).join(" · ")}
+              {sansRecu.map(d => d.description).join(" · ")}
             </p>
           </div>
         </div>
@@ -110,9 +127,7 @@ export default function RapportFiscal({ depenses, annee }: Props) {
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
           <p className="text-xs text-gray-500 mb-1">Économie d&apos;impôt estimée</p>
           <p className="text-2xl font-bold text-blue-600">{fmt(totalEconomie)}</p>
-          <p className="text-[10px] text-gray-400 mt-0.5">
-            taux marginal ~{Math.round(TAUX_MARGINAL * 100)}%
-          </p>
+          <p className="text-[10px] text-gray-400 mt-0.5">taux marginal ~{Math.round(TAUX_MARGINAL * 100)}%</p>
         </div>
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
           <p className="text-xs text-gray-500 mb-1">Reçus attachés</p>
@@ -143,9 +158,7 @@ export default function RapportFiscal({ depenses, annee }: Props) {
               {bycat.map(({ key, cat, count, totalM, totalD }) => (
                 <tr key={key} className="border-b border-gray-50 last:border-0">
                   <td className="px-5 py-3">
-                    <span
-                      className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${cat.tailwindBg} ${cat.tailwindText}`}
-                    >
+                    <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${cat.tailwindBg} ${cat.tailwindText}`}>
                       {cat.label}
                     </span>
                   </td>
@@ -167,14 +180,76 @@ export default function RapportFiscal({ depenses, annee }: Props) {
         </div>
       </div>
 
-      {/* Copy button */}
-      <button
-        onClick={handleCopy}
-        className="flex items-center gap-2 px-4 py-2.5 bg-[#0a1f3f] text-white text-sm font-medium rounded-lg hover:bg-[#0f2855] transition"
-      >
-        {copied ? <Check size={16} /> : <Copy size={16} />}
-        {copied ? "Copié !" : "Copier le rapport (pour comptable)"}
-      </button>
+      {/* ── Actions PDF ─────────────────────────────────────────────── */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-3">
+        <h3 className="font-semibold text-gray-900 mb-4">Télécharger en PDF</h3>
+        <div className="flex flex-wrap gap-3">
+          <a
+            href={`/api/depenses/rapport-annuel?annee=${annee}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 px-4 py-2.5 bg-[#0a1f3f] text-white text-sm font-medium rounded-lg hover:bg-[#0f2855] transition"
+          >
+            <FileDown size={16} />
+            Rapport fiscal {annee}
+          </a>
+          <a
+            href={`/api/depenses/bilan-mensuel?annee=${annee}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 px-4 py-2.5 bg-[#0a1f3f] text-white text-sm font-medium rounded-lg hover:bg-[#0f2855] transition"
+          >
+            <FileDown size={16} />
+            Bilan par mois {annee}
+          </a>
+          <button
+            onClick={handleCopyText}
+            className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition"
+          >
+            {copied ? <Check size={16} className="text-green-600" /> : <Copy size={16} />}
+            {copied ? "Copié !" : "Copier texte (comptable)"}
+          </button>
+        </div>
+      </div>
+
+      {/* ── Auto-envoi mensuel ──────────────────────────────────────── */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+        <div className="flex items-start gap-3">
+          <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <CalendarClock size={18} className="text-blue-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="font-semibold text-gray-900">Rapport mensuel automatique</h3>
+            <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+              Le 1er de chaque mois à 8h, le rapport du mois précédent est généré en PDF et envoyé
+              automatiquement à <span className="font-medium text-gray-700">service@entretienpiscinegranby.com</span>.
+            </p>
+            <div className="flex items-center gap-3 mt-3">
+              <button
+                onClick={handleSendNow}
+                disabled={sending}
+                className="flex items-center gap-2 px-3.5 py-2 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition"
+              >
+                {sending
+                  ? <Loader2 size={14} className="animate-spin" />
+                  : <Mail size={14} />
+                }
+                {sending ? "Envoi..." : `Envoyer rapport de ${prevLabel} maintenant`}
+              </button>
+              {sendResult === "ok" && (
+                <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
+                  <Check size={13} /> Envoyé !
+                </span>
+              )}
+              {sendResult === "error" && (
+                <span className="text-xs text-red-600 font-medium">
+                  Erreur — vérifier la connexion Gmail
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
