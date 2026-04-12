@@ -427,11 +427,82 @@ export default function CalendarPage() {
               <button onClick={() => setSelectedJob(null)}><X size={20} /></button>
             </div>
             <div className="p-5 space-y-3">
-              <div className="text-sm text-gray-600 space-y-1">
-                <p>📅 {format(parseISO(selectedJob.scheduled_date), "EEEE d MMMM yyyy", { locale: fr })}</p>
-                <p>⏰ {selectedJob.scheduled_time_start?.slice(0, 5)} – {selectedJob.scheduled_time_end?.slice(0, 5)}</p>
-                {selectedJob.notes && <p className="mt-2">📝 {selectedJob.notes}</p>}
-              </div>
+              {!selectedJob.confirmed_at ? (
+                <div className="space-y-2">
+                  <p className="text-sm text-gray-600">
+                    📅 {format(parseISO(selectedJob.scheduled_date), "EEEE d MMMM yyyy", { locale: fr })}
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs text-gray-500">Heure début</label>
+                      <input
+                        type="time"
+                        value={selectedJob.scheduled_time_start?.slice(0, 5) || "08:00"}
+                        onChange={async (e) => {
+                          const newStart = e.target.value;
+                          await supabaseBrowser
+                            .from("jobs")
+                            .update({ scheduled_time_start: newStart })
+                            .eq("id", selectedJob.id);
+                          setSelectedJob({ ...selectedJob, scheduled_time_start: newStart });
+                          await loadJobs();
+                        }}
+                        className="w-full text-sm border rounded-lg px-2 py-1.5"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500">Heure fin</label>
+                      <input
+                        type="time"
+                        value={selectedJob.scheduled_time_end?.slice(0, 5) || "10:00"}
+                        onChange={async (e) => {
+                          const newEnd = e.target.value;
+                          await supabaseBrowser
+                            .from("jobs")
+                            .update({ scheduled_time_end: newEnd })
+                            .eq("id", selectedJob.id);
+                          setSelectedJob({ ...selectedJob, scheduled_time_end: newEnd });
+                          await loadJobs();
+                        }}
+                        className="w-full text-sm border rounded-lg px-2 py-1.5"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500">Date</label>
+                    <input
+                      type="date"
+                      value={selectedJob.scheduled_date}
+                      onChange={async (e) => {
+                        const newDate = e.target.value;
+                        await supabaseBrowser
+                          .from("jobs")
+                          .update({ scheduled_date: newDate })
+                          .eq("id", selectedJob.id);
+                        setSelectedJob({ ...selectedJob, scheduled_date: newDate });
+
+                        // Si c'est une ouverture, mettre à jour ouverture_date du contact
+                        if (selectedJob.job_type === "ouverture") {
+                          await supabaseBrowser
+                            .from("contacts")
+                            .update({ ouverture_date: newDate })
+                            .eq("id", selectedJob.contact_id);
+                        }
+
+                        await loadJobs();
+                      }}
+                      className="w-full text-sm border rounded-lg px-2 py-1.5"
+                    />
+                  </div>
+                  {selectedJob.notes && <p className="text-xs text-gray-500 mt-2">📝 {selectedJob.notes}</p>}
+                </div>
+              ) : (
+                <div className="text-sm text-gray-600 space-y-1">
+                  <p>📅 {format(parseISO(selectedJob.scheduled_date), "EEEE d MMMM yyyy", { locale: fr })}</p>
+                  <p>⏰ {selectedJob.scheduled_time_start?.slice(0, 5)} – {selectedJob.scheduled_time_end?.slice(0, 5)}</p>
+                  {selectedJob.notes && <p className="mt-2">📝 {selectedJob.notes}</p>}
+                </div>
+              )}
 
               {selectedJob.job_type === "ouverture" && !selectedJob.confirmed_at && (
                 <button
@@ -506,6 +577,10 @@ export default function CalendarPage() {
                   <label className="text-xs font-medium text-gray-700">Heure début</label>
                   <input type="time" value={jobForm.scheduled_time_start} onChange={(e) => setJobForm({ ...jobForm, scheduled_time_start: e.target.value })} className="w-full mt-1 border rounded-lg px-3 py-2 text-sm" />
                 </div>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-700">Heure fin</label>
+                <input type="time" value={jobForm.scheduled_time_end} onChange={(e) => setJobForm({ ...jobForm, scheduled_time_end: e.target.value })} className="w-full mt-1 border rounded-lg px-3 py-2 text-sm" />
               </div>
               <div>
                 <label className="text-xs font-medium text-gray-700">Notes</label>

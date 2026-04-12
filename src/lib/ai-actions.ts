@@ -610,6 +610,59 @@ export async function executeActions(actions: AIAction[], contactId: string) {
             }
           }
 
+          // Heure (formats: "à 10h", "10:30", "10h30", "à 8h00")
+          const heurePatterns = [
+            /(\d{1,2})\s*h\s*(\d{0,2})/i,
+            /(\d{1,2}):(\d{2})/,
+            /\bà\s+(\d{1,2})\s*h/i,
+          ];
+
+          let heureStr = "";
+          for (const pattern of heurePatterns) {
+            const match = info.match(pattern);
+            if (match) {
+              const h = parseInt(match[1]);
+              const m = match[2] ? parseInt(match[2]) : 0;
+              if (h >= 6 && h <= 20) {
+                heureStr = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+                break;
+              }
+            }
+          }
+
+          // Si on a une date d'ouverture ET une heure, créer/mettre à jour le job d'ouverture
+          if (updates.ouverture_date) {
+            const startTime = heureStr || "08:00";
+            const [startH, startM] = startTime.split(":").map(Number);
+            const endMinutes = startH * 60 + startM + 120; // +2h
+            const endTime = `${String(Math.floor(endMinutes / 60)).padStart(2, "0")}:${String(endMinutes % 60).padStart(2, "0")}`;
+
+            const { data: existingOuverture } = await supabaseAdmin
+              .from("jobs")
+              .select("id")
+              .eq("contact_id", contactId)
+              .eq("job_type", "ouverture")
+              .limit(1);
+
+            if (existingOuverture && existingOuverture.length > 0) {
+              await supabaseAdmin.from("jobs").update({
+                scheduled_date: updates.ouverture_date,
+                scheduled_time_start: startTime,
+                scheduled_time_end: endTime,
+              }).eq("id", existingOuverture[0].id);
+            } else {
+              await supabaseAdmin.from("jobs").insert({
+                contact_id: contactId,
+                job_type: "ouverture",
+                scheduled_date: updates.ouverture_date,
+                scheduled_time_start: startTime,
+                scheduled_time_end: endTime,
+                status: "planifié",
+                notes: "Ouverture — planifiée par le bot",
+              });
+            }
+          }
+
           // Si on a extrait des infos structurées, les sauver
           if (Object.keys(updates).length > 0) {
             await supabaseAdmin.from("contacts").update(updates).eq("id", contactId);

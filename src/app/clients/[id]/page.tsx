@@ -455,6 +455,24 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
       body: JSON.stringify({ contactId: id }),
     }).catch(console.error);
 
+    // Envoyer l'accès portail si le client n'en a pas déjà un
+    const { data: contactCheck } = await supabaseBrowser
+      .from("contacts")
+      .select("portal_password, email")
+      .eq("id", id)
+      .single();
+
+    if (contactCheck?.email && !contactCheck.portal_password) {
+      // Délai 8 sec pour pas spammer
+      setTimeout(async () => {
+        await fetch("/api/portail/send-welcome", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ contactId: id }),
+        });
+      }, 8000);
+    }
+
     await load();
     setSavingNewPay(false);
     setShowNewPayForm(false);
@@ -1015,17 +1033,19 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
                   </div>
 
                   {/* Split versements (entretien only) */}
-                  {cat?.isEntretien && (
+                  {(cat?.isEntretien || cat?.label?.toLowerCase().includes("ouverture")) && (
                     <div className="space-y-2.5">
-                      <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={newPaySplit}
-                          onChange={(e) => setNewPaySplit(e.target.checked)}
-                          className="rounded"
-                        />
-                        Séparer en 2 versements (50% maintenant, 50% mi-juillet)
-                      </label>
+                      {cat?.isEntretien && (
+                        <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={newPaySplit}
+                            onChange={(e) => setNewPaySplit(e.target.checked)}
+                            className="rounded"
+                          />
+                          Séparer en 2 versements (50% maintenant, 50% mi-juillet)
+                        </label>
+                      )}
 
                       {/* Date d'ouverture */}
                       <div>
@@ -1036,7 +1056,9 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
                           onChange={(e) => setNewPayOuvertureDate(e.target.value)}
                           className="w-full border border-gray-200 rounded px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-200"
                         />
-                        <p className="text-[10px] text-gray-400 mt-0.5">Le premier entretien sera planifié 1 semaine après cette date.</p>
+                        {cat?.isEntretien && (
+                          <p className="text-[10px] text-gray-400 mt-0.5">Le premier entretien sera planifié 1 semaine après cette date.</p>
+                        )}
                       </div>
                     </div>
                   )}
