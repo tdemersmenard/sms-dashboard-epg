@@ -6,6 +6,7 @@ import { generateRapportMoisBuffer } from "@/lib/depenses-pdf";
 import { getAuthedGmail } from "@/lib/google";
 import { MOIS_FR, fmt, montantDeductible, CATS, TAUX_MARGINAL } from "@/lib/depenses-config";
 import type { Depense } from "@/lib/depenses-config";
+import { getVehicleDeductionPrecise } from "@/lib/depenses-deduction-server";
 
 export async function POST(req: NextRequest) {
   try {
@@ -35,7 +36,13 @@ export async function POST(req: NextRequest) {
 
     // Stats pour le corps du courriel
     const totalM = depenses.reduce((s, d) => s + d.montant, 0);
-    const totalD = depenses.reduce((s, d) => s + montantDeductible(d.montant, CATS[d.categorie].pct), 0);
+    let totalD = 0;
+    for (const d of depenses) {
+      const pct = d.categorie === "vehicule"
+        ? await getVehicleDeductionPrecise(d.date)
+        : CATS[d.categorie].pct;
+      totalD += montantDeductible(d.montant, pct);
+    }
     const economie = totalD * TAUX_MARGINAL;
     const nbRecus = depenses.filter(d => d.recu_url).length;
     const sansRecu = depenses.filter(d => !d.recu_url).length;

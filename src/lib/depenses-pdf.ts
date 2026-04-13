@@ -5,6 +5,26 @@ import {
   montantDeductible, fmt, MOIS_FR,
 } from "@/lib/depenses-config";
 import { getVehicleDeduction } from "@/lib/depenses-deduction";
+import { getVehicleDeductionPrecise } from "@/lib/depenses-deduction-server";
+
+type PctMap = Record<string, number>;
+
+async function buildPctMap(depenses: Depense[]): Promise<PctMap> {
+  const map: PctMap = {};
+  for (const d of depenses) {
+    if (d.categorie === "vehicule") {
+      map[d.id] = await getVehicleDeductionPrecise(d.date);
+    } else {
+      map[d.id] = CATS[d.categorie].pct;
+    }
+  }
+  return map;
+}
+
+function getPct(d: Depense, pctMap?: PctMap): number {
+  if (pctMap) return pctMap[d.id] ?? CATS[d.categorie].pct;
+  return d.categorie === "vehicule" ? getVehicleDeduction(d.date) : CATS[d.categorie].pct;
+}
 
 const { Document, Page, Text, View, StyleSheet } = ReactPDF;
 
@@ -101,16 +121,13 @@ function WarningRecu(sansRecu: Depense[]) {
   );
 }
 
-function CatRecapTable(depenses: Depense[]) {
+function CatRecapTable(depenses: Depense[], pctMap?: PctMap) {
   const rows = (Object.keys(CATS) as CategorieDepense[])
     .map(key => {
       const items = depenses.filter(d => d.categorie === key);
       if (items.length === 0) return null;
       const totalM = items.reduce((s, d) => s + d.montant, 0);
-      const totalD = items.reduce((s, d) => {
-        const pct = key === "vehicule" ? getVehicleDeduction(d.date) : CATS[key].pct;
-        return s + montantDeductible(d.montant, pct);
-      }, 0);
+      const totalD = items.reduce((s, d) => s + montantDeductible(d.montant, getPct(d, pctMap)), 0);
       return { key, cat: CATS[key], count: items.length, totalM, totalD };
     })
     .filter(Boolean) as { key: CategorieDepense; cat: typeof CATS[CategorieDepense]; count: number; totalM: number; totalD: number }[];
@@ -146,12 +163,9 @@ function CatRecapTable(depenses: Depense[]) {
   );
 }
 
-function DepenseListTable(depenses: Depense[], sectionLabel: string) {
+function DepenseListTable(depenses: Depense[], sectionLabel: string, pctMap?: PctMap) {
   const grandTotalM = depenses.reduce((s, d) => s + d.montant, 0);
-  const grandTotalD = depenses.reduce((s, d) => {
-    const pct = d.categorie === "vehicule" ? getVehicleDeduction(d.date) : CATS[d.categorie].pct;
-    return s + montantDeductible(d.montant, pct);
-  }, 0);
+  const grandTotalD = depenses.reduce((s, d) => s + montantDeductible(d.montant, getPct(d, pctMap)), 0);
 
   return React.createElement(View, {},
     React.createElement(Text, { style: S.sectionTitle }, sectionLabel),
@@ -165,7 +179,7 @@ function DepenseListTable(depenses: Depense[], sectionLabel: string) {
     ),
     ...depenses.map((d, i) => {
       const cat = CATS[d.categorie];
-      const rowPct = d.categorie === "vehicule" ? getVehicleDeduction(d.date) : cat.pct;
+      const rowPct = getPct(d, pctMap);
       const deductible = montantDeductible(d.montant, rowPct);
       return React.createElement(View, { key: d.id, style: i % 2 === 0 ? S.tr : S.trAlt },
         React.createElement(Text, { style: [S.tdGray, { width: 58 }] },
@@ -203,11 +217,9 @@ async function renderToBuffer(element: React.ReactElement): Promise<Buffer> {
 // ── 1. Rapport Fiscal Annuel ───────────────────────────────────────
 
 export async function generateRapportAnnuelBuffer(depenses: Depense[], annee: number): Promise<Buffer> {
+  const pctMap = await buildPctMap(depenses);
   const totalM = depenses.reduce((s, d) => s + d.montant, 0);
-  const totalD = depenses.reduce((s, d) => {
-    const pct = d.categorie === "vehicule" ? getVehicleDeduction(d.date) : CATS[d.categorie].pct;
-    return s + montantDeductible(d.montant, pct);
-  }, 0);
+  const totalD = depenses.reduce((s, d) => s + montantDeductible(d.montant, getPct(d, pctMap)), 0);
   const economie = totalD * TAUX_MARGINAL;
   const nbRecus = depenses.filter(d => d.recu_url).length;
   const sansRecu = depenses.filter(d => !d.recu_url);
@@ -236,11 +248,12 @@ export async function generateRapportAnnuelBuffer(depenses: Depense[], annee: nu
         ),
       ),
 
-      CatRecapTable(depenses),
+      CatRecapTable(depenses, pctMap),
 
       depenses.length > 0 ? DepenseListTable(
         [...depenses].sort((a, b) => a.date.localeCompare(b.date)),
-        "Toutes les dépenses"
+        "Toutes les dépenses",
+        pctMap
       ) : null,
 
       sansRecu.length > 0 ? WarningRecu(sansRecu) : null,
@@ -255,20 +268,15 @@ export async function generateRapportAnnuelBuffer(depenses: Depense[], annee: nu
 // ── 2. Bilan par mois (toute l'année) ─────────────────────────────
 
 export async function generateBilanMensuelBuffer(depenses: Depense[], annee: number): Promise<Buffer> {
+  const pctMap = await buildPctMap(depenses);
   const totalM = depenses.reduce((s, d) => s + d.montant, 0);
-  const totalD = depenses.reduce((s, d) => {
-    const pct = d.categorie === "vehicule" ? getVehicleDeduction(d.date) : CATS[d.categorie].pct;
-    return s + montantDeductible(d.montant, pct);
-  }, 0);
+  const totalD = depenses.reduce((s, d) => s + montantDeductible(d.montant, getPct(d, pctMap)), 0);
 
   const byMonth = Array.from({ length: 12 }, (_, i) => {
     const moisNum = i + 1;
     const items = depenses.filter(d => parseInt(d.date.split("-")[1]) === moisNum);
     const mTotal = items.reduce((s, d) => s + d.montant, 0);
-    const mDed = items.reduce((s, d) => {
-      const pct = d.categorie === "vehicule" ? getVehicleDeduction(d.date) : CATS[d.categorie].pct;
-      return s + montantDeductible(d.montant, pct);
-    }, 0);
+    const mDed = items.reduce((s, d) => s + montantDeductible(d.montant, getPct(d, pctMap)), 0);
     return { moisNum, label: MOIS_FR[i], items, mTotal, mDed };
   });
 
@@ -322,7 +330,7 @@ export async function generateBilanMensuelBuffer(depenses: Depense[], annee: num
         React.createElement(Text, { style: [S.tdWhite, { width: 95, textAlign: "right" }] }, fmt(totalD * TAUX_MARGINAL)),
       ),
 
-      CatRecapTable(depenses),
+      CatRecapTable(depenses, pctMap),
 
       Footer(),
     )
@@ -338,12 +346,10 @@ export async function generateRapportMoisBuffer(
   mois: number,
   annee: number
 ): Promise<Buffer> {
+  const pctMap = await buildPctMap(depenses);
   const nomMois = MOIS_FR[mois - 1];
   const totalM = depenses.reduce((s, d) => s + d.montant, 0);
-  const totalD = depenses.reduce((s, d) => {
-    const pct = d.categorie === "vehicule" ? getVehicleDeduction(d.date) : CATS[d.categorie].pct;
-    return s + montantDeductible(d.montant, pct);
-  }, 0);
+  const totalD = depenses.reduce((s, d) => s + montantDeductible(d.montant, getPct(d, pctMap)), 0);
   const economie = totalD * TAUX_MARGINAL;
   const nbRecus = depenses.filter(d => d.recu_url).length;
   const sansRecu = depenses.filter(d => !d.recu_url);
@@ -375,7 +381,8 @@ export async function generateRapportMoisBuffer(
       depenses.length > 0
         ? DepenseListTable(
             [...depenses].sort((a, b) => a.date.localeCompare(b.date)),
-            `Dépenses de ${nomMois} ${annee}`
+            `Dépenses de ${nomMois} ${annee}`,
+            pctMap
           )
         : React.createElement(Text, { style: [S.tdGray, { marginTop: 20, textAlign: "center" }] },
             `Aucune dépense enregistrée pour ${nomMois} ${annee}.`
