@@ -94,12 +94,27 @@ export default function TodayRoutePage() {
   };
 
   const navigateAll = () => {
+    if (stops.length === 0) return;
+
     const origin = encodeURIComponent(HOME_ADDR);
-    const destination = encodeURIComponent(HOME_ADDR);
-    const waypoints = stops
+
+    // Tous les arrêts deviennent des waypoints, sauf le DERNIER qui devient la destination
+    // Et on ajoute la maison comme dernier waypoint forcé pour le retour
+    const allPoints = [
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .map((s: any) => encodeURIComponent(s.address || s.contactName))
+      ...stops.map((s: any) => s.address || s.contactName),
+      HOME_ADDR, // retour à la maison
+    ];
+
+    // Le dernier point = destination (la maison)
+    const destination = encodeURIComponent(allPoints[allPoints.length - 1]);
+
+    // Tous les autres = waypoints
+    const waypoints = allPoints
+      .slice(0, -1)
+      .map((p) => encodeURIComponent(p))
       .join("|");
+
     const url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&waypoints=${waypoints}&travelmode=driving`;
     window.open(url, "_blank");
   };
