@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Kanban, MessageSquare, Users,
-  Calendar, Brain, BarChart3, Navigation, Activity, Receipt,
+  Calendar, Brain, BarChart3, Navigation, Activity, Receipt, Gauge,
 } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { label: "Messages",        href: "/messages",    icon: MessageSquare },
   { label: "Clients",         href: "/clients",     icon: Users },
   { label: "Calendrier",      href: "/calendar",    icon: Calendar },
+  { label: "Odomètre",        href: "/odometre",    icon: Gauge },
   { label: "Routes",          href: "/routes",      icon: Navigation },
   { label: "Analytics",       href: "/analytics",   icon: BarChart3 },
   { label: "Dépenses",        href: "/depenses",    icon: Receipt },
