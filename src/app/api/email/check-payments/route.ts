@@ -59,6 +59,20 @@ export async function GET() {
       const amount = parseFloat(cleanAmount);
       const senderName = nameMatch?.[1]?.trim() || "Inconnu";
 
+      // Si le nom de l'expéditeur contient "Thomas Demers" ou "Thomas Menard", c'est un transfert interne
+      // (pas un paiement client) — skip
+      const senderLower = (senderName || subject || "").toLowerCase();
+      if (senderLower.includes("thomas demers") || senderLower.includes("thomas menard") || senderLower.includes("thomas dm")) {
+        console.log("[check-payments] Virement interne détecté, skip:", senderName);
+
+        await supabaseAdmin.from("automation_logs").insert({
+          action: `interac_scan_${msgId}`,
+          status: "skipped_internal_transfer",
+        });
+
+        continue;
+      }
+
       // Try to match with a contact by name
       const nameParts = senderName.toLowerCase().split(" ");
       let matchedContact = null;
@@ -122,16 +136,28 @@ if (matchedContact) {
       });
     }
   } else {
-    // Pas de payment qui matche → créer un nouveau
-    await supabaseAdmin.from("payments").insert({
-      contact_id: matchedContact.id,
-      amount,
-      method: "interac",
-      status: "reçu",
-      received_date: new Date().toISOString().split("T")[0],
-      notes: `Virement Interac de ${senderName} — montant ne match aucun paiement en attente`,
+    // Si le montant ne match aucun paiement en attente
+    // Ne PAS créer de payment fantôme — juste notifier Thomas
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
+    const { data: thomas } = await supabaseAdmin.from("contacts").select("id").eq("phone", "+14509942215").single();
+    if (thomas) {
+      await fetch(`${baseUrl}/api/sms/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contactId: thomas.id,
+          body: `CHLORE: Virement Interac reçu de ${senderName} — ${amount}$, mais aucun paiement en attente ne match. Va sur /payments pour l'associer manuellement.`,
+        }),
+      });
+    }
+
+    await supabaseAdmin.from("automation_logs").insert({
+      action: `interac_scan_${msgId}`,
+      status: "unmatched",
+      details: { sender: senderName, amount },
     });
-    processed.push(`${senderName}: ${amount}$ → ${matchedContact.first_name} (nouveau payment, aucun match)`);
+
+    continue;
   }
 } else {
   processed.push(`${senderName}: ${amount}$ → PAS DE MATCH CONTACT (à vérifier manuellement)`);
