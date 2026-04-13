@@ -163,7 +163,7 @@ ADRESSE MANQUANTE:
 `;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function callClaudeWithRetry(params: any, maxRetries = 3): Promise<any> {
+async function callClaudeWithRetry(params: any, maxRetries = 5): Promise<any> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let lastError: any;
   for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -171,9 +171,9 @@ async function callClaudeWithRetry(params: any, maxRetries = 3): Promise<any> {
       return await anthropic.messages.create(params);
     } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
       lastError = err;
-      if (err.status === 529 || err.status === 503) {
-        const waitMs = Math.pow(2, attempt) * 1000;
-        console.log(`[ai-agent] Overloaded, retry dans ${waitMs}ms (tentative ${attempt + 1}/${maxRetries})`);
+      if (err.status === 529 || err.status === 503 || err.status === 429) {
+        const waitMs = Math.min(Math.pow(2, attempt) * 2000, 15000); // 2s, 4s, 8s, 15s, 15s
+        console.log(`[ai-agent] ${err.status} error, retry dans ${waitMs}ms (tentative ${attempt + 1}/${maxRetries})`);
         await new Promise(r => setTimeout(r, waitMs));
         continue;
       }
@@ -293,8 +293,38 @@ export async function generateAIResponse(contactId: string, inboundMessage: stri
 
     // Return whatever Claude said — no safety nets, no fallbacks
     return cleanMessage || null;
-  } catch (err) {
+  } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
     console.error("[ai-agent] Error:", err);
+
+    // Si c'est une erreur d'overload Anthropic, envoyer un fallback au client
+    if (err.status === 529 || err.status === 503 || err.status === 429) {
+      try {
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
+        await fetch(`${baseUrl}/api/sms/send`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contactId: contactId,
+            body: "Bonjour! Je suis un peu occupé en ce moment. Je vous reviens dans quelques minutes avec une réponse complète. Merci de votre patience!",
+          }),
+        });
+
+        const { data: thomas } = await supabaseAdmin.from("contacts").select("id").eq("phone", "+14509942215").single();
+        if (thomas) {
+          await fetch(`${baseUrl}/api/sms/send`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contactId: thomas.id,
+              body: `CHLORE: API Anthropic overloaded, un client attend. Check /messages pour répondre manuellement.`,
+            }),
+          });
+        }
+      } catch (fallbackErr) {
+        console.error("[ai-agent] Fallback SMS error:", fallbackErr);
+      }
+    }
+
     return null;
   }
 }
