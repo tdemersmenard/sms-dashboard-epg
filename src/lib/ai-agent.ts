@@ -162,6 +162,27 @@ ADRESSE MANQUANTE:
 - L'adresse sera automatiquement sauvegardée dans sa fiche
 `;
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function callClaudeWithRetry(params: any, maxRetries = 3): Promise<any> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let lastError: any;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await anthropic.messages.create(params);
+    } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+      lastError = err;
+      if (err.status === 529 || err.status === 503) {
+        const waitMs = Math.pow(2, attempt) * 1000;
+        console.log(`[ai-agent] Overloaded, retry dans ${waitMs}ms (tentative ${attempt + 1}/${maxRetries})`);
+        await new Promise(r => setTimeout(r, waitMs));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastError;
+}
+
 export async function generateAIResponse(contactId: string, inboundMessage: string): Promise<string | null> {
   try {
     const { data: contact } = await supabaseAdmin
@@ -240,7 +261,7 @@ export async function generateAIResponse(contactId: string, inboundMessage: stri
     const { loadLearnings } = await import("@/lib/ai-learning");
     const learnings = await loadLearnings();
 
-    const response = await anthropic.messages.create({
+    const response = await callClaudeWithRetry({
       model: "claude-sonnet-4-20250514",
       max_tokens: 500,
       system: SYSTEM_PROMPT + clientContext + learnings,
