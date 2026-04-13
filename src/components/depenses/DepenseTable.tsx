@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Eye, Trash2 } from "lucide-react";
+import { supabaseBrowser } from "@/lib/supabase-browser";
 import {
   Depense, CATS, CategorieDepense,
   deleteDepense, montantDeductible, fmt,
@@ -127,7 +128,42 @@ export default function DepenseTable({ depenses, onDeleted }: Props) {
                         {fmt(deductible)}
                       </td>
                       <td className="px-4 py-3 text-center">
-                        {d.recu_url ? (
+                        {!d.recu_url && (
+                          <label className="cursor-pointer text-xs text-blue-600 hover:underline">
+                            📎 Ajouter reçu
+                            <input
+                              type="file"
+                              accept="image/*,application/pdf"
+                              className="hidden"
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+
+                                const fileName = `${d.id}_${Date.now()}_${file.name}`;
+                                const { error: uploadError } = await supabaseBrowser.storage
+                                  .from("documents")
+                                  .upload(`recus/${fileName}`, file, { upsert: false });
+
+                                if (uploadError) {
+                                  alert("Erreur upload: " + uploadError.message);
+                                  return;
+                                }
+
+                                const { data: { publicUrl } } = supabaseBrowser.storage
+                                  .from("documents")
+                                  .getPublicUrl(`recus/${fileName}`);
+
+                                await supabaseBrowser
+                                  .from("depenses")
+                                  .update({ recu_url: publicUrl, recu_nom: file.name })
+                                  .eq("id", d.id);
+
+                                window.location.reload();
+                              }}
+                            />
+                          </label>
+                        )}
+                        {d.recu_url && (
                           <button
                             onClick={() =>
                               setRecuModal({ url: d.recu_url!, nom: d.recu_nom || "reçu" })
@@ -136,8 +172,6 @@ export default function DepenseTable({ depenses, onDeleted }: Props) {
                           >
                             <Eye size={13} /> Voir
                           </button>
-                        ) : (
-                          <span className="text-gray-300 text-xs">—</span>
                         )}
                       </td>
                       <td className="px-3 py-3 text-center">
