@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Loader2, MapPin, Send, Check, AlertCircle, X } from "lucide-react";
+import { Loader2, MapPin, Send, Check, AlertCircle, X, Play } from "lucide-react";
+import Link from "next/link";
 
 const DAY_COLORS: Record<string, string> = { Lundi: "#3b82f6", Mardi: "#10b981", Mercredi: "#a855f7", Jeudi: "#f97316", Vendredi: "#ec4899" };
 
@@ -172,9 +173,17 @@ export default function RoutesPage() {
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Routes d&apos;entretien</h1>
-        <p className="text-sm text-gray-500 mt-1">Calcul automatique optimisé pour minimiser les déplacements</p>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Routes d&apos;entretien</h1>
+          <p className="text-sm text-gray-500 mt-1">Calcul automatique optimisé pour minimiser les déplacements</p>
+        </div>
+        <Link
+          href="/routes/today"
+          className="inline-flex items-center gap-2 bg-green-600 text-white px-4 py-3 rounded-xl font-bold hover:bg-green-700 shadow-lg"
+        >
+          <Play size={18} /> Démarrer l&apos;itinéraire d&apos;aujourd&apos;hui
+        </Link>
       </div>
 
       {error && (
