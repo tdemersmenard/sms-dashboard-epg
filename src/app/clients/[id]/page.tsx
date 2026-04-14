@@ -76,7 +76,10 @@ function displayName(c: Contact): string {
 }
 
 function formatDate(d: string) {
-  return new Date(d).toLocaleDateString("fr-CA", { day: "numeric", month: "short", year: "numeric" });
+  // Parser en date locale pour éviter le décalage UTC
+  const [year, month, day] = d.split("T")[0].split("-").map(Number);
+  const localDate = new Date(year, month - 1, day);
+  return localDate.toLocaleDateString("fr-CA", { day: "numeric", month: "short", year: "numeric" });
 }
 
 function formatMsgTime(d: string) {
