@@ -66,9 +66,40 @@ export async function POST(req: NextRequest) {
           const isBiweekly = !!stop.isBiweekly;
           const incrementDays = isBiweekly ? 14 : 7;
 
-          // Date du premier job pour ce client
-          const currentDate = new Date(startDate);
-          currentDate.setDate(startDate.getDate() + offset);
+          // Récupérer ouverture_date du contact
+          const { data: contact } = await supabaseAdmin
+            .from("contacts")
+            .select("ouverture_date")
+            .eq("id", stop.id)
+            .single();
+
+          // Si pas d'ouverture_date, skip ce client
+          if (!contact?.ouverture_date) continue;
+
+          // Le premier entretien doit être à ou APRÈS la date d'ouverture
+          const ouvertureDate = new Date(contact.ouverture_date + "T12:00:00");
+
+          // Trouver le premier jour correspondant (offset) qui est >= ouverture_date
+          const ouvertureDayOfWeek = ouvertureDate.getDay(); // 0=dim, 1=lun...
+          const targetDayOfWeek = offset + 1; // offset 0 = lundi = 1
+
+          let daysToAdd: number;
+          if (ouvertureDayOfWeek <= targetDayOfWeek) {
+            daysToAdd = targetDayOfWeek - ouvertureDayOfWeek;
+          } else {
+            daysToAdd = 7 - ouvertureDayOfWeek + targetDayOfWeek;
+          }
+
+          // Si ouverture_date est déjà sur le bon jour, premier job est 7 jours après
+          if (daysToAdd === 0) {
+            daysToAdd = 7;
+          }
+
+          const firstJobDate = new Date(ouvertureDate);
+          firstJobDate.setDate(ouvertureDate.getDate() + daysToAdd);
+
+          // Override currentDate pour commencer à firstJobDate
+          let currentDate = firstJobDate;
 
           while (currentDate <= endDate) {
             const dateStr = currentDate.toISOString().split("T")[0];
