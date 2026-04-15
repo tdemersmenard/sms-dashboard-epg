@@ -201,6 +201,11 @@ export default function DashboardPage() {
     setAuditActions(null);
     try {
       const res = await fetch("/api/ai/audit");
+      if (res.status === 403) {
+        setAuditActions([]);
+        return;
+      }
+      if (!res.ok) throw new Error(`audit failed: ${res.status}`);
       const data = await res.json();
       setAuditActions(data.actions ?? []);
     } catch {
