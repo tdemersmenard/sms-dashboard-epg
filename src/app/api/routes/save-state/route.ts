@@ -57,10 +57,12 @@ export async function POST(req: NextRequest) {
         if (offset === undefined) continue;
 
         for (const stop of route.stops || []) {
-          const startTime = stop.startTime || "08:00";
-          const [h, m] = startTime.split(":").map(Number);
-          const endMinutes = h * 60 + m + 60;
-          const endTime = `${String(Math.floor(endMinutes / 60)).padStart(2, "0")}:${String(endMinutes % 60).padStart(2, "0")}`;
+          const startTime = stop.arrivalTime || stop.startTime || "08:00";
+          const endTime = stop.departureTime || (() => {
+            const [h, m] = startTime.split(":").map(Number);
+            const endMinutes = h * 60 + m + 60;
+            return `${String(Math.floor(endMinutes / 60)).padStart(2, "0")}:${String(endMinutes % 60).padStart(2, "0")}`;
+          })();
           const isBiweekly = !!stop.isBiweekly;
           const incrementDays = isBiweekly ? 14 : 7;
 
