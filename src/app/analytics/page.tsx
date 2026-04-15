@@ -207,8 +207,20 @@ export default function AnalyticsPage() {
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-20">
-          <div className="w-8 h-8 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin" />
+        <div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="bg-white rounded-xl border border-gray-100 p-5 animate-pulse">
+                <div className="w-12 h-12 bg-gray-200 rounded-xl mb-3" />
+                <div className="h-8 bg-gray-200 rounded w-1/2 mb-2" />
+                <div className="h-3 bg-gray-200 rounded w-2/3" />
+              </div>
+            ))}
+          </div>
+          <div className="bg-white rounded-xl border border-gray-100 p-6 animate-pulse">
+            <div className="h-4 bg-gray-200 rounded w-1/4 mb-4" />
+            <div className="h-64 bg-gray-100 rounded" />
+          </div>
         </div>
       ) : (
         <>
