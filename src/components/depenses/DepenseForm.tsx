@@ -26,9 +26,7 @@ export default function DepenseForm({ annee, onCreated, onCancel }: Props) {
   const [scanning, setScanning] = useState(false);
   const [scanMsg, setScanMsg] = useState("");
 
-  const handleScanPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
+  const handleScanPhoto = async (f: File) => {
     setFile(f); // Utilise aussi la photo comme reçu
     setScanning(true);
     setScanMsg("");
@@ -124,22 +122,52 @@ export default function DepenseForm({ annee, onCreated, onCancel }: Props) {
       </div>
 
       {/* Scan photo */}
-      <div className="mb-3">
-        <label className="block cursor-pointer">
-          <input
-            type="file"
-            accept="image/*"
-            capture="environment"
-            onChange={handleScanPhoto}
-            className="hidden"
-          />
-          <div className={`flex items-center justify-center gap-2 bg-blue-50 border-2 border-dashed border-blue-300 rounded-lg p-3 hover:bg-blue-100 transition ${scanning ? "opacity-60 pointer-events-none" : ""}`}>
-            {scanning
-              ? <><Loader2 size={16} className="text-blue-600 animate-spin" /><span className="text-blue-700 font-medium text-sm">Analyse en cours...</span></>
-              : <><Camera size={16} className="text-blue-600" /><span className="text-blue-700 font-medium text-sm">Prendre une photo du reçu</span><span className="text-xs text-blue-500">· L&apos;IA pré-remplit le formulaire</span></>
-            }
+      <div className="mb-4">
+        {scanning ? (
+          <div className="flex items-center justify-center gap-2 bg-blue-50 border-2 border-dashed border-blue-300 rounded-lg p-3 opacity-60">
+            <Loader2 size={16} className="text-blue-600 animate-spin" />
+            <span className="text-blue-700 font-medium text-sm">Analyse en cours...</span>
           </div>
-        </label>
+        ) : (
+          <div className="grid grid-cols-2 gap-2">
+            {/* Prendre une photo */}
+            <label className="cursor-pointer">
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  await handleScanPhoto(file);
+                }}
+              />
+              <div className="bg-blue-50 border-2 border-dashed border-blue-300 rounded-lg p-4 text-center hover:bg-blue-100 transition">
+                <p className="text-blue-700 font-medium text-sm">📷 Prendre une photo</p>
+                <p className="text-xs text-blue-500 mt-1">Nouveau reçu</p>
+              </div>
+            </label>
+
+            {/* Uploader depuis galerie */}
+            <label className="cursor-pointer">
+              <input
+                type="file"
+                accept="image/*,application/pdf"
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  await handleScanPhoto(file);
+                }}
+              />
+              <div className="bg-purple-50 border-2 border-dashed border-purple-300 rounded-lg p-4 text-center hover:bg-purple-100 transition">
+                <p className="text-purple-700 font-medium text-sm">🖼️ Uploader</p>
+                <p className="text-xs text-purple-500 mt-1">Galerie / fichiers</p>
+              </div>
+            </label>
+          </div>
+        )}
         {scanMsg && (
           <p className={`text-xs mt-1.5 ${scanMsg.startsWith("✓") ? "text-green-600" : "text-amber-600"}`}>
             {scanMsg}
