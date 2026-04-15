@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState, useEffect } from "react";
 import {
   LayoutDashboard, Kanban, MessageSquare, Users, Calendar,
   Navigation, Gauge, Receipt, Brain, Activity,
 } from "lucide-react";
+import { supabaseBrowser } from "@/lib/supabase-browser";
 
 const NAV_ITEMS = [
   { label: "Dashboard",      href: "/dashboard",  icon: LayoutDashboard },
@@ -22,6 +24,26 @@ const NAV_ITEMS = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    const loadUnread = async () => {
+      const { count } = await supabaseBrowser
+        .from("messages")
+        .select("*", { count: "exact", head: true })
+        .eq("is_read", false)
+        .eq("direction", "inbound");
+      setUnreadCount(count ?? 0);
+    };
+    loadUnread();
+
+    const channel = supabaseBrowser
+      .channel("sidebar-unread")
+      .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, loadUnread)
+      .subscribe();
+
+    return () => { supabaseBrowser.removeChannel(channel); };
+  }, []);
 
   // Ne pas afficher la nav sur les pages du portail client
   if (pathname?.startsWith("/portail")) return null;
@@ -48,7 +70,14 @@ export default function Sidebar() {
                     : "text-gray-400 hover:bg-white/5 hover:text-gray-200"
                 }`}
               >
-                <Icon size={18} strokeWidth={1.75} />
+                <div className="relative">
+                  <Icon size={18} strokeWidth={1.75} />
+                  {item.href === "/messages" && unreadCount > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-0.5 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center leading-none">
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </span>
+                  )}
+                </div>
                 <span className="flex-1">{item.label}</span>
               </Link>
             );
@@ -78,7 +107,14 @@ export default function Sidebar() {
                     : "text-gray-400 hover:text-gray-600"
                 }`}
               >
-                <Icon size={20} strokeWidth={isActive ? 2.25 : 1.75} />
+                <div className="relative">
+                  <Icon size={20} strokeWidth={isActive ? 2.25 : 1.75} />
+                  {item.href === "/messages" && unreadCount > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-0.5 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center leading-none">
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </span>
+                  )}
+                </div>
                 <span className="text-[9px] font-medium whitespace-nowrap">{item.label}</span>
               </Link>
             );
