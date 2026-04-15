@@ -157,6 +157,23 @@ export async function GET() {
       issues.push({ severity: "error", module: "automations", message: `${failedAutomations.length} automations récentes ont échoué` });
     }
 
+    // ─── 9. SANTÉ DES CRONS (dernières 24h) ───
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { data: recentCrons } = await supabaseAdmin
+      .from("automation_logs")
+      .select("type, ran_at")
+      .gte("ran_at", oneDayAgo)
+      .order("ran_at", { ascending: false })
+      .limit(10);
+
+    if ((recentCrons ?? []).length === 0) {
+      issues.push({
+        severity: "warning",
+        module: "crons",
+        message: "Aucune automation enregistrée dans les dernières 24h — vérifier les cron jobs Vercel",
+      });
+    }
+
     // ─── RETURN ───
     const summary = {
       timestamp: new Date().toISOString(),
