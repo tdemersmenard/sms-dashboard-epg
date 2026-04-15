@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
-const NAV_ITEMS = [
+const NAV_ITEMS_MAIN = [
   { label: "Dashboard",      href: "/dashboard",  icon: LayoutDashboard },
   { label: "Messages",       href: "/messages",   icon: MessageSquare   },
   { label: "Routes",         href: "/routes",     icon: Navigation      },
@@ -19,7 +19,10 @@ const NAV_ITEMS = [
   { label: "Dépenses",       href: "/depenses",   icon: Receipt         },
   { label: "Odomètre",       href: "/odometre",   icon: Gauge           },
   { label: "Apprentissages", href: "/learnings",  icon: Brain           },
-  { label: "Diagnostic",     href: "/diagnostic", icon: Activity        },
+];
+
+const NAV_ITEMS_ADMIN = [
+  { label: "Diagnostic", href: "/diagnostic", icon: Activity },
 ];
 
 export default function Sidebar() {
@@ -56,32 +59,55 @@ export default function Sidebar() {
           <p className="text-white font-bold text-2xl tracking-tight">CHLORE</p>
           <p className="text-[#94a3b8] text-sm mt-0.5">Entretien Piscine Granby</p>
         </div>
-        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {NAV_ITEMS.map(item => {
-            const Icon = item.icon;
-            const isActive = pathname === item.href || pathname?.startsWith(item.href + "/");
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center gap-3 px-5 py-3 rounded-lg text-sm transition-all ${
-                  isActive
-                    ? "bg-white/10 text-white font-medium"
-                    : "text-gray-400 hover:bg-white/5 hover:text-gray-200"
-                }`}
-              >
-                <div className="relative">
+        <nav className="flex-1 px-3 py-4 overflow-y-auto flex flex-col">
+          <div className="space-y-1 flex-1">
+            {NAV_ITEMS_MAIN.map(item => {
+              const Icon = item.icon;
+              const isActive = pathname === item.href || pathname?.startsWith(item.href + "/");
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`flex items-center gap-3 px-5 py-3 rounded-lg text-sm transition-all ${
+                    isActive
+                      ? "bg-white/10 text-white font-medium"
+                      : "text-gray-400 hover:bg-white/5 hover:text-gray-200"
+                  }`}
+                >
+                  <div className="relative">
+                    <Icon size={18} strokeWidth={1.75} />
+                    {item.href === "/messages" && unreadCount > 0 && (
+                      <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-0.5 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center leading-none">
+                        {unreadCount > 99 ? "99+" : unreadCount}
+                      </span>
+                    )}
+                  </div>
+                  <span className="flex-1">{item.label}</span>
+                </Link>
+              );
+            })}
+          </div>
+          <div className="mt-4 pt-4 border-t border-white/10 space-y-1">
+            <p className="px-5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white/30">Système</p>
+            {NAV_ITEMS_ADMIN.map(item => {
+              const Icon = item.icon;
+              const isActive = pathname === item.href || pathname?.startsWith(item.href + "/");
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`flex items-center gap-3 px-5 py-3 rounded-lg text-sm transition-all ${
+                    isActive
+                      ? "bg-white/10 text-white font-medium"
+                      : "text-gray-400 hover:bg-white/5 hover:text-gray-200"
+                  }`}
+                >
                   <Icon size={18} strokeWidth={1.75} />
-                  {item.href === "/messages" && unreadCount > 0 && (
-                    <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-0.5 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center leading-none">
-                      {unreadCount > 99 ? "99+" : unreadCount}
-                    </span>
-                  )}
-                </div>
-                <span className="flex-1">{item.label}</span>
-              </Link>
-            );
-          })}
+                  <span className="flex-1">{item.label}</span>
+                </Link>
+              );
+            })}
+          </div>
         </nav>
         <div className="px-5 py-4 border-t border-white/10 flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center">
@@ -94,7 +120,7 @@ export default function Sidebar() {
       {/* BOTTOM NAV MOBILE (< md) — scrollable horizontale pour tout voir */}
       <nav className="md:hidden fixed bottom-0 inset-x-0 bg-white border-t border-gray-200 z-50 pb-[env(safe-area-inset-bottom)] overflow-x-auto">
         <div className="flex h-16 min-w-max px-2">
-          {NAV_ITEMS.map(item => {
+          {[...NAV_ITEMS_MAIN, ...NAV_ITEMS_ADMIN].map(item => {
             const Icon = item.icon;
             const isActive = pathname === item.href || pathname?.startsWith(item.href + "/");
             return (
