@@ -4,6 +4,19 @@ import { useState, useEffect } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { Camera, Loader2 } from "lucide-react";
 
+interface OdometerLog {
+  id: string;
+  date: string;
+  km_start: number;
+  km_end: number;
+  km_total: number;
+  km_business: number;
+  km_personnel: number;
+  business_pct: number;
+  notes?: string;
+  created_at: string;
+}
+
 export default function OdometrePage() {
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [kmStart, setKmStart] = useState("");
@@ -11,8 +24,7 @@ export default function OdometrePage() {
   const [notes, setNotes] = useState("");
   const [scanning, setScanning] = useState<"start" | "end" | null>(null);
   const [saving, setSaving] = useState(false);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [logs, setLogs] = useState<any[]>([]);
+  const [logs, setLogs] = useState<OdometerLog[]>([]);
 
   const loadLogs = async () => {
     const { data } = await supabaseBrowser
