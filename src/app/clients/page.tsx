@@ -40,7 +40,27 @@ export default function ClientsPage() {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     first_name: "", last_name: "", phone: "", email: "", address: "",
+    pool_type: "" as "" | "hors-terre" | "creusée",
+    lead_source: "",
+    services: [] as string[],
+    season_price: "",
   });
+
+  const SERVICES_OPTIONS = ["ouverture", "entretien", "fermeture"];
+  const SOURCE_OPTIONS = [
+    { value: "facebook", label: "Facebook" },
+    { value: "appel", label: "Appel entrant" },
+    { value: "referral", label: "Référence" },
+    { value: "site_web", label: "Site web" },
+  ];
+
+  const toggleService = (s: string) =>
+    setForm((p) => ({
+      ...p,
+      services: p.services.includes(s)
+        ? p.services.filter((x) => x !== s)
+        : [...p.services, s],
+    }));
 
   useEffect(() => {
     supabaseBrowser
@@ -74,13 +94,25 @@ export default function ClientsPage() {
     setSaving(true);
     const { data } = await supabaseBrowser
       .from("contacts")
-      .insert({ ...form, stage: "nouveau", services: [], has_spa: false })
+      .insert({
+        first_name: form.first_name || null,
+        last_name: form.last_name || null,
+        phone: form.phone.trim(),
+        email: form.email || null,
+        address: form.address || null,
+        pool_type: form.pool_type || null,
+        lead_source: form.lead_source || null,
+        services: form.services,
+        season_price: form.season_price ? parseFloat(form.season_price) : null,
+        stage: "nouveau",
+        has_spa: false,
+      })
       .select()
       .single();
     if (data) {
       setContacts((prev) => [data as Contact, ...prev]);
       setShowModal(false);
-      setForm({ first_name: "", last_name: "", phone: "", email: "", address: "" });
+      setForm({ first_name: "", last_name: "", phone: "", email: "", address: "", pool_type: "", lead_source: "", services: [], season_price: "" });
     }
     setSaving(false);
   };
@@ -196,7 +228,7 @@ export default function ClientsPage() {
       {/* Create modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
               <h2 className="text-base font-bold text-gray-900">Nouveau client</h2>
               <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
@@ -242,6 +274,57 @@ export default function ClientsPage() {
                 <input
                   type="text" value={form.address}
                   onChange={(e) => setForm((p) => ({ ...p, address: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-gray-600 mb-1 block">Type de piscine</label>
+                  <select
+                    value={form.pool_type}
+                    onChange={(e) => setForm((p) => ({ ...p, pool_type: e.target.value as typeof p.pool_type }))}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                  >
+                    <option value="">—</option>
+                    <option value="hors-terre">Hors-terre</option>
+                    <option value="creusée">Creusée</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-600 mb-1 block">Source</label>
+                  <select
+                    value={form.lead_source}
+                    onChange={(e) => setForm((p) => ({ ...p, lead_source: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                  >
+                    <option value="">—</option>
+                    {SOURCE_OPTIONS.map((s) => (
+                      <option key={s.value} value={s.value}>{s.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600 mb-1.5 block">Services</label>
+                <div className="flex gap-3">
+                  {SERVICES_OPTIONS.map((s) => (
+                    <label key={s} className="flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={form.services.includes(s)}
+                        onChange={() => toggleService(s)}
+                        className="rounded"
+                      />
+                      <span className="text-sm text-gray-700">{s}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600 mb-1 block">Prix saison ($)</label>
+                <input
+                  type="number" min="0" step="0.01" value={form.season_price}
+                  onChange={(e) => setForm((p) => ({ ...p, season_price: e.target.value }))}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
                 />
               </div>
