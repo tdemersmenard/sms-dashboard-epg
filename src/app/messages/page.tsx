@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { MessageSquare } from "lucide-react";
+import { MessageSquare, ArrowLeft } from "lucide-react";
 import { useRealtimeMessages } from "@/hooks/useRealtimeMessages";
 import { supabaseBrowser as supabase } from "@/lib/supabase-browser";
 import ConversationList from "@/components/Messages/ConversationList";
@@ -142,7 +142,7 @@ export default function MessagesPage() {
   const activeMessages = activeContactId ? (messages[activeContactId] ?? []) : [];
 
   return (
-    <div className="flex h-full bg-white">
+    <div className="flex h-[calc(100vh-4rem)] md:h-screen bg-white">
       <Suspense fallback={null}>
         <ContactParamHandler
           conversations={allConversations}
@@ -152,8 +152,8 @@ export default function MessagesPage() {
         />
       </Suspense>
 
-      {/* Conversation list — 320px */}
-      <div className="w-80 flex-shrink-0 border-r border-gray-200 flex flex-col">
+      {/* Conversation list — cachée sur mobile si une conv est sélectionnée */}
+      <div className={`w-full md:w-80 flex-shrink-0 border-r border-gray-200 flex-col ${activeContactId ? "hidden md:flex" : "flex"}`}>
         <ConversationList
           conversations={allConversations}
           activeContactId={activeContactId}
@@ -162,34 +162,52 @@ export default function MessagesPage() {
         />
       </div>
 
-      {/* Chat area */}
-      <div className="flex-1 flex flex-col min-w-0 bg-white">
-        {!activeConversation ? (
-          <div className="flex-1 flex items-center justify-center bg-gray-50">
+      {/* Chat area — caché sur mobile si aucune conv sélectionnée */}
+      <div className={`flex-1 flex-col min-w-0 bg-white ${activeContactId ? "flex" : "hidden md:flex"}`}>
+        {activeContactId ? (
+          <>
+            {/* Bouton retour mobile */}
+            <div className="md:hidden px-4 py-3 border-b flex items-center gap-3 bg-white">
+              <button
+                onClick={() => setActiveContactId(null)}
+                className="p-1.5 hover:bg-gray-100 rounded-lg"
+              >
+                <ArrowLeft size={20} />
+              </button>
+              <p className="font-semibold text-gray-900 truncate">
+                {activeConversation?.first_name || "Chat"}
+              </p>
+            </div>
+            {activeConversation ? (
+              <>
+                <div className="flex-1 min-h-0">
+                  <MessageThread
+                    conversation={activeConversation}
+                    messages={activeMessages}
+                    loading={loadingMessages}
+                  />
+                </div>
+                <MessageInput
+                  onSend={handleSend}
+                  templates={templates}
+                  autoFocus={true}
+                />
+              </>
+            ) : (
+              <div className="flex-1 flex items-center justify-center bg-gray-50">
+                <div className="w-6 h-6 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin" />
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="hidden md:flex flex-1 items-center justify-center bg-gray-50">
             <div className="text-center">
               <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-3">
                 <MessageSquare size={24} className="text-gray-300" />
               </div>
-              <p className="text-gray-400 text-sm">
-                Sélectionne une conversation
-              </p>
+              <p className="text-gray-400 text-sm">Sélectionne une conversation</p>
             </div>
           </div>
-        ) : (
-          <>
-            <div className="flex-1 min-h-0">
-              <MessageThread
-                conversation={activeConversation}
-                messages={activeMessages}
-                loading={loadingMessages}
-              />
-            </div>
-            <MessageInput
-              onSend={handleSend}
-              templates={templates}
-              autoFocus={true}
-            />
-          </>
         )}
       </div>
     </div>
