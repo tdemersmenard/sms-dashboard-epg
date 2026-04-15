@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Plus, X } from "lucide-react";
+import { useState, useMemo } from "react";
+import { Plus, X, Search } from "lucide-react";
 import { usePipeline } from "@/hooks/usePipeline";
 import PipelineBoard from "@/components/Pipeline/PipelineBoard";
 
@@ -17,6 +17,7 @@ export default function PipelinePage() {
   const { byStage, loading, updateStage, createContact } = usePipeline();
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [search, setSearch] = useState("");
   const [form, setForm] = useState({
     first_name: "",
     last_name: "",
@@ -69,14 +70,36 @@ export default function PipelinePage() {
     }
   };
 
+  const filteredByStage = useMemo(() => {
+    if (!search.trim()) return byStage;
+    const q = search.toLowerCase();
+    const filtered: typeof byStage = {};
+    for (const [stage, contacts] of Object.entries(byStage)) {
+      filtered[stage] = contacts.filter((c) =>
+        `${c.first_name ?? ""} ${c.last_name ?? ""} ${c.phone ?? ""}`.toLowerCase().includes(q)
+      );
+    }
+    return filtered;
+  }, [byStage, search]);
+
   return (
     <div className="flex flex-col h-screen bg-gray-50">
       {/* Header */}
-      <div className="flex-shrink-0 flex items-center justify-between px-6 py-4 bg-white border-b border-gray-200">
-        <h1 className="text-xl font-bold text-gray-900">Pipeline</h1>
+      <div className="flex-shrink-0 flex items-center gap-3 px-6 py-4 bg-white border-b border-gray-200">
+        <h1 className="text-xl font-bold text-gray-900 flex-shrink-0">Pipeline</h1>
+        <div className="flex-1 max-w-xs relative">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Rechercher un lead..."
+            className="w-full pl-8 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+          />
+        </div>
         <button
           onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-[#0a1f3f] text-white text-sm font-medium rounded-lg hover:bg-[#0f2855] transition"
+          className="ml-auto flex items-center gap-2 px-4 py-2 bg-[#0a1f3f] text-white text-sm font-medium rounded-lg hover:bg-[#0f2855] transition"
         >
           <Plus size={16} />
           Nouveau lead
@@ -90,7 +113,7 @@ export default function PipelinePage() {
             <div className="w-6 h-6 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin" />
           </div>
         ) : (
-          <PipelineBoard byStage={byStage} onDragEnd={updateStage} />
+          <PipelineBoard byStage={filteredByStage} onDragEnd={updateStage} />
         )}
       </div>
 
