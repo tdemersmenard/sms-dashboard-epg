@@ -68,6 +68,16 @@ export async function POST(req: NextRequest) {
           .select()
           .single();
         contact = data;
+
+        // Log alert so Thomas sees the re-submission in Diagnostic
+        await supabaseAdmin.from("automation_logs").insert({
+          contact_id: existing.id,
+          type: "info",
+          action: "facebook_resubmit",
+          message: `Lead Facebook re-soumis par ${firstName ?? existing.phone}`,
+          ran_at: new Date().toISOString(),
+          status: "success",
+        });
       } else {
         const { data } = await supabaseAdmin
           .from("contacts")
