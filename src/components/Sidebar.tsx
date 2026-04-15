@@ -48,8 +48,8 @@ export default function Sidebar() {
     return () => { supabaseBrowser.removeChannel(channel); };
   }, []);
 
-  // Ne pas afficher la nav sur les pages du portail client
-  if (pathname?.startsWith("/portail")) return null;
+  // Ne pas afficher la nav sur les pages du portail client ou la page de login
+  if (pathname === "/login" || pathname?.startsWith("/portail")) return null;
 
   return (
     <>

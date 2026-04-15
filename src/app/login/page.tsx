@@ -40,7 +40,7 @@ function LoginForm() {
         setTempToken(data.tempToken);
         setStep("totp");
       } else {
-        router.push(redirect);
+        window.location.href = redirect;
       }
     } catch {
       setError("Erreur de connexion");
@@ -67,7 +67,7 @@ function LoginForm() {
         return;
       }
 
-      router.push(redirect);
+      window.location.href = redirect;
     } catch {
       setError("Erreur");
     }
