@@ -2,7 +2,7 @@
 
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { FileText, Calendar, CreditCard, Phone, Mail, ChevronRight, Download, CheckCircle, XCircle, MessageSquare, Send } from "lucide-react";
+import { FileText, Calendar, CreditCard, Phone, Mail, ChevronRight, Download, CheckCircle, XCircle, MessageSquare, Send, LogOut } from "lucide-react";
 
 function fmt(n: number) {
   return new Intl.NumberFormat("fr-CA", { style: "currency", currency: "CAD", minimumFractionDigits: 0 }).format(n);
@@ -51,16 +51,16 @@ export default function PortailDashboard() {
   const [smsError, setSmsError] = useState(false);
 
   useEffect(() => {
-    const token = localStorage.getItem("portal_token");
-    if (!token) { router.push("/portail"); return; }
-    const headers = { Authorization: `Bearer ${token}` };
     const t = Date.now();
 
     Promise.all([
-      fetch(`/api/portail/me?t=${t}`, { headers, cache: "no-store" }).then(r => r.json()),
-      fetch(`/api/portail/documents?t=${t}`, { headers, cache: "no-store" }).then(r => r.json()),
-      fetch(`/api/portail/jobs?t=${t}`, { headers, cache: "no-store" }).then(r => r.json()),
-      fetch(`/api/portail/payments?t=${t}`, { headers, cache: "no-store" }).then(r => r.json()),
+      fetch(`/api/portail/me?t=${t}`, { cache: "no-store" }).then(r => {
+        if (r.status === 401) { router.push("/portail"); throw new Error("Non autorisé"); }
+        return r.json();
+      }),
+      fetch(`/api/portail/documents?t=${t}`, { cache: "no-store" }).then(r => r.json()),
+      fetch(`/api/portail/jobs?t=${t}`, { cache: "no-store" }).then(r => r.json()),
+      fetch(`/api/portail/payments?t=${t}`, { cache: "no-store" }).then(r => r.json()),
     ]).then(([me, docs, jobs, payments]) => {
       if (me?.client) setClient(me.client);
       if (Array.isArray(docs)) setDocuments(docs);
@@ -76,15 +76,19 @@ export default function PortailDashboard() {
 
   const pendingPayments = paymentData.payments.filter(p => p.status === "en_attente");
 
+  const handleLogout = async () => {
+    await fetch("/api/portail/logout", { method: "POST" });
+    router.push("/portail");
+  };
+
   const handleSendSms = async () => {
     if (!smsText.trim()) return;
     setSmsSending(true);
     setSmsError(false);
     try {
-      const token = localStorage.getItem("portal_token");
       const res = await fetch("/api/portail/contact", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: smsText.trim() }),
       });
       if (res.ok) {
@@ -115,11 +119,20 @@ export default function PortailDashboard() {
       </Suspense>
 
       {/* Welcome */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">
-          Bonjour{client?.first_name ? ` ${client.first_name}` : ""}!
-        </h1>
-        <p className="text-sm text-gray-500 mt-1 capitalize">Nous sommes le {today}.</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">
+            Bonjour{client?.first_name ? ` ${client.first_name}` : ""}!
+          </h1>
+          <p className="text-sm text-gray-500 mt-1 capitalize">Nous sommes le {today}.</p>
+        </div>
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-600 transition mt-1"
+        >
+          <LogOut size={15} />
+          Déconnexion
+        </button>
       </div>
 
       {/* Quick stats */}

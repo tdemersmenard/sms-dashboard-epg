@@ -35,8 +35,8 @@ export async function POST(req: NextRequest) {
     portal_token_expires: expires.toISOString(),
   }).eq("id", contact.id);
 
-  return NextResponse.json({
-    token,
+  const response = NextResponse.json({
+    success: true,
     client: {
       id: contact.id,
       firstName: contact.first_name,
@@ -44,4 +44,14 @@ export async function POST(req: NextRequest) {
       email: contact.email,
     },
   });
+
+  response.cookies.set("portal_token", token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: 60 * 60 * 24 * 30, // 30 jours
+    path: "/",
+  });
+
+  return response;
 }

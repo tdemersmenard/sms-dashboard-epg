@@ -23,7 +23,6 @@ export default function PortailLogin() {
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || "Erreur de connexion"); return; }
-      localStorage.setItem("portal_token", data.token);
       router.push("/portail/dashboard");
     } catch {
       setError("Erreur de connexion");

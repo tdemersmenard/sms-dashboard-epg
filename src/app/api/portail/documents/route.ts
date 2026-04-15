@@ -6,7 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 
 async function getContactFromToken(req: NextRequest) {
-  const token = req.headers.get("Authorization")?.replace("Bearer ", "");
+  const token = req.cookies.get("portal_token")?.value ?? req.headers.get("Authorization")?.replace("Bearer ", "");
   if (!token) return null;
   const { data } = await supabaseAdmin
     .from("contacts")
