@@ -30,14 +30,13 @@ export async function GET() {
       const subject = headers.find((h) => h.name === "Subject")?.value || "";
       const msgId = fullMsg?.id || "";
 
-      // Check if already processed
+      // Anti-doublon: skip si déjà scanné (peu importe le status)
       const { data: existingLog } = await supabaseAdmin
         .from("automation_logs")
         .select("id")
-        .eq("action", `interac_email_${msgId}`)
-        .maybeSingle();
-
-      if (existingLog) continue;
+        .eq("action", `interac_scan_${msgId}`)
+        .limit(1);
+      if (existingLog && existingLog.length > 0) continue;
 
       // Parse amount and sender name from subject
       // e.g. "INTERAC e-Transfer: John Doe sent you $250.00"
