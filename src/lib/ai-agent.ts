@@ -257,6 +257,27 @@ export async function generateAIResponse(contactId: string, inboundMessage: stri
     const timeStr = now.toLocaleTimeString("fr-CA", { timeZone: "America/Montreal", hour: "2-digit", minute: "2-digit" });
     clientContext += `\nDATE ET HEURE ACTUELLES: ${dateStr}, ${timeStr}\n`;
 
+    // Calculer les prochaines dates de dispo pour le bot
+    const upcoming: string[] = [];
+    for (let i = 1; i <= 14; i++) {
+      const d = new Date(now.getTime() + i * 24 * 60 * 60 * 1000);
+      // Convertir en heure Montréal pour le bon jour
+      const dayName = d.toLocaleDateString("fr-CA", { timeZone: "America/Montreal", weekday: "long" });
+      const dayNum = d.toLocaleDateString("fr-CA", { timeZone: "America/Montreal", day: "numeric" });
+      const monthName = d.toLocaleDateString("fr-CA", { timeZone: "America/Montreal", month: "long" });
+      const dayOfWeek = new Date(d.toLocaleString("en-US", { timeZone: "America/Montreal" })).getDay(); // 0=dim
+
+      let dispo = "";
+      if (dayOfWeek === 2) dispo = "8h à 12h"; // mardi
+      else if (dayOfWeek === 4) dispo = "8h à 12h"; // jeudi
+      else if (dayOfWeek === 5) dispo = "13h à 17h"; // vendredi
+      else if (dayOfWeek === 0 || dayOfWeek === 6) dispo = "8h à 17h"; // sam-dim
+      else continue; // lun-mer = pas dispo
+
+      upcoming.push(`${dayName} ${dayNum} ${monthName}: ${dispo}`);
+    }
+    clientContext += `\nPROCHAINES DISPONIBILITÉS (utilise ces dates EXACTES, NE CALCULE PAS toi-même):\n${upcoming.join("\n")}\n`;
+
     // Charger les leçons apprises
     const { loadLearnings } = await import("@/lib/ai-learning");
     const learnings = await loadLearnings();
