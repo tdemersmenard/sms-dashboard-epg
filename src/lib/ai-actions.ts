@@ -826,7 +826,13 @@ export async function executeActions(actions: AIAction[], contactId: string) {
                 amount,
               }),
             });
-            const contractData = await contractResp.json();
+            const contractText = await contractResp.text();
+            let contractData: unknown = {};
+            try {
+              contractData = contractText ? JSON.parse(contractText) : {};
+            } catch {
+              console.error("[ai-actions] CLOSE_DEAL: contract response not JSON:", contractText.slice(0, 200));
+            }
             console.log("[ai-actions] CLOSE_DEAL: contract created", contractData);
           } catch (e) {
             console.error("[ai-actions] CLOSE_DEAL: contract error", e);
