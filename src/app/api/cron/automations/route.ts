@@ -39,5 +39,13 @@ export async function GET(req: NextRequest) {
     results.routes_auto_error = String(e);
   }
 
+  // 4. Relances automatiques
+  try {
+    const { sendFollowUps } = await import("@/lib/automations/follow-ups");
+    results.follow_ups = await sendFollowUps();
+  } catch (e) {
+    results.follow_ups_error = String(e);
+  }
+
   return NextResponse.json({ ok: true, ...results });
 }
