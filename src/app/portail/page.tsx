@@ -24,7 +24,9 @@ export default function PortailLogin() {
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || "Erreur de connexion"); return; }
-      document.cookie = `portal_token=${data.token.trim().replace(/\s/g, "")}; path=/; max-age=${60*60*24*30}; secure; samesite=lax`;
+      const cleanToken = data.token.trim().replace(/\s/g, "");
+      document.cookie = `portal_token=${cleanToken}; path=/; max-age=${60*60*24*30}; samesite=lax`;
+      localStorage.setItem("portal_token", cleanToken);
       window.location.href = "/portail/dashboard";
     } catch {
       setError("Erreur de connexion");
