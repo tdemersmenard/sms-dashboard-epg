@@ -19,7 +19,12 @@ const PUBLIC_PATHS = [
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // Portail client : protéger les sous-pages (dashboard, etc.)
+  // API portail = toujours public
+  if (pathname.startsWith("/api/portail")) {
+    return NextResponse.next();
+  }
+
+  // Portail client : protéger les sous-pages
   if (pathname.startsWith("/portail")) {
     // Page de login portail = publique
     if (pathname === "/portail" || pathname.startsWith("/portail/login")) {
