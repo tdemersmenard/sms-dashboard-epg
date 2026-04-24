@@ -23,7 +23,7 @@ export default function PortailLogin() {
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || "Erreur de connexion"); return; }
-      router.push("/portail/dashboard");
+      window.location.href = "/portail/dashboard";
     } catch {
       setError("Erreur de connexion");
     } finally {
