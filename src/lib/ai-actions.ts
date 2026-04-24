@@ -1,4 +1,6 @@
 import { supabaseAdmin } from "@/lib/supabase";
+import bcrypt from "bcryptjs";
+import crypto from "crypto";
 
 interface BaseAction {
   type: string;
@@ -885,18 +887,37 @@ export async function executeActions(actions: AIAction[], contactId: string) {
 
           console.log("[ai-actions] CLOSE_DEAL: payments created");
 
-          // 6. Délai 8 secondes avant l'accès portail
-          await new Promise(r => setTimeout(r, 8000));
+          // 6. Délai 5 secondes avant l'accès portail
+          await new Promise(r => setTimeout(r, 5000));
 
-          // 7. Envoyer l'accès portail (si pas déjà fait)
-          if (contact.email) {
+          // 7. Envoyer l'accès portail directement (sans fetch self-call)
+          if (contact.email && !contact.portal_password) {
             try {
-              await fetch(`${baseUrl}/api/portail/send-welcome`, {
+              const tempPassword = Math.random().toString(36).slice(-8);
+              const hash = await bcrypt.hash(tempPassword, 10);
+              const token = crypto.randomBytes(32).toString("hex");
+              const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+              await supabaseAdmin
+                .from("contacts")
+                .update({
+                  portal_password: hash,
+                  portal_token: token,
+                  portal_token_expires: expires.toISOString(),
+                })
+                .eq("id", contactId);
+
+              // Envoyer le SMS avec les identifiants
+              await fetch(`${baseUrl}/api/sms/send`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ contactId }),
+                body: JSON.stringify({
+                  contactId,
+                  body: `Votre portail client est prêt! Connectez-vous sur https://sms-dashboard-epg.vercel.app/portail avec:\nEmail: ${contact.email}\nMot de passe: ${tempPassword}\n\nVous pourrez y voir vos rendez-vous et paiements.`,
+                }),
               });
-              console.log("[ai-actions] CLOSE_DEAL: portal access sent");
+
+              console.log("[ai-actions] CLOSE_DEAL: portal access sent directly");
             } catch (e) {
               console.error("[ai-actions] CLOSE_DEAL: portal error", e);
             }
