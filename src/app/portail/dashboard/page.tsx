@@ -53,15 +53,17 @@ export default function PortailDashboard() {
   useEffect(() => {
     const t = Date.now();
 
-    const portalToken = localStorage.getItem("portal_token") || "";
+    const token = localStorage.getItem("portal_token") || "";
+    const authHeaders = { Authorization: `Bearer ${token}` };
+
     Promise.all([
-      fetch(`/api/portail/me?t=${t}`, { cache: "no-store", headers: { "Authorization": `Bearer ${portalToken}` } }).then(r => {
-        if (r.status === 401) { router.push("/portail"); throw new Error("Non autorisé"); }
+      fetch(`/api/portail/me?t=${t}`, { cache: "no-store", headers: authHeaders }).then(r => {
+        if (r.status === 401) { localStorage.removeItem("portal_token"); router.push("/portail"); throw new Error("Non autorisé"); }
         return r.json();
       }),
-      fetch(`/api/portail/documents?t=${t}`, { cache: "no-store", headers: { "Authorization": `Bearer ${portalToken}` } }).then(r => r.json()),
-      fetch(`/api/portail/jobs?t=${t}`, { cache: "no-store", headers: { "Authorization": `Bearer ${portalToken}` } }).then(r => r.json()),
-      fetch(`/api/portail/payments?t=${t}`, { cache: "no-store", headers: { "Authorization": `Bearer ${portalToken}` } }).then(r => r.json()),
+      fetch(`/api/portail/documents?t=${t}`, { cache: "no-store", headers: authHeaders }).then(r => r.json()),
+      fetch(`/api/portail/jobs?t=${t}`, { cache: "no-store", headers: authHeaders }).then(r => r.json()),
+      fetch(`/api/portail/payments?t=${t}`, { cache: "no-store", headers: authHeaders }).then(r => r.json()),
     ]).then(([me, docs, jobs, payments]) => {
       if (me?.client) setClient(me.client);
       if (Array.isArray(docs)) setDocuments(docs);
