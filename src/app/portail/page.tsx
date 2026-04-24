@@ -24,7 +24,7 @@ export default function PortailLogin() {
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || "Erreur de connexion"); return; }
-      window.location.href = "/portail/dashboard";
+      window.location.href = `/api/portail/set-cookie?token=${data.token}&redirect=/portail/dashboard`;
     } catch {
       setError("Erreur de connexion");
     } finally {
