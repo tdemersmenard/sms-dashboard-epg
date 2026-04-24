@@ -8,7 +8,23 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(new URL("/portail", req.url));
   }
 
-  const response = NextResponse.redirect(new URL(redirect, req.url));
+  // Utiliser une page HTML qui set le cookie via meta refresh
+  // Ça garantit que le cookie est appliqué AVANT la navigation
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta http-equiv="refresh" content="0;url=${redirect}">
+      </head>
+      <body>Redirection...</body>
+    </html>
+  `;
+
+  const response = new NextResponse(html, {
+    status: 200,
+    headers: { "Content-Type": "text/html" },
+  });
+
   response.cookies.set("portal_token", token, {
     httpOnly: true,
     secure: true,
