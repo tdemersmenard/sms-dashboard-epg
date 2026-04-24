@@ -4,14 +4,7 @@ import type { NextRequest } from "next/server";
 const PUBLIC_PATHS = [
   "/login",
   "/portail",
-  "/api/portail",
-  "/api/auth",
-  "/api/webhook",
-  "/api/sms",
-  "/api/twilio",
-  "/api/cron",
-  "/api/leads",
-  "/api/email/check-payments",
+  "/api",
   "/_next",
   "/favicon.ico",
 ];
@@ -19,27 +12,7 @@ const PUBLIC_PATHS = [
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // API portail = toujours public
-  if (pathname.startsWith("/api/portail")) {
-    return NextResponse.next();
-  }
-
-  // Portail client : protéger les sous-pages
-  if (pathname.startsWith("/portail")) {
-    // Page de login portail = publique
-    if (pathname === "/portail" || pathname.startsWith("/portail/login")) {
-      return NextResponse.next();
-    }
-    // Sous-pages = vérifier le cookie
-    const token = req.cookies.get("portal_token")?.value;
-    if (!token) {
-      return NextResponse.redirect(new URL("/portail", req.url));
-    }
-    // Cookie existe = OK, laisser passer et STOP (ne pas checker admin)
-    return NextResponse.next();
-  }
-
-  // App admin : laisser passer les chemins publics
+  // Tout ce qui est public = laisser passer
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
     return NextResponse.next();
   }
