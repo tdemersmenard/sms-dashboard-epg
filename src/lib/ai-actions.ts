@@ -798,7 +798,7 @@ export async function executeActions(actions: AIAction[], contactId: string) {
           // 1. Récupérer le contact
           const { data: contact } = await supabaseAdmin
             .from("contacts")
-            .select("first_name, last_name, email, phone, services, address")
+            .select("first_name, last_name, email, phone, services, address, portal_password")
             .eq("id", contactId)
             .single();
 
