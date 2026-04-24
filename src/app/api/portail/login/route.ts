@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Email ou mot de passe incorrect" }, { status: 401 });
   }
 
-  const token = crypto.randomBytes(32).toString("hex");
+  const token = crypto.randomBytes(32).toString("hex").trim();
   const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
   await supabaseAdmin.from("contacts").update({
