@@ -20,16 +20,18 @@ export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // Portail client : protéger les sous-pages (dashboard, etc.)
-  if (
-    pathname.startsWith("/portail") &&
-    pathname !== "/portail" &&
-    !pathname.startsWith("/portail/login") &&
-    !pathname.startsWith("/api/portail/")
-  ) {
+  if (pathname.startsWith("/portail")) {
+    // Page de login portail = publique
+    if (pathname === "/portail" || pathname.startsWith("/portail/login")) {
+      return NextResponse.next();
+    }
+    // Sous-pages = vérifier le cookie
     const token = req.cookies.get("portal_token")?.value;
     if (!token) {
       return NextResponse.redirect(new URL("/portail", req.url));
     }
+    // Cookie existe = OK, laisser passer et STOP (ne pas checker admin)
+    return NextResponse.next();
   }
 
   // App admin : laisser passer les chemins publics
