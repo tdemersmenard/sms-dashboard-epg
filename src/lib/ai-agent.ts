@@ -272,26 +272,78 @@ export async function generateAIResponse(contactId: string, inboundMessage: stri
     const timeStr = now.toLocaleTimeString("fr-CA", { timeZone: "America/Montreal", hour: "2-digit", minute: "2-digit" });
     clientContext += `\nDATE ET HEURE ACTUELLES: ${dateStr}, ${timeStr}\n`;
 
-    // Calculer les prochaines dates de dispo pour le bot
+    // Calculer les prochaines dates de dispo en vérifiant le calendrier
     const upcoming: string[] = [];
+    const { data: existingJobs } = await supabaseAdmin
+      .from("jobs")
+      .select("scheduled_date, scheduled_time_start, scheduled_time_end")
+      .gte("scheduled_date", now.toISOString().split("T")[0])
+      .lte("scheduled_date", new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString().split("T")[0])
+      .order("scheduled_date")
+      .order("scheduled_time_start");
+
+    // Regrouper les jobs par date
+    const jobsByDate: Record<string, { start: string; end: string }[]> = {};
+    for (const j of existingJobs || []) {
+      if (!jobsByDate[j.scheduled_date]) jobsByDate[j.scheduled_date] = [];
+      jobsByDate[j.scheduled_date].push({
+        start: j.scheduled_time_start?.slice(0, 5) || "08:00",
+        end: j.scheduled_time_end?.slice(0, 5) || "09:00",
+      });
+    }
+
     for (let i = 1; i <= 14; i++) {
       const d = new Date(now.getTime() + i * 24 * 60 * 60 * 1000);
-      // Convertir en heure Montréal pour le bon jour
       const dayName = d.toLocaleDateString("fr-CA", { timeZone: "America/Montreal", weekday: "long" });
       const dayNum = d.toLocaleDateString("fr-CA", { timeZone: "America/Montreal", day: "numeric" });
       const monthName = d.toLocaleDateString("fr-CA", { timeZone: "America/Montreal", month: "long" });
-      const dayOfWeek = new Date(d.toLocaleString("en-US", { timeZone: "America/Montreal" })).getDay(); // 0=dim
+      const dateStr = d.toLocaleDateString("en-CA", { timeZone: "America/Montreal" }); // YYYY-MM-DD
+      const dayOfWeek = new Date(d.toLocaleString("en-US", { timeZone: "America/Montreal" })).getDay();
 
-      let dispo = "";
-      if (dayOfWeek === 2) dispo = "8h à 12h"; // mardi
-      else if (dayOfWeek === 4) dispo = "8h à 12h"; // jeudi
-      else if (dayOfWeek === 5) dispo = "13h à 17h"; // vendredi
-      else if (dayOfWeek === 0 || dayOfWeek === 6) dispo = "8h à 17h"; // sam-dim
+      let dispoStart = "";
+      let dispoEnd = "";
+      if (dayOfWeek === 2) { dispoStart = "08:00"; dispoEnd = "12:00"; } // mardi
+      else if (dayOfWeek === 4) { dispoStart = "08:00"; dispoEnd = "12:00"; } // jeudi
+      else if (dayOfWeek === 5) { dispoStart = "13:00"; dispoEnd = "17:00"; } // vendredi
+      else if (dayOfWeek === 0 || dayOfWeek === 6) { dispoStart = "08:00"; dispoEnd = "17:00"; } // sam-dim
       else continue; // lun-mer = pas dispo
 
-      upcoming.push(`${dayName} ${dayNum} ${monthName}: ${dispo}`);
+      // Vérifier les plages libres
+      const dayJobs = jobsByDate[dateStr] || [];
+
+      // Calculer les créneaux libres (blocs de 2h)
+      const slots: string[] = [];
+      let cursor = dispoStart;
+
+      while (cursor < dispoEnd) {
+        const cursorEnd = `${String(parseInt(cursor.split(":")[0]) + 2).padStart(2, "0")}:${cursor.split(":")[1]}`;
+        if (cursorEnd > dispoEnd) break;
+
+        // Vérifier si ce créneau chevauche un job existant
+        const overlap = dayJobs.some(j => {
+          return cursor < j.end && cursorEnd > j.start;
+        });
+
+        if (!overlap) {
+          slots.push(`${cursor}-${cursorEnd}`);
+        }
+
+        // Avancer de 2h30 (2h de job + 30min de buffer)
+        const [h, m] = cursor.split(":").map(Number);
+        const nextMinutes = h * 60 + m + 150;
+        cursor = `${String(Math.floor(nextMinutes / 60)).padStart(2, "0")}:${String(nextMinutes % 60).padStart(2, "0")}`;
+      }
+
+      if (slots.length > 0) {
+        upcoming.push(`${dayName} ${dayNum} ${monthName}: créneaux libres ${slots.join(", ")}`);
+      }
     }
-    clientContext += `\nPROCHAINES DISPONIBILITÉS (utilise ces dates EXACTES, NE CALCULE PAS toi-même):\n${upcoming.join("\n")}\n`;
+
+    if (upcoming.length > 0) {
+      clientContext += `\nPROCHAINES DISPONIBILITÉS (utilise ces créneaux EXACTES, NE PROPOSE PAS de créneau non listé):\n${upcoming.join("\n")}\n`;
+    } else {
+      clientContext += `\nPROCHAINES DISPONIBILITÉS: Aucun créneau libre dans les 14 prochains jours. Dis au client de te rappeler la semaine prochaine ou notifie Thomas.\n`;
+    }
 
     // Charger les leçons apprises
     const { loadLearnings } = await import("@/lib/ai-learning");
