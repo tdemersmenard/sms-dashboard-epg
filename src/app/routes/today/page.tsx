@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
-import { Navigation, Check, Phone, MapPin, Clock, ArrowLeft, Loader2 } from "lucide-react";
+import { Navigation, Check, Phone, MapPin, Clock, ArrowLeft, Loader2, Camera } from "lucide-react";
 import Link from "next/link";
 import PostVisitChecklist from "@/components/PostVisitChecklist";
 
@@ -16,6 +16,7 @@ export default function TodayRoutePage() {
   const [stops, setStops] = useState<any[]>([]);
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
   const [checklistStop, setChecklistStop] = useState<{ name: string; id: string; jobType: string } | null>(null);
+  const [photoUploading, setPhotoUploading] = useState<string | null>(null);
 
   useEffect(() => {
     loadToday();
@@ -86,6 +87,22 @@ export default function TodayRoutePage() {
     }
 
     setLoading(false);
+  };
+
+  const handlePhotoCapture = async (contactId: string, file: File) => {
+    setPhotoUploading(contactId);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("contactId", contactId);
+      formData.append("type", "photo_thomas");
+      await fetch("/api/photos/upload", { method: "POST", body: formData });
+    } catch (e) {
+      console.error("Erreur upload photo:", e);
+      alert("Erreur lors de l'upload");
+    } finally {
+      setPhotoUploading(null);
+    }
   };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -225,6 +242,25 @@ export default function TodayRoutePage() {
                               <Phone size={12} />
                             </a>
                           )}
+                          <label className="cursor-pointer flex items-center justify-center gap-1 px-3 py-2 bg-gray-100 rounded-lg text-xs font-medium text-gray-700 hover:bg-gray-200">
+                            {photoUploading === stop.id ? (
+                              <Loader2 size={12} className="animate-spin" />
+                            ) : (
+                              <Camera size={12} />
+                            )}
+                            Photo
+                            <input
+                              type="file"
+                              accept="image/*"
+                              capture="environment"
+                              className="hidden"
+                              onChange={e => {
+                                const file = e.target.files?.[0];
+                                if (file) handlePhotoCapture(stop.id, file);
+                                e.target.value = "";
+                              }}
+                            />
+                          </label>
                           <button
                             onClick={() => setChecklistStop({ name: stop.contactName, id: stop.id, jobType: stop.jobType || "entretien" })}
                             className="flex-1 bg-green-600 text-white rounded-lg py-2 text-xs font-medium flex items-center justify-center gap-1 hover:bg-green-700"

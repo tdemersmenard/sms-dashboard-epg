@@ -175,6 +175,13 @@ PORTAIL CLIENT:
 ADRESSE MANQUANTE:
 - Si tu sais que le client a un service d'entretien mais que son adresse est pas dans les infos connues, demande-lui: "Pour planifier vos passages d'entretien, j'aurais besoin de votre adresse complète. Quelle est-elle?"
 - L'adresse sera automatiquement sauvegardée dans sa fiche
+
+PHOTOS: Si le client envoie une photo, analyse-la attentivement. Si c'est une photo de piscine:
+- Identifie la couleur de l'eau (claire, verte, trouble, laiteuse)
+- Identifie les problèmes visibles (algues, débris, équipement brisé, niveau d'eau bas)
+- Donne des recommandations de base
+- Si le problème semble sérieux, notifie Thomas avec __ACTION:NOTIFY_THOMAS:Photo reçue du client — [description du problème]__
+Si c'est une photo d'un reçu de paiement ou d'un virement, dis au client que tu as bien reçu la preuve et notifie Thomas.
 `;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -198,7 +205,7 @@ async function callClaudeWithRetry(params: any, maxRetries = 5): Promise<any> {
   throw lastError;
 }
 
-export async function generateAIResponse(contactId: string, inboundMessage: string): Promise<string | null> {
+export async function generateAIResponse(contactId: string, inboundMessage: string, imageUrls?: string[]): Promise<string | null> {
   try {
     const { data: contact } = await supabaseAdmin
       .from("contacts")
@@ -349,11 +356,57 @@ export async function generateAIResponse(contactId: string, inboundMessage: stri
     const { loadLearnings } = await import("@/lib/ai-learning");
     const learnings = await loadLearnings();
 
+    // Si des images sont jointes, construire un message multimodal pour le dernier message user
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let finalMessages: any[] = conversationHistory;
+
+    if (imageUrls && imageUrls.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const contentParts: any[] = [];
+
+      for (const imgUrl of imageUrls) {
+        try {
+          const imgResp = await fetch(imgUrl, {
+            headers: {
+              Authorization: "Basic " + Buffer.from(
+                `${process.env.TWILIO_ACCOUNT_SID}:${process.env.TWILIO_AUTH_TOKEN}`
+              ).toString("base64"),
+            },
+          });
+          const imgBuffer = await imgResp.arrayBuffer();
+          const base64 = Buffer.from(imgBuffer).toString("base64");
+          const mediaType = imgResp.headers.get("content-type") || "image/jpeg";
+
+          contentParts.push({
+            type: "image",
+            source: { type: "base64", media_type: mediaType, data: base64 },
+          });
+        } catch (e) {
+          console.error("[ai-agent] Error fetching image:", e);
+        }
+      }
+
+      contentParts.push({
+        type: "text",
+        text: inboundMessage || "Le client a envoyé cette photo. Analyse-la et réponds en français.",
+      });
+
+      // Remplacer le contenu du dernier message user par le contenu multimodal
+      const msgs = [...conversationHistory];
+      const lastUserIdx = msgs.map(m => m.role).lastIndexOf("user");
+      if (lastUserIdx >= 0) {
+        msgs[lastUserIdx] = { role: "user", content: contentParts };
+      } else {
+        msgs.push({ role: "user", content: contentParts });
+      }
+      finalMessages = msgs;
+    }
+
     const response = await callClaudeWithRetry({
       model: "claude-sonnet-4-20250514",
       max_tokens: 500,
       system: SYSTEM_PROMPT + clientContext + learnings,
-      messages: conversationHistory,
+      messages: finalMessages,
     });
 
     const aiText = response.content[0]?.type === "text" ? response.content[0].text : null;
