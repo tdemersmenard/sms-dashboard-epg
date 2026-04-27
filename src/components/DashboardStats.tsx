@@ -4,12 +4,13 @@ import { useEffect, useState } from "react";
 import { DollarSign, TrendingUp, TrendingDown, CreditCard, AlertTriangle, UserCheck, Target, Calendar, PiggyBank, Receipt } from "lucide-react";
 
 const PERIODS = [
-  { key: "today", label: "Aujourd'hui" },
-  { key: "7d",    label: "7 jours" },
-  { key: "30d",   label: "30 jours" },
-  { key: "90d",   label: "90 jours" },
-  { key: "year",  label: "Cette année" },
-  { key: "all",   label: "Tout" },
+  { key: "today",     label: "Aujourd'hui" },
+  { key: "yesterday", label: "Hier" },
+  { key: "7d",        label: "7 jours" },
+  { key: "30d",       label: "30 jours" },
+  { key: "90d",       label: "90 jours" },
+  { key: "year",      label: "Cette année" },
+  { key: "all",       label: "Tout" },
 ] as const;
 
 type PeriodKey = typeof PERIODS[number]["key"];
@@ -17,6 +18,7 @@ type PeriodKey = typeof PERIODS[number]["key"];
 interface Stats {
   period: string;
   totalRevenue: number;
+  totalBilled: number;
   periodRevenue: number;
   prevRevenue: number;
   periodChange: number | null;
@@ -57,15 +59,15 @@ export default function DashboardStats() {
 
   return (
     <div className="space-y-5">
-      {/* Period selector — style Shopify */}
-      <div className="flex items-center justify-between">
+      {/* Period selector */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <h2 className="text-sm font-semibold text-gray-700">Statistiques</h2>
-        <div className="flex bg-gray-100 rounded-lg p-1 gap-0.5">
+        <div className="flex bg-gray-100 rounded-lg p-1 gap-0.5 flex-wrap">
           {PERIODS.map(p => (
             <button
               key={p.key}
               onClick={() => setPeriod(p.key)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+              className={`px-2.5 py-1.5 text-xs font-medium rounded-md transition-all whitespace-nowrap ${
                 period === p.key
                   ? "bg-white text-gray-900 shadow-sm"
                   : "text-gray-500 hover:text-gray-700"
@@ -85,10 +87,10 @@ export default function DashboardStats() {
         </div>
       ) : stats ? (
         <>
-          {/* Row 1: Revenue cards */}
+          {/* Row 1: Revenue */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <StatCard
-              label={`Revenu — ${periodLabel}`}
+              label={`Encaissé — ${periodLabel}`}
               value={fmt(stats.periodRevenue)}
               icon={<DollarSign size={20} />}
               iconColor="text-green-600"
@@ -96,12 +98,12 @@ export default function DashboardStats() {
               change={stats.periodChange}
             />
             <StatCard
-              label="Revenu total"
-              value={fmt(stats.totalRevenue)}
+              label="Total facturé"
+              value={fmt(stats.totalBilled)}
               icon={<PiggyBank size={20} />}
               iconColor="text-emerald-600"
               iconBg="bg-emerald-50"
-              subtitle={`Profit net: ${fmt(stats.profitNet)}`}
+              subtitle={`Encaissé: ${fmt(stats.totalRevenue)}`}
             />
             <StatCard
               label="À recevoir"
@@ -155,7 +157,7 @@ export default function DashboardStats() {
             />
           </div>
 
-          {/* Revenue chart — toujours 6 mois */}
+          {/* Revenue chart */}
           <div className="bg-white rounded-xl border border-gray-200 p-5">
             <h3 className="text-sm font-semibold text-gray-700 mb-4">Revenus vs dépenses (6 mois)</h3>
             <RevenueChart data={stats.revenueByMonth} />
@@ -210,12 +212,12 @@ function RevenueChart({ data }: { data: { month: string; revenue: number; depens
               <div
                 className="bg-green-400 rounded-t"
                 style={{ width: "40%", height: `${Math.max((m.revenue / maxVal) * 100, 2)}px` }}
-                title={`Revenus: ${new Intl.NumberFormat("fr-CA", { style: "currency", currency: "CAD", maximumFractionDigits: 0 }).format(m.revenue)}`}
+                title={`Revenus: ${fmt(m.revenue)}`}
               />
               <div
                 className="bg-orange-300 rounded-t"
                 style={{ width: "40%", height: `${Math.max((m.depenses / maxVal) * 100, 2)}px` }}
-                title={`Dépenses: ${new Intl.NumberFormat("fr-CA", { style: "currency", currency: "CAD", maximumFractionDigits: 0 }).format(m.depenses)}`}
+                title={`Dépenses: ${fmt(m.depenses)}`}
               />
             </div>
             <span className="text-[10px] text-gray-500">{m.month}</span>
