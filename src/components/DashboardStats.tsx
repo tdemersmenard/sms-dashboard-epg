@@ -3,13 +3,6 @@
 import { useEffect, useState } from "react";
 import { DollarSign, TrendingUp, TrendingDown, CreditCard, AlertTriangle, UserCheck, Target, Calendar, PiggyBank, Receipt } from "lucide-react";
 
-const CARD_PERIODS = [
-  { key: "today",  label: "Aujourd'hui" },
-  { key: "week",   label: "Cette semaine" },
-  { key: "month",  label: "Ce mois" },
-  { key: "season", label: "Cette saison" },
-] as const;
-
 const PERIODS = [
   { key: "today",     label: "Aujourd'hui" },
   { key: "yesterday", label: "Hier" },
@@ -55,9 +48,6 @@ export default function DashboardStats() {
   const [period, setPeriod] = useState<PeriodKey>("30d");
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [periodCard, setPeriodCard] = useState("month");
-  const [cardStats, setCardStats] = useState<{ periodFacture: number; periodRecu: number; periodARecevoir: number } | null>(null);
-
   useEffect(() => {
     setLoading(true);
     fetch(`/api/dashboard/stats?period=${period}`)
@@ -66,13 +56,6 @@ export default function DashboardStats() {
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [period]);
-
-  useEffect(() => {
-    fetch(`/api/dashboard/stats?period=${periodCard}`)
-      .then(r => r.json())
-      .then(d => setCardStats({ periodFacture: d.periodFacture || 0, periodRecu: d.periodRecu || 0, periodARecevoir: d.periodARecevoir || 0 }))
-      .catch(console.error);
-  }, [periodCard]);
 
   const periodLabel = PERIODS.find(p => p.key === period)?.label || "";
 
@@ -106,48 +89,6 @@ export default function DashboardStats() {
         </div>
       ) : stats ? (
         <>
-          {/* Period selector + 3-card row */}
-          <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
-            <div className="flex gap-2 flex-wrap">
-              {CARD_PERIODS.map(p => (
-                <button
-                  key={p.key}
-                  onClick={() => setPeriodCard(p.key)}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
-                    periodCard === p.key
-                      ? "bg-[#0a1f3f] text-white"
-                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                  }`}
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              <StatCard
-                label="Facturé"
-                value={cardStats ? fmt(cardStats.periodFacture) : "—"}
-                icon={<Receipt size={20} />}
-                iconColor="text-violet-600"
-                iconBg="bg-violet-50"
-              />
-              <StatCard
-                label="Reçu"
-                value={cardStats ? fmt(cardStats.periodRecu) : "—"}
-                icon={<DollarSign size={20} />}
-                iconColor="text-green-600"
-                iconBg="bg-green-50"
-              />
-              <StatCard
-                label="À recevoir"
-                value={cardStats ? fmt(cardStats.periodARecevoir) : "—"}
-                icon={<CreditCard size={20} />}
-                iconColor={cardStats && cardStats.periodARecevoir > 0 ? "text-orange-600" : "text-gray-400"}
-                iconBg={cardStats && cardStats.periodARecevoir > 0 ? "bg-orange-50" : "bg-gray-50"}
-              />
-            </div>
-          </div>
-
           {/* Row 1: Revenue */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <StatCard
@@ -159,12 +100,12 @@ export default function DashboardStats() {
               change={stats.periodChange}
             />
             <StatCard
-              label="Total facturé"
-              value={fmt(stats.totalBilled)}
+              label={`Facturé — ${periodLabel}`}
+              value={fmt(stats.periodFacture)}
               icon={<PiggyBank size={20} />}
-              iconColor="text-emerald-600"
-              iconBg="bg-emerald-50"
-              subtitle={`Encaissé: ${fmt(stats.totalRevenue)}`}
+              iconColor="text-violet-600"
+              iconBg="bg-violet-50"
+              subtitle={`Total: ${fmt(stats.totalBilled)}`}
             />
             <StatCard
               label="À recevoir"
