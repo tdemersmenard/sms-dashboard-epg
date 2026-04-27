@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import Sidebar from "./Sidebar";
+import AdminTerminal from "./AdminTerminal";
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -13,6 +14,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <main className={`min-h-screen overflow-y-auto bg-white ${isAuthPage ? "" : "md:ml-[260px] pb-20 md:pb-0"}`}>
         {children}
       </main>
+      {!isAuthPage && <AdminTerminal />}
     </>
   );
 }
