@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { DollarSign, CreditCard, AlertCircle, Users, Calendar, Sparkles, Phone, MessageSquare, Mail } from "lucide-react";
+import { Calendar, Sparkles, Phone, MessageSquare, Mail } from "lucide-react";
+import DashboardStats from "@/components/DashboardStats";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { supabaseBrowser } from "@/lib/supabase-browser";
@@ -218,13 +219,6 @@ export default function DashboardPage() {
   const totalPaid    = clients.reduce((s, c) => s + c.paid,  0);
   const totalOwed    = totalRevenue - totalPaid;
 
-  const statCards = [
-    { label: "Revenu total",  display: fmt(totalRevenue), icon: <DollarSign size={22} className="text-green-600" />,  iconBg: "bg-green-50"  },
-    { label: "Payé à date",   display: fmt(totalPaid),    icon: <CreditCard  size={22} className="text-blue-600" />,   iconBg: "bg-blue-50"   },
-    { label: "À recevoir",    display: fmt(totalOwed),    icon: <AlertCircle size={22} className="text-orange-600" />, iconBg: "bg-orange-50" },
-    { label: "Clients",       display: String(clients.length), icon: <Users size={22} className="text-purple-600" />,  iconBg: "bg-purple-50" },
-  ];
-
   return (
     <div className="p-6 max-w-6xl mx-auto">
       {/* OAuth search-params handler (needs Suspense) */}
@@ -290,17 +284,9 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        {statCards.map((s) => (
-          <div key={s.label} className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-            <div className={`w-12 h-12 rounded-xl ${s.iconBg} flex items-center justify-center`}>
-              {s.icon}
-            </div>
-            <p className="text-3xl font-bold text-gray-900 mt-3">{s.display}</p>
-            <p className="text-sm text-gray-500 mt-1">{s.label}</p>
-          </div>
-        ))}
+      {/* Stats */}
+      <div className="mb-6">
+        <DashboardStats />
       </div>
 
       {/* AI Audit */}
