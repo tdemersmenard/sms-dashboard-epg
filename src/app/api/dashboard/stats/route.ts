@@ -21,6 +21,13 @@ function getPeriodStart(period: string, now: Date): string {
     case "30d":       return toDate(new Date(now.getTime() - 30 * 86400000).toISOString())!;
     case "90d":       return toDate(new Date(now.getTime() - 90 * 86400000).toISOString())!;
     case "year":      return `${y}-01-01`;
+    case "week": {
+      const startOfWeek = new Date(now);
+      startOfWeek.setDate(d - now.getDay());
+      return toDate(startOfWeek.toISOString())!;
+    }
+    case "month":     return `${y}-${pad(m + 1)}-01`;
+    case "season":    return `${y}-04-01`;
     default:          return "2000-01-01"; // all
   }
 }
@@ -163,6 +170,24 @@ export async function GET(req: NextRequest) {
     revenueByService[mainService] = (revenueByService[mainService] || 0) + (p.amount || 0);
   }
 
+  // Facturé / reçu / à recevoir pour la période sélectionnée
+  const periodFacture = (allPayments || [])
+    .filter(p => {
+      const d = toDate(p.due_date) ?? toDate(p.created_at) ?? "";
+      return d >= periodStart && (!periodEnd || d < periodEnd);
+    })
+    .reduce((s, p) => s + (p.amount || 0), 0);
+
+  const periodRecu = (allPayments || [])
+    .filter(p => {
+      if (p.status !== "reçu") return false;
+      const d = toDate(p.received_date) ?? toDate(p.created_at) ?? "";
+      return d >= periodStart && (!periodEnd || d < periodEnd);
+    })
+    .reduce((s, p) => s + (p.amount || 0), 0);
+
+  const periodARecevoir = Math.max(0, periodFacture - periodRecu);
+
   // Jobs cette semaine
   const weekEnd = toDate(new Date(now.getTime() + 7 * 86400000).toISOString())!;
   const { data: upcomingJobs } = await supabaseAdmin
@@ -193,5 +218,8 @@ export async function GET(req: NextRequest) {
     revenueByMonth,
     revenueByService,
     upcomingJobsThisWeek: upcomingJobs?.length || 0,
+    periodFacture,
+    periodRecu,
+    periodARecevoir,
   });
 }
