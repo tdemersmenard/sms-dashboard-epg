@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { Navigation, Check, Phone, MapPin, Clock, ArrowLeft, Loader2 } from "lucide-react";
 import Link from "next/link";
+import PostVisitChecklist from "@/components/PostVisitChecklist";
 
 const DAYS_FR = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
 const HOME_ADDR = "86 rue de Windsor, Granby, QC";
@@ -14,6 +15,7 @@ export default function TodayRoutePage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [stops, setStops] = useState<any[]>([]);
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
+  const [checklistStop, setChecklistStop] = useState<{ name: string; id: string; jobType: string } | null>(null);
 
   useEffect(() => {
     loadToday();
@@ -224,7 +226,7 @@ export default function TodayRoutePage() {
                             </a>
                           )}
                           <button
-                            onClick={() => markAsDone(stop)}
+                            onClick={() => setChecklistStop({ name: stop.contactName, id: stop.id, jobType: stop.jobType || "entretien" })}
                             className="flex-1 bg-green-600 text-white rounded-lg py-2 text-xs font-medium flex items-center justify-center gap-1 hover:bg-green-700"
                           >
                             <Check size={12} /> Fait
@@ -238,6 +240,19 @@ export default function TodayRoutePage() {
             })}
           </div>
         </>
+      )}
+      {checklistStop && (
+        <PostVisitChecklist
+          clientName={checklistStop.name}
+          clientId={checklistStop.id}
+          jobType={checklistStop.jobType}
+          onClose={() => setChecklistStop(null)}
+          onComplete={() => {
+            const stop = stops.find(s => s.id === checklistStop.id);
+            if (stop) markAsDone(stop);
+            setChecklistStop(null);
+          }}
+        />
       )}
     </div>
   );
