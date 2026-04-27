@@ -173,7 +173,7 @@ export async function GET(req: NextRequest) {
   // Facturé / reçu / à recevoir pour la période sélectionnée
   const periodFacture = (allPayments || [])
     .filter(p => {
-      const d = toDate(p.due_date) ?? toDate(p.created_at) ?? "";
+      const d = toDate(p.created_at) ?? "";
       return d >= periodStart && (!periodEnd || d < periodEnd);
     })
     .reduce((s, p) => s + (p.amount || 0), 0);
