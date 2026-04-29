@@ -121,6 +121,65 @@ if (matchedContact) {
 
     processed.push(`${senderName}: ${amount}$ → ${matchedContact.first_name} ${matchedContact.last_name} (matched: ${matchingPayment.notes})`);
 
+    // Auto-créer le job si c'est une ouverture/fermeture et qu'il n'y a pas encore de job
+    try {
+      const { data: contact } = await supabaseAdmin
+        .from("contacts")
+        .select("id, first_name, last_name, phone, ouverture_date, services, notes")
+        .eq("id", matchedContact.id)
+        .single();
+
+      if (contact) {
+        const services = contact.services || [];
+        const isOuverture = services.includes("ouverture");
+        const isFermeture = services.includes("fermeture");
+
+        if ((isOuverture || isFermeture) && contact.ouverture_date) {
+          const jobType = isOuverture ? "ouverture" : "fermeture";
+          const { data: existingJob } = await supabaseAdmin
+            .from("jobs")
+            .select("id")
+            .eq("contact_id", contact.id)
+            .eq("job_type", jobType)
+            .eq("scheduled_date", contact.ouverture_date)
+            .limit(1);
+
+          if (!existingJob || existingJob.length === 0) {
+            const timeMatch = contact.notes?.match(/(\d{1,2})[h:](\d{0,2})/);
+            const startTime = timeMatch ? `${timeMatch[1].padStart(2, "0")}:${(timeMatch[2] || "00").padStart(2, "0")}` : "08:00";
+            const startHour = parseInt(startTime.split(":")[0]);
+            const endTime = `${String(startHour + 1).padStart(2, "0")}:${startTime.split(":")[1]}`;
+
+            await supabaseAdmin.from("jobs").insert({
+              contact_id: contact.id,
+              job_type: jobType,
+              scheduled_date: contact.ouverture_date,
+              scheduled_time_start: startTime,
+              scheduled_time_end: endTime,
+              status: "planifié",
+              confirmed_at: new Date().toISOString(),
+            });
+
+            const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
+            const dateFormatted = new Date(contact.ouverture_date + "T12:00:00").toLocaleDateString("fr-CA", { weekday: "long", day: "numeric", month: "long" });
+
+            await fetch(`${baseUrl}/api/sms/send`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                contactId: contact.id,
+                body: `Bonjour ${contact.first_name}! Votre paiement a bien été reçu. Votre ${jobType} est confirmée pour le ${dateFormatted} à ${startTime}. À bientôt! — CHLORE, Entretien Piscine Granby`,
+              }),
+            });
+
+            console.log(`[check-payments] Auto-confirmed ${jobType} for ${contact.first_name} on ${contact.ouverture_date}`);
+          }
+        }
+      }
+    } catch (autoConfirmErr) {
+      console.error("[check-payments] Auto-confirm error:", autoConfirmErr);
+    }
+
     // Notifier Thomas
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
     const { data: thomas } = await supabaseAdmin.from("contacts").select("id").eq("phone", "+14509942215").single();
