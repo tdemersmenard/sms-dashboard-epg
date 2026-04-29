@@ -121,6 +121,14 @@ if (matchedContact) {
 
     processed.push(`${senderName}: ${amount}$ → ${matchedContact.first_name} ${matchedContact.last_name} (matched: ${matchingPayment.notes})`);
 
+    // Anti-doublon: marquer cet email comme traité IMMÉDIATEMENT
+    await supabaseAdmin.from("automation_logs").insert({
+      action: `interac_scan_${msgId}`,
+      status: "matched",
+      contact_id: matchedContact.id,
+      details: { sender: senderName, amount, payment_id: matchingPayment.id, notes: matchingPayment.notes },
+    });
+
     // Auto-créer le job si c'est une ouverture/fermeture et qu'il n'y a pas encore de job
     try {
       const { data: contact } = await supabaseAdmin
