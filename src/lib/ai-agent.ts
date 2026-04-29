@@ -142,6 +142,12 @@ RÈGLES IMPORTANTES:
 6. NEVER propose un créneau qui n'est PAS dans PROCHAINES DISPONIBILITÉS.
 7. Si un client semble frustré ou mécontent, reste calme et professionnel. Propose de le mettre en contact avec Thomas.
 8. Quand un client réfère quelqu'un, note-le: __ACTION:UPDATE_NOTES:Référé par {nom du client qui réfère}__
+9. NOTION DU TEMPS: Tu connais la date et l'heure actuelles. Quand tu parles d'un rendez-vous:
+   - Si le job est AUJOURD'HUI → tu peux dire "on passe aujourd'hui à [heure]"
+   - Si le job est DEMAIN → dis "votre rendez-vous est prévu pour demain [jour] à [heure]"
+   - Si le job est dans 2+ jours → dis "votre rendez-vous est prévu pour le [jour date] à [heure]"
+   - NE DIS JAMAIS "on est en route" ou "il arrive" si le job n'est PAS aujourd'hui
+   - NE DIS JAMAIS "Thomas" — dis "notre équipe" ou "on"
 `;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -231,6 +237,45 @@ export async function generateAIResponse(contactId: string, inboundMessage: stri
 
       if (hasEntretien && !hasAddress) {
         clientContext += `\n⚠️ IMPORTANT: Ce client a un service d'entretien mais PAS D'ADRESSE. Tu DOIS lui demander son adresse complète pour planifier ses passages.\n`;
+      }
+    }
+
+    // Charger les jobs à venir du client
+    const { data: clientJobs } = await supabaseAdmin
+      .from("jobs")
+      .select("job_type, scheduled_date, scheduled_time_start, scheduled_time_end, status, confirmed_at")
+      .eq("contact_id", contactId)
+      .gte("scheduled_date", new Date().toISOString().split("T")[0])
+      .order("scheduled_date", { ascending: true })
+      .limit(5);
+
+    if (clientJobs && clientJobs.length > 0) {
+      clientContext += `\nJOBS À VENIR POUR CE CLIENT:\n`;
+      for (const job of clientJobs) {
+        const jobDate = new Date(job.scheduled_date + "T12:00:00");
+        const dayName = jobDate.toLocaleDateString("fr-CA", { timeZone: "America/Montreal", weekday: "long" });
+        const dayNum = jobDate.toLocaleDateString("fr-CA", { timeZone: "America/Montreal", day: "numeric", month: "long" });
+        const confirmed = job.confirmed_at ? "✅ CONFIRMÉ" : "⏳ En attente de paiement";
+        clientContext += `- ${job.job_type}: ${dayName} ${dayNum} de ${job.scheduled_time_start?.slice(0,5) || "?"} à ${job.scheduled_time_end?.slice(0,5) || "?"} — ${confirmed}\n`;
+      }
+      clientContext += `IMPORTANT: Utilise ces dates EXACTES quand tu parles du rendez-vous du client. NE DIS JAMAIS "Thomas est en route" ou "il arrive" sauf si la date du job est AUJOURD'HUI. Si le job est demain ou plus tard, dis "votre rendez-vous est prévu pour [date exacte]".\n`;
+    } else {
+      clientContext += `\nAucun job à venir pour ce client.\n`;
+    }
+
+    // Charger aussi les jobs passés récents
+    const { data: pastJobs } = await supabaseAdmin
+      .from("jobs")
+      .select("job_type, scheduled_date, status")
+      .eq("contact_id", contactId)
+      .lt("scheduled_date", new Date().toISOString().split("T")[0])
+      .order("scheduled_date", { ascending: false })
+      .limit(3);
+
+    if (pastJobs && pastJobs.length > 0) {
+      clientContext += `JOBS PASSÉS:\n`;
+      for (const job of pastJobs) {
+        clientContext += `- ${job.job_type} le ${job.scheduled_date} — ${job.status}\n`;
       }
     }
 
