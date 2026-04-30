@@ -18,6 +18,65 @@ export async function sendFollowUps(): Promise<string[]> {
   const now = new Date();
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
 
+  // Relances intelligentes (dates prévues par le bot)
+  const { data: allContacts } = await supabaseAdmin
+    .from("contacts")
+    .select("id, first_name, last_name, phone, stage, notes")
+    .not("phone", "is", null);
+
+  for (const contact of allContacts || []) {
+    if (contact.phone === "+14509942215") continue;
+    if (!contact.notes) continue;
+
+    // Chercher RELANCE_PREVUE dans les notes
+    const relanceMatch = contact.notes.match(/RELANCE_PREVUE:(\d{4}-\d{2}-\d{2}):(.+)/);
+    if (!relanceMatch) continue;
+
+    const relanceDate = relanceMatch[1];
+    const relanceContext = relanceMatch[2].trim();
+    const today = now.toISOString().split("T")[0];
+
+    // Si la date de relance est aujourd'hui ou passée
+    if (relanceDate > today) continue;
+
+    // Anti-doublon: vérifier qu'on n'a pas déjà envoyé cette relance
+    const { data: existingRelance } = await supabaseAdmin
+      .from("automation_logs")
+      .select("id")
+      .eq("contact_id", contact.id)
+      .eq("action", `smart_followup_${relanceDate}`)
+      .limit(1);
+
+    if (existingRelance && existingRelance.length > 0) continue;
+
+    // Générer un message personnalisé basé sur le contexte
+    const firstName = contact.first_name || "";
+    const message = `Bonjour ${firstName}! C'est CHLORE d'Entretien Piscine Granby. Je fais un petit suivi comme convenu — ${relanceContext}. Est-ce que vous êtes prêt(e) à aller de l'avant? N'hésitez pas si vous avez des questions!`;
+
+    try {
+      await fetch(`${baseUrl}/api/sms/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contactId: contact.id, body: message }),
+      });
+
+      await supabaseAdmin.from("automation_logs").insert({
+        contact_id: contact.id,
+        action: `smart_followup_${relanceDate}`,
+        status: "sent",
+        details: { context: relanceContext },
+      });
+
+      // Nettoyer la note de relance
+      const cleanedNotes = contact.notes.replace(/RELANCE_PREVUE:\d{4}-\d{2}-\d{2}:.+/, "").trim();
+      await supabaseAdmin.from("contacts").update({ notes: cleanedNotes || null }).eq("id", contact.id);
+
+      logs.push(`Relance intelligente envoyée à ${firstName} ${contact.last_name || ""}: ${relanceContext}`);
+    } catch (err) {
+      logs.push(`Erreur relance intelligente ${firstName}: ${err}`);
+    }
+  }
+
   // Trouver les contacts actifs (pas closés) qui ont des messages
   const { data: contacts } = await supabaseAdmin
     .from("contacts")
