@@ -55,13 +55,13 @@ const DOC_PREFIX: Record<string, string> = {
 
 type PayCat = { label: string; value: string; price: number; service: string; isEntretien: boolean; freq: "weekly" | "biweekly" | null };
 const PAYMENT_CATEGORIES: PayCat[] = [
-  { label: "Entretien hebdomadaire hors-terre (2,000$)", value: "entretien-hebdo-hors-terre", price: 2000, service: "entretien hebdo hors-terre", isEntretien: true, freq: "weekly" },
-  { label: "Entretien hebdomadaire creusée (2,200$)",   value: "entretien-hebdo-creusee",     price: 2200, service: "entretien hebdo creusée",    isEntretien: true, freq: "weekly" },
-  { label: "Entretien aux 2 semaines (1,200$)",         value: "entretien-2semaines",         price: 1200, service: "entretien aux 2 semaines",   isEntretien: true, freq: "biweekly" },
-  { label: "Ouverture hors-terre (180$)",               value: "ouverture-hors-terre",        price: 180,  service: "ouverture hors-terre",        isEntretien: false, freq: null },
-  { label: "Ouverture creusée (200$)",                  value: "ouverture-creusee",           price: 200,  service: "ouverture creusée",           isEntretien: false, freq: null },
-  { label: "Fermeture hors-terre (150$)",               value: "fermeture-hors-terre",        price: 150,  service: "fermeture hors-terre",        isEntretien: false, freq: null },
-  { label: "Fermeture creusée (175$)",                  value: "fermeture-creusee",           price: 175,  service: "fermeture creusée",           isEntretien: false, freq: null },
+  { label: "Entretien hebdomadaire hors-terre", value: "entretien-hebdo-hors-terre", price: 2000, service: "entretien hebdo hors-terre", isEntretien: true, freq: "weekly" },
+  { label: "Entretien hebdomadaire creusée",   value: "entretien-hebdo-creusee",     price: 2200, service: "entretien hebdo creusée",    isEntretien: true, freq: "weekly" },
+  { label: "Entretien aux 2 semaines",         value: "entretien-2semaines",         price: 1200, service: "entretien aux 2 semaines",   isEntretien: true, freq: "biweekly" },
+  { label: "Ouverture hors-terre",             value: "ouverture-hors-terre",        price: 180,  service: "ouverture hors-terre",        isEntretien: false, freq: null },
+  { label: "Ouverture creusée",                value: "ouverture-creusee",           price: 200,  service: "ouverture creusée",           isEntretien: false, freq: null },
+  { label: "Fermeture hors-terre",             value: "fermeture-hors-terre",        price: 150,  service: "fermeture hors-terre",        isEntretien: false, freq: null },
+  { label: "Fermeture creusée",                value: "fermeture-creusee",           price: 175,  service: "fermeture creusée",           isEntretien: false, freq: null },
   { label: "Entretien spa (+500$)",                     value: "entretien-spa",               price: 500,  service: "entretien spa",               isEntretien: false, freq: null },
   { label: "Réparation (85$/h)",                        value: "reparation",                  price: 0,    service: "réparation",                  isEntretien: false, freq: null },
   { label: "Autre (montant personnalisé)",              value: "autre",                       price: 0,    service: "",                            isEntretien: false, freq: null },
