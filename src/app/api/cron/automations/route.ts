@@ -47,5 +47,13 @@ export async function GET(req: NextRequest) {
     results.follow_ups_error = String(e);
   }
 
+  // 5. Portails manquants
+  try {
+    const { createMissingPortals } = await import("@/lib/automations/portal-check");
+    results.portal_check = await createMissingPortals();
+  } catch (e) {
+    results.portal_check_error = String(e);
+  }
+
   return NextResponse.json({ ok: true, ...results });
 }

@@ -816,7 +816,39 @@ export async function executeActions(actions: AIAction[], contactId: string) {
           await supabaseAdmin.from("contacts").update(updates).eq("id", contactId);
           console.log("[ai-actions] CLOSE_DEAL: contact updated", { serviceType, amount });
 
-          // 3. Créer les paiements (insert direct, pas de fetch)
+          // 3. Portail client (en premier — critique)
+          if (contact.email && !contact.portal_password) {
+            try {
+              const tempPassword = Math.random().toString(36).slice(-8);
+              const hash = await bcrypt.hash(tempPassword, 10);
+              const token = crypto.randomBytes(32).toString("hex");
+              const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+              await supabaseAdmin
+                .from("contacts")
+                .update({
+                  portal_password: hash,
+                  portal_token: token,
+                  portal_token_expires: expires.toISOString(),
+                })
+                .eq("id", contactId);
+
+              await fetch(`${baseUrl}/api/sms/send`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  contactId,
+                  body: `Votre portail client est prêt! Connectez-vous sur https://sms-dashboard-epg.vercel.app/portail avec:\nEmail: ${contact.email}\nMot de passe: ${tempPassword}\n\nVous pourrez y voir vos rendez-vous et paiements.`,
+                }),
+              });
+
+              console.log("[ai-actions] CLOSE_DEAL: portal access sent directly");
+            } catch (e) {
+              console.error("[ai-actions] CLOSE_DEAL: portal error", e);
+            }
+          }
+
+          // 4. Créer les paiements (insert direct, pas de fetch)
           if (config.isEntretien) {
             const half1 = Math.ceil(amount / 2);
             const half2 = amount - half1;
@@ -936,38 +968,6 @@ export async function executeActions(actions: AIAction[], contactId: string) {
           }
 
           console.log("[ai-actions] CLOSE_DEAL: payments + job done");
-
-          // 4. Portail client (direct, sans self-call)
-          if (contact.email && !contact.portal_password) {
-            try {
-              const tempPassword = Math.random().toString(36).slice(-8);
-              const hash = await bcrypt.hash(tempPassword, 10);
-              const token = crypto.randomBytes(32).toString("hex");
-              const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-
-              await supabaseAdmin
-                .from("contacts")
-                .update({
-                  portal_password: hash,
-                  portal_token: token,
-                  portal_token_expires: expires.toISOString(),
-                })
-                .eq("id", contactId);
-
-              await fetch(`${baseUrl}/api/sms/send`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  contactId,
-                  body: `Votre portail client est prêt! Connectez-vous sur https://sms-dashboard-epg.vercel.app/portail avec:\nEmail: ${contact.email}\nMot de passe: ${tempPassword}\n\nVous pourrez y voir vos rendez-vous et paiements.`,
-                }),
-              });
-
-              console.log("[ai-actions] CLOSE_DEAL: portal access sent directly");
-            } catch (e) {
-              console.error("[ai-actions] CLOSE_DEAL: portal error", e);
-            }
-          }
 
           // 5. Créer le contrat/facture
           try {
