@@ -816,31 +816,7 @@ export async function executeActions(actions: AIAction[], contactId: string) {
           await supabaseAdmin.from("contacts").update(updates).eq("id", contactId);
           console.log("[ai-actions] CLOSE_DEAL: contact updated", { serviceType, amount });
 
-          // 3. Créer le contrat
-          try {
-            const contractResp = await fetch(`${baseUrl}/api/documents/generate`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                contactId,
-                type: "contrat",
-                service: config.service,
-                amount,
-              }),
-            });
-            const contractText = await contractResp.text();
-            let contractData: unknown = {};
-            try {
-              contractData = contractText ? JSON.parse(contractText) : {};
-            } catch {
-              console.error("[ai-actions] CLOSE_DEAL: contract response not JSON:", contractText.slice(0, 200));
-            }
-            console.log("[ai-actions] CLOSE_DEAL: contract created", contractData);
-          } catch (e) {
-            console.error("[ai-actions] CLOSE_DEAL: contract error", e);
-          }
-
-          // 4. Créer les paiements (insert direct, pas de fetch)
+          // 3. Créer les paiements (insert direct, pas de fetch)
           if (config.isEntretien) {
             const half1 = Math.ceil(amount / 2);
             const half2 = amount - half1;
@@ -961,9 +937,7 @@ export async function executeActions(actions: AIAction[], contactId: string) {
 
           console.log("[ai-actions] CLOSE_DEAL: payments + job done");
 
-          // 6. Accès portail
-
-          // 7. Envoyer l'accès portail directement (sans fetch self-call)
+          // 4. Portail client (direct, sans self-call)
           if (contact.email && !contact.portal_password) {
             try {
               const tempPassword = Math.random().toString(36).slice(-8);
@@ -980,7 +954,6 @@ export async function executeActions(actions: AIAction[], contactId: string) {
                 })
                 .eq("id", contactId);
 
-              // Envoyer le SMS avec les identifiants
               await fetch(`${baseUrl}/api/sms/send`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -996,7 +969,31 @@ export async function executeActions(actions: AIAction[], contactId: string) {
             }
           }
 
-          // 8. Notifier Thomas (une seule fois)
+          // 5. Créer le contrat/facture
+          try {
+            const contractResp = await fetch(`${baseUrl}/api/documents/generate`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                contactId,
+                type: "contrat",
+                service: config.service,
+                amount,
+              }),
+            });
+            const contractText = await contractResp.text();
+            let contractData: unknown = {};
+            try {
+              contractData = contractText ? JSON.parse(contractText) : {};
+            } catch {
+              console.error("[ai-actions] CLOSE_DEAL: contract response not JSON:", contractText.slice(0, 200));
+            }
+            console.log("[ai-actions] CLOSE_DEAL: contract created", contractData);
+          } catch (e) {
+            console.error("[ai-actions] CLOSE_DEAL: contract error", e);
+          }
+
+          // 6. Notifier Thomas (une seule fois)
           const { data: thomas } = await supabaseAdmin
             .from("contacts")
             .select("id")
