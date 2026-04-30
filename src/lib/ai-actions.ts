@@ -840,55 +840,128 @@ export async function executeActions(actions: AIAction[], contactId: string) {
             console.error("[ai-actions] CLOSE_DEAL: contract error", e);
           }
 
-          // 4. Délai 5 secondes
-          await new Promise(r => setTimeout(r, 5000));
-
-          // 5. Créer les paiements
+          // 4. Créer les paiements (insert direct, pas de fetch)
           if (config.isEntretien) {
             const half1 = Math.ceil(amount / 2);
             const half2 = amount - half1;
 
-            await fetch(`${baseUrl}/api/payments/create`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                contactId,
-                amount: half1,
-                description: `Versement 1/2 — ${config.service}`,
-                dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-              }),
-            });
+            const { data: existingPayments } = await supabaseAdmin
+              .from("payments")
+              .select("id")
+              .eq("contact_id", contactId)
+              .limit(1);
 
-            await new Promise(r => setTimeout(r, 2000));
-
-            await fetch(`${baseUrl}/api/payments/create`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                contactId,
-                amount: half2,
-                description: `Versement 2/2 — ${config.service} (mi-juillet)`,
-                dueDate: "2026-07-15",
-                silentClient: true,
-              }),
-            });
-          } else {
-            await fetch(`${baseUrl}/api/payments/create`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                contactId,
-                amount,
-                description: config.service,
-                dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-              }),
-            });
+            if (!existingPayments || existingPayments.length === 0) {
+              await supabaseAdmin.from("payments").insert([
+                {
+                  contact_id: contactId,
+                  amount: half1,
+                  method: "interac",
+                  status: "en_attente",
+                  due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+                  notes: `Versement 1/2 — ${config.service}`,
+                },
+                {
+                  contact_id: contactId,
+                  amount: half2,
+                  method: "interac",
+                  status: "en_attente",
+                  due_date: "2026-07-15",
+                  notes: `Versement 2/2 — ${config.service} (mi-juillet)`,
+                },
+              ]);
+              console.log("[ai-actions] CLOSE_DEAL: 2 payments created for entretien");
+            } else {
+              console.log("[ai-actions] CLOSE_DEAL: payments already exist, skipping");
+            }
           }
 
-          console.log("[ai-actions] CLOSE_DEAL: payments created");
+          if (!config.isEntretien) {
+            const { data: existingPayments } = await supabaseAdmin
+              .from("payments")
+              .select("id")
+              .eq("contact_id", contactId)
+              .limit(1);
 
-          // 6. Délai 5 secondes avant l'accès portail
-          await new Promise(r => setTimeout(r, 5000));
+            if (!existingPayments || existingPayments.length === 0) {
+              await supabaseAdmin.from("payments").insert({
+                contact_id: contactId,
+                amount,
+                method: "interac",
+                status: "en_attente",
+                due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+                notes: config.service,
+              });
+              console.log("[ai-actions] CLOSE_DEAL: payment created for", config.service);
+            } else {
+              console.log("[ai-actions] CLOSE_DEAL: payment already exists, skipping");
+            }
+          }
+
+          // 5. Créer le job pour ouvertures/fermetures
+          if (!config.isEntretien) {
+            const { data: recentMsgs } = await supabaseAdmin
+              .from("messages")
+              .select("body")
+              .eq("contact_id", contactId)
+              .order("created_at", { ascending: false })
+              .limit(20);
+
+            let jobDate = null;
+            let jobTimeStart = "08:00";
+            let jobTimeEnd = "09:00";
+
+            for (const msg of recentMsgs || []) {
+              const dateMatch = msg.body.match(/(\d{1,2})\s*(janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre)/i);
+              if (dateMatch) {
+                const day = parseInt(dateMatch[1]);
+                const monthNames: Record<string, number> = {
+                  janvier: 0, février: 1, mars: 2, avril: 3, mai: 4, juin: 5,
+                  juillet: 6, août: 7, septembre: 8, octobre: 9, novembre: 10, décembre: 11,
+                };
+                const month = monthNames[dateMatch[2].toLowerCase()];
+                if (month !== undefined) {
+                  const year = new Date().getFullYear();
+                  jobDate = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+                }
+              }
+              const timeMatch = msg.body.match(/(\d{1,2})[h:](\d{0,2})\s*(?:à|a|-)\s*(\d{1,2})[h:]?(\d{0,2})?/);
+              if (timeMatch) {
+                jobTimeStart = `${timeMatch[1].padStart(2, "0")}:${(timeMatch[2] || "00").padStart(2, "0")}`;
+                jobTimeEnd = `${timeMatch[3].padStart(2, "0")}:${(timeMatch[4] || "00").padStart(2, "0")}`;
+              }
+            }
+
+            if (jobDate) {
+              const jobType = config.service.includes("ouverture") ? "ouverture" : "fermeture";
+
+              const { data: existingJob } = await supabaseAdmin
+                .from("jobs")
+                .select("id")
+                .eq("contact_id", contactId)
+                .eq("job_type", jobType)
+                .eq("scheduled_date", jobDate)
+                .limit(1);
+
+              if (!existingJob || existingJob.length === 0) {
+                await supabaseAdmin.from("jobs").insert({
+                  contact_id: contactId,
+                  job_type: jobType,
+                  scheduled_date: jobDate,
+                  scheduled_time_start: jobTimeStart,
+                  scheduled_time_end: jobTimeEnd,
+                  status: "planifié",
+                });
+                console.log(`[ai-actions] CLOSE_DEAL: job ${jobType} created for ${jobDate}`);
+              }
+
+              await supabaseAdmin.from("contacts").update({ ouverture_date: jobDate }).eq("id", contactId);
+            }
+          }
+
+          console.log("[ai-actions] CLOSE_DEAL: payments + job done");
+
+          // 6. Accès portail
 
           // 7. Envoyer l'accès portail directement (sans fetch self-call)
           if (contact.email && !contact.portal_password) {
