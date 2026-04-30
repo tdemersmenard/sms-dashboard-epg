@@ -6,8 +6,8 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY!,
 });
 
-// ── Configuration des disponibilités (modifier ici quand ça change) ──
-const DISPONIBILITES: Record<number, { start: string; end: string } | null> = {
+// Dispos pendant le cégep (jusqu'au 13 mai 2026)
+const DISPOS_CEGEP: Record<number, { start: string; end: string } | null> = {
   0: { start: "08:00", end: "17:00" }, // Dimanche
   1: null,                              // Lundi — fermé
   2: { start: "08:00", end: "12:00" }, // Mardi
@@ -17,20 +17,35 @@ const DISPONIBILITES: Record<number, { start: string; end: string } | null> = {
   6: { start: "08:00", end: "17:00" }, // Samedi
 };
 
+// Dispos après le cégep (à partir du 14 mai 2026)
+const DISPOS_NORMAL: Record<number, { start: string; end: string } | null> = {
+  0: null,                              // Dimanche — fermé
+  1: { start: "08:00", end: "17:00" }, // Lundi
+  2: { start: "08:00", end: "17:00" }, // Mardi
+  3: { start: "08:00", end: "17:00" }, // Mercredi
+  4: { start: "08:00", end: "17:00" }, // Jeudi
+  5: { start: "08:00", end: "17:00" }, // Vendredi
+  6: null,                              // Samedi — fermé
+};
+
+const CEGEP_END_DATE = "2026-05-13";
+
+function getDispos(dateStr: string): Record<number, { start: string; end: string } | null> {
+  return dateStr > CEGEP_END_DATE ? DISPOS_NORMAL : DISPOS_CEGEP;
+}
+
 const JOB_DURATION_MIN = 60;  // 1 heure par ouverture/fermeture
 const BUFFER_MIN = 30;        // 30 min buffer entre chaque
 
-const dispoDesc = Object.entries(DISPONIBILITES)
+const _todayStr = new Date().toISOString().split("T")[0];
+const _currentDispos = getDispos(_todayStr);
+const dispoDesc = Object.entries(_currentDispos)
   .filter(([, v]) => v !== null)
   .map(([day, v]) => {
     const dayNames = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
     return `${dayNames[parseInt(day)]} ${v!.start.replace(":00", "h")}-${v!.end.replace(":00", "h")}`;
   })
   .join(", ");
-const fermeDays = Object.entries(DISPONIBILITES)
-  .filter(([, v]) => v === null)
-  .map(([day]) => ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"][parseInt(day)])
-  .join("-");
 
 const SYSTEM_PROMPT = `Tu es CHLORE, l'assistant virtuel d'Entretien Piscine Granby. Tu gères les demandes clients par SMS de façon autonome et professionnelle.
 
@@ -52,7 +67,7 @@ SERVICES & PRIX:
 
 PAIEMENT: Interac à service@entretienpiscinegranby.com, carte de crédit via le portail client, ou cash.
 
-DISPONIBILITÉS: ${dispoDesc}. ${fermeDays} indisponible.
+DISPONIBILITÉS: ${dispoDesc}.
 DURÉE: Une ouverture/fermeture = ${JOB_DURATION_MIN} minutes. Buffer de ${BUFFER_MIN} minutes entre chaque RDV.
 IMPORTANT: Utilise UNIQUEMENT les créneaux listés dans PROCHAINES DISPONIBILITÉS ci-dessous. NE PROPOSE JAMAIS un créneau non listé.
 
@@ -320,7 +335,7 @@ export async function generateAIResponse(contactId: string, inboundMessage: stri
       const dateStr = d.toLocaleDateString("en-CA", { timeZone: "America/Montreal" }); // YYYY-MM-DD
       const dayOfWeek = new Date(d.toLocaleString("en-US", { timeZone: "America/Montreal" })).getDay();
 
-      const dispoConfig = DISPONIBILITES[dayOfWeek];
+      const dispoConfig = getDispos(dateStr)[dayOfWeek];
       if (!dispoConfig) continue; // jour fermé
 
       const dispoStart = dispoConfig.start;

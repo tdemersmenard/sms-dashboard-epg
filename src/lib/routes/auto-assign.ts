@@ -3,8 +3,10 @@ import { supabaseAdmin } from "@/lib/supabase";
 const GMAPS = process.env.GOOGLE_MAPS_API_KEY!;
 const HOME_ADDR = "86 rue de Windsor, Granby, QC, Canada";
 const DAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi"];
+// Après le cégep, tous les jours Lun-Ven sont disponibles
+// Pendant le cégep, seulement Mar, Jeu, Ven, Sam, Dim
+// L'auto-assign ajoute aux routes existantes donc ça marche déjà
 const DAY_TO_JS: Record<string, number> = { Lundi: 1, Mardi: 2, Mercredi: 3, Jeudi: 4, Vendredi: 5 };
-const MAX_PER_DAY = 5;
 
 async function geocode(addr: string) {
   const res = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(addr)}&key=${GMAPS}`);
@@ -103,7 +105,14 @@ export async function autoAssignNewClients(): Promise<string[]> {
     for (const d of DAYS) {
       const dayRoute = routes.find((r: any) => r.day === d);
       const stops = dayRoute?.stops || [];
-      if (stops.length >= MAX_PER_DAY) continue;
+      // Vérifier que la journée n'est pas pleine en temps
+      const lastStop = stops[stops.length - 1];
+      if (lastStop) {
+        const [h, m] = (lastStop.departureTime || "17:00").split(":").map(Number);
+        const endMinutes = h * 60 + m;
+        // Faut au moins 90 min de libre (1h job + 30min buffer)
+        if (endMinutes + 90 > 17 * 60) continue;
+      }
 
       const currentCost = dayCost(stops, homeGeoForCalc.lat, homeGeoForCalc.lng);
 
