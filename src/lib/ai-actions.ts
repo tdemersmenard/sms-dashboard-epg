@@ -22,7 +22,16 @@ interface BookJobAction extends BaseAction {
   type: "BOOK_JOB";
   jobType: string;
   date: string;
-  time: string;
+  startTime: string;
+  endTime: string;
+}
+
+interface ModifyJobAction extends BaseAction {
+  type: "MODIFY_JOB";
+  oldDate: string;
+  newDate: string;
+  startTime: string;
+  endTime: string;
 }
 
 interface ReminderAction extends BaseAction {
@@ -59,7 +68,7 @@ interface CloseDealAction extends BaseAction {
   amount: number;
 }
 
-type AIAction = GenerateInvoiceAction | GenerateContractAction | BookJobAction | ReminderAction | NotifyThomasAction | UpdateStageAction | UpdateNotesAction | CreatePaymentAction | CloseDealAction;
+type AIAction = GenerateInvoiceAction | GenerateContractAction | BookJobAction | ModifyJobAction | ReminderAction | NotifyThomasAction | UpdateStageAction | UpdateNotesAction | CreatePaymentAction | CloseDealAction;
 
 export function parseActions(aiResponse: string): { cleanMessage: string; actions: AIAction[] } {
   const actions: AIAction[] = [];
@@ -84,8 +93,33 @@ export function parseActions(aiResponse: string): { cleanMessage: string; action
         break;
       case "BOOK_JOB": {
         const parts = actionParams.split(":");
-        if (parts.length >= 3) {
-          actions.push({ type: "BOOK_JOB", jobType: parts[0], date: parts[1], time: parts[2] } as AIAction);
+        if (parts.length >= 4) {
+          // format: {type}:{date_YYYY-MM-DD}:{heure_debut_HH:MM}:{heure_fin_HH:MM}
+          // Note: HH:MM gets split again, so parts = [type, YYYY-MM-DD, HH, MM, HH, MM]
+          // Actually the regex captures up to __ so HH:MM stays together — split on : gives 6 parts
+          // parts[0]=type, parts[1]=YYYY-MM-DD (but date has dashes not colons, fine), wait...
+          // __ACTION:BOOK_JOB:ouverture:2026-05-10:09:00:10:00__
+          // actionParams = "ouverture:2026-05-10:09:00:10:00"
+          // split(":") => ["ouverture", "2026-05-10", "09", "00", "10", "00"]
+          const jobType = parts[0];
+          const date = parts[1];
+          const startTime = `${parts[2]}:${parts[3]}`;
+          const endTime = `${parts[4]}:${parts[5]}`;
+          actions.push({ type: "BOOK_JOB", jobType, date, startTime, endTime } as AIAction);
+        }
+        break;
+      }
+      case "MODIFY_JOB": {
+        const parts = actionParams.split(":");
+        if (parts.length >= 6) {
+          // format: {oldDate_YYYY-MM-DD}:{newDate_YYYY-MM-DD}:{HH}:{MM}:{HH}:{MM}
+          // actionParams = "2026-05-08:2026-05-10:09:00:10:00"
+          // split(":") => ["2026-05-08", "2026-05-10", "09", "00", "10", "00"]
+          const oldDate = parts[0];
+          const newDate = parts[1];
+          const startTime = `${parts[2]}:${parts[3]}`;
+          const endTime = `${parts[4]}:${parts[5]}`;
+          actions.push({ type: "MODIFY_JOB", oldDate, newDate, startTime, endTime } as AIAction);
         }
         break;
       }
@@ -222,18 +256,64 @@ export async function executeActions(actions: AIAction[], contactId: string) {
         }
 
         case "BOOK_JOB": {
-          const endHour = parseInt(action.time.split(":")[0]) + 2;
-          const endTime = `${String(endHour).padStart(2, "0")}:${action.time.split(":")[1]}`;
+          // Anti-doublon: skip si un job du même type à la même date existe déjà
+          const { data: existingBook } = await supabaseAdmin
+            .from("jobs")
+            .select("id")
+            .eq("contact_id", contactId)
+            .eq("job_type", action.jobType)
+            .eq("scheduled_date", action.date)
+            .limit(1);
+
+          if (existingBook && existingBook.length > 0) {
+            console.log(`[ai-actions] BOOK_JOB: job ${action.jobType} on ${action.date} already exists, skipping`);
+            break;
+          }
 
           await supabaseAdmin.from("jobs").insert({
             contact_id: contactId,
             job_type: action.jobType,
             scheduled_date: action.date,
-            scheduled_time_start: action.time,
-            scheduled_time_end: endTime,
+            scheduled_time_start: action.startTime,
+            scheduled_time_end: action.endTime,
             status: "confirmé",
           });
-          console.log(`[ai-actions] Booked ${action.jobType} on ${action.date} at ${action.time}`);
+
+          // Mettre à jour ouverture_date si c'est une ouverture
+          if (action.jobType === "ouverture" || action.jobType.includes("ouverture")) {
+            await supabaseAdmin.from("contacts").update({ ouverture_date: action.date }).eq("id", contactId);
+          }
+
+          console.log(`[ai-actions] BOOK_JOB: ${action.jobType} on ${action.date} ${action.startTime}-${action.endTime}`);
+          break;
+        }
+
+        case "MODIFY_JOB": {
+          // Trouver le job à modifier (par date et contact)
+          const { data: jobToModify } = await supabaseAdmin
+            .from("jobs")
+            .select("id, job_type")
+            .eq("contact_id", contactId)
+            .eq("scheduled_date", action.oldDate)
+            .limit(1);
+
+          if (!jobToModify || jobToModify.length === 0) {
+            console.log(`[ai-actions] MODIFY_JOB: no job found on ${action.oldDate} for contact ${contactId}`);
+            break;
+          }
+
+          await supabaseAdmin.from("jobs").update({
+            scheduled_date: action.newDate,
+            scheduled_time_start: action.startTime,
+            scheduled_time_end: action.endTime,
+          }).eq("id", jobToModify[0].id);
+
+          // Mettre à jour ouverture_date si c'est une ouverture
+          if (jobToModify[0].job_type === "ouverture" || jobToModify[0].job_type?.includes("ouverture")) {
+            await supabaseAdmin.from("contacts").update({ ouverture_date: action.newDate }).eq("id", contactId);
+          }
+
+          console.log(`[ai-actions] MODIFY_JOB: moved job from ${action.oldDate} to ${action.newDate} ${action.startTime}-${action.endTime}`);
           break;
         }
 
@@ -906,68 +986,7 @@ export async function executeActions(actions: AIAction[], contactId: string) {
             }
           }
 
-          // 5. Créer le job pour ouvertures/fermetures
-          if (!config.isEntretien) {
-            const { data: recentMsgs } = await supabaseAdmin
-              .from("messages")
-              .select("body")
-              .eq("contact_id", contactId)
-              .order("created_at", { ascending: false })
-              .limit(20);
-
-            let jobDate = null;
-            let jobTimeStart = "08:00";
-            let jobTimeEnd = "09:00";
-
-            for (const msg of recentMsgs || []) {
-              const dateMatch = msg.body.match(/(\d{1,2})\s*(janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre)/i);
-              if (dateMatch) {
-                const day = parseInt(dateMatch[1]);
-                const monthNames: Record<string, number> = {
-                  janvier: 0, février: 1, mars: 2, avril: 3, mai: 4, juin: 5,
-                  juillet: 6, août: 7, septembre: 8, octobre: 9, novembre: 10, décembre: 11,
-                };
-                const month = monthNames[dateMatch[2].toLowerCase()];
-                if (month !== undefined) {
-                  const year = new Date().getFullYear();
-                  jobDate = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-                }
-              }
-              const timeMatch = msg.body.match(/(\d{1,2})[h:](\d{0,2})\s*(?:à|a|-)\s*(\d{1,2})[h:]?(\d{0,2})?/);
-              if (timeMatch) {
-                jobTimeStart = `${timeMatch[1].padStart(2, "0")}:${(timeMatch[2] || "00").padStart(2, "0")}`;
-                jobTimeEnd = `${timeMatch[3].padStart(2, "0")}:${(timeMatch[4] || "00").padStart(2, "0")}`;
-              }
-            }
-
-            if (jobDate) {
-              const jobType = config.service.includes("ouverture") ? "ouverture" : "fermeture";
-
-              const { data: existingJob } = await supabaseAdmin
-                .from("jobs")
-                .select("id")
-                .eq("contact_id", contactId)
-                .eq("job_type", jobType)
-                .eq("scheduled_date", jobDate)
-                .limit(1);
-
-              if (!existingJob || existingJob.length === 0) {
-                await supabaseAdmin.from("jobs").insert({
-                  contact_id: contactId,
-                  job_type: jobType,
-                  scheduled_date: jobDate,
-                  scheduled_time_start: jobTimeStart,
-                  scheduled_time_end: jobTimeEnd,
-                  status: "planifié",
-                });
-                console.log(`[ai-actions] CLOSE_DEAL: job ${jobType} created for ${jobDate}`);
-              }
-
-              await supabaseAdmin.from("contacts").update({ ouverture_date: jobDate }).eq("id", contactId);
-            }
-          }
-
-          console.log("[ai-actions] CLOSE_DEAL: payments + job done");
+          console.log("[ai-actions] CLOSE_DEAL: payments done (job created by BOOK_JOB)");
 
           // 5. Créer le contrat/facture
           try {
