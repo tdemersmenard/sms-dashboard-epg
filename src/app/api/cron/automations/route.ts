@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from "next/server";
+import { supabaseAdmin } from "@/lib/supabase";
 
 export async function GET(req: NextRequest) {
   const cronSecret = process.env.CRON_SECRET;
@@ -54,6 +55,52 @@ export async function GET(req: NextRequest) {
   } catch (e) {
     results.portal_check_error = String(e);
   }
+
+  // 6. Batch SMS planifié — vérifie s'il y a des messages à envoyer
+  try {
+    const { data: pendingBatch } = await supabaseAdmin
+      .from("settings")
+      .select("value")
+      .eq("key", "pending_sms_batch")
+      .single();
+
+    if (pendingBatch?.value) {
+      const batch = JSON.parse(pendingBatch.value);
+      const now = new Date();
+      const montrealHour = parseInt(now.toLocaleTimeString("en-US", { timeZone: "America/Montreal", hour: "2-digit", hour12: false }));
+
+      // Envoyer seulement entre 8h et 9h
+      if (montrealHour >= 8 && montrealHour < 9) {
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
+
+        for (const id of batch.contactIds) {
+          try {
+            const { data: contact } = await supabaseAdmin
+              .from("contacts")
+              .select("first_name")
+              .eq("id", id)
+              .single();
+
+            const msg = batch.message.replace("{{prénom}}", contact?.first_name?.trim() || "");
+
+            await fetch(`${baseUrl}/api/sms/send`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ contactId: id, body: msg }),
+            });
+
+            await new Promise(r => setTimeout(r, 1500));
+          } catch (e) {
+            console.error("[batch] Error:", e);
+          }
+        }
+
+        // Supprimer le batch une fois envoyé
+        await supabaseAdmin.from("settings").delete().eq("key", "pending_sms_batch");
+        results.batch_sms = `${batch.contactIds.length} SMS envoyés`;
+      }
+    }
+  } catch {}
 
   return NextResponse.json({ ok: true, ...results });
 }
