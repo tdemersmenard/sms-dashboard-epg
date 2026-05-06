@@ -305,7 +305,28 @@ export async function generateAIResponse(contactId: string, inboundMessage: stri
     const now = new Date();
     const dateStr = now.toLocaleDateString("fr-CA", { timeZone: "America/Montreal", weekday: "long", day: "numeric", month: "long", year: "numeric" });
     const timeStr = now.toLocaleTimeString("fr-CA", { timeZone: "America/Montreal", hour: "2-digit", minute: "2-digit" });
-    clientContext += `\nDATE ET HEURE ACTUELLES: ${dateStr}, ${timeStr}\n`;
+    const hour = parseInt(now.toLocaleTimeString("fr-CA", { timeZone: "America/Montreal", hour: "2-digit", hour12: false }));
+
+    let momentJournee = "";
+    if (hour >= 5 && hour < 12) momentJournee = "matin";
+    else if (hour >= 12 && hour < 17) momentJournee = "après-midi";
+    else if (hour >= 17 && hour < 21) momentJournee = "soirée";
+    else momentJournee = "nuit";
+
+    let salutation = "";
+    if (hour >= 5 && hour < 18) salutation = "Bonne journée";
+    else if (hour >= 18 && hour < 22) salutation = "Bonne soirée";
+    else salutation = "Bonne nuit";
+
+    clientContext += `\nDATE ET HEURE ACTUELLES: ${dateStr}, ${timeStr} (${momentJournee})
+CONTEXTE TEMPOREL:
+- On est le ${momentJournee}. Utilise "${salutation}" quand tu termines une conversation.
+- Si un client dit "demain", ça veut dire le ${new Date(now.getTime() + 24 * 60 * 60 * 1000).toLocaleDateString("fr-CA", { timeZone: "America/Montreal", weekday: "long", day: "numeric", month: "long" })}.
+- Si un client dit "la semaine prochaine", ça commence le ${new Date(now.getTime() + (8 - now.getDay()) * 24 * 60 * 60 * 1000).toLocaleDateString("fr-CA", { timeZone: "America/Montreal", weekday: "long", day: "numeric", month: "long" })}.
+- NE DIS JAMAIS "bonne journée" le soir ou "bonne soirée" le matin.
+- NE DIS JAMAIS "on est en route" ou "on arrive" si le job du client n'est PAS aujourd'hui.
+- Si le client parle d'un rendez-vous passé (date déjà passée), ne confirme pas le RDV — dis que la date est passée et propose de replanifier.
+\n`;
 
     // Calculer les prochaines dates de dispo en vérifiant le calendrier
     const upcoming: string[] = [];
