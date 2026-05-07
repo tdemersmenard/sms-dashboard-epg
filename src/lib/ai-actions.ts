@@ -992,9 +992,95 @@ export async function executeActions(actions: AIAction[], contactId: string) {
             }
           }
 
-          console.log("[ai-actions] CLOSE_DEAL: payments done (job created by BOOK_JOB)");
+          console.log("[ai-actions] CLOSE_DEAL: payments done");
 
-          // 5. Créer le contrat/facture
+          // 5. Créer le job automatiquement (ouvertures/fermetures) — fallback si BOOK_JOB n'a pas été appelé
+          if (!config.isEntretien) {
+            try {
+              // Chercher la date dans les messages (bot + client)
+              const { data: recentMsgs } = await supabaseAdmin
+                .from("messages")
+                .select("body, direction")
+                .eq("contact_id", contactId)
+                .order("created_at", { ascending: false })
+                .limit(30);
+
+              let jobDate: string | null = null;
+              let jobTimeStart = "08:00";
+              let jobTimeEnd = "09:00";
+
+              for (const msg of recentMsgs || []) {
+                // Pattern: "samedi 10 mai", "jeudi 7 mai", etc.
+                const dateMatch = msg.body.match(/(?:lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche)\s+(\d{1,2})\s+(janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre)/i);
+                if (dateMatch && !jobDate) {
+                  const day = parseInt(dateMatch[1]);
+                  const monthNames: Record<string, number> = {
+                    janvier: 0, février: 1, mars: 2, avril: 3, mai: 4, juin: 5,
+                    juillet: 6, août: 7, septembre: 8, octobre: 9, novembre: 10, décembre: 11,
+                  };
+                  const month = monthNames[dateMatch[2].toLowerCase()];
+                  if (month !== undefined) {
+                    const year = new Date().getFullYear();
+                    jobDate = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+                  }
+                }
+                // Pattern heure: "de 9h30 à 10h30", "de 14h à 15h"
+                const timeMatch = msg.body.match(/(?:de\s+)?(\d{1,2})[h:](\d{0,2})\s*(?:à|a|-)\s*(\d{1,2})[h:]?(\d{0,2})?/i);
+                if (timeMatch && jobTimeStart === "08:00") {
+                  jobTimeStart = `${timeMatch[1].padStart(2, "0")}:${(timeMatch[2] || "00").padStart(2, "0")}`;
+                  jobTimeEnd = `${timeMatch[3].padStart(2, "0")}:${(timeMatch[4] || "00").padStart(2, "0")}`;
+                }
+              }
+
+              if (jobDate) {
+                const jobType = config.service.includes("fermeture") ? "fermeture" : "ouverture";
+
+                // Anti-doublon
+                const { data: existingJob } = await supabaseAdmin
+                  .from("jobs")
+                  .select("id")
+                  .eq("contact_id", contactId)
+                  .eq("job_type", jobType)
+                  .eq("scheduled_date", jobDate)
+                  .limit(1);
+
+                if (!existingJob || existingJob.length === 0) {
+                  await supabaseAdmin.from("jobs").insert({
+                    contact_id: contactId,
+                    job_type: jobType,
+                    scheduled_date: jobDate,
+                    scheduled_time_start: jobTimeStart,
+                    scheduled_time_end: jobTimeEnd,
+                    status: "planifié",
+                  });
+
+                  await supabaseAdmin.from("contacts").update({ ouverture_date: jobDate }).eq("id", contactId);
+                  console.log(`[ai-actions] CLOSE_DEAL: job ${jobType} created for ${jobDate} ${jobTimeStart}-${jobTimeEnd}`);
+                } else {
+                  console.log(`[ai-actions] CLOSE_DEAL: job already exists for ${jobDate}`);
+                }
+              } else {
+                console.log("[ai-actions] CLOSE_DEAL: could not parse date from messages");
+                // Notifier Thomas qu'il faut ajouter la date manuellement
+                const { data: thomas } = await supabaseAdmin.from("contacts").select("id").eq("phone", "+14509942215").single();
+                if (thomas) {
+                  const clientName = contact ? `${contact.first_name} ${contact.last_name || ""}`.trim() : "Client";
+                  await fetch(`${baseUrl}/api/sms/send`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      contactId: thomas.id,
+                      body: `CHLORE: ${clientName} a été closé mais je n'ai pas pu trouver la date du RDV dans la conversation. Va sur le calendrier pour l'ajouter manuellement.`,
+                    }),
+                  });
+                }
+              }
+            } catch (jobErr) {
+              console.error("[ai-actions] CLOSE_DEAL: job creation error:", jobErr);
+            }
+          }
+
+          // 6. Créer le contrat/facture
           try {
             const contractResp = await fetch(`${baseUrl}/api/documents/generate`, {
               method: "POST",
