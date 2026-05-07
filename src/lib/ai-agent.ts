@@ -121,6 +121,7 @@ Le client demande un entretien saisonnier (hebdo, aux 2 semaines, etc.)
   → Demande l'adresse complète si on l'a pas
   → Demande l'email pour la facture
   → Quand on a tout: __ACTION:CLOSE_DEAL:{type_service}:{prix}__
+    Types valides: entretien_hebdo (hors-terre: 2000$, creusée: 2200$), entretien_2sem (1200$)
   → "Parfait! Votre forfait d'entretien est confirmé. Vous allez recevoir votre facture par courriel."
 
 Étape 4: Si le client hésite, pose des questions, ou semble pas prêt:

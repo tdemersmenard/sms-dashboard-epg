@@ -858,14 +858,20 @@ export async function executeActions(actions: AIAction[], contactId: string) {
 
           // Mapping des types vers leurs propriétés
           const serviceMap: Record<string, { service: string; isEntretien: boolean; poolType: string | null; biweekly: boolean }> = {
+            "entretien_hebdo": { service: "entretien hebdomadaire", isEntretien: true, poolType: null, biweekly: false },
+            "entretien_2sem": { service: "entretien aux 2 semaines", isEntretien: true, poolType: null, biweekly: true },
+            "ouverture": { service: "ouverture", isEntretien: false, poolType: null, biweekly: false },
+            "package_ouv_ferm": { service: "package ouverture + fermeture", isEntretien: false, poolType: null, biweekly: false },
+            "fermeture": { service: "fermeture", isEntretien: false, poolType: null, biweekly: false },
+            // Legacy types (anciens clients)
             "entretien_hebdo_hors-terre": { service: "entretien hebdo hors-terre", isEntretien: true, poolType: "hors-terre", biweekly: false },
             "entretien_hebdo_creusée": { service: "entretien hebdo creusée", isEntretien: true, poolType: "creusée", biweekly: false },
             "entretien_2sem_hors-terre": { service: "entretien aux 2 semaines hors-terre", isEntretien: true, poolType: "hors-terre", biweekly: true },
             "entretien_2sem_creusée": { service: "entretien aux 2 semaines creusée", isEntretien: true, poolType: "creusée", biweekly: true },
             "ouverture_hors-terre": { service: "ouverture", isEntretien: false, poolType: "hors-terre", biweekly: false },
-            "ouverture_creusée": { service: "ouverture", isEntretien: false, poolType: "creusée", biweekly: false },
+            "ouverture_creusee": { service: "ouverture", isEntretien: false, poolType: "creusée", biweekly: false },
             "fermeture_hors-terre": { service: "fermeture", isEntretien: false, poolType: "hors-terre", biweekly: false },
-            "fermeture_creusée": { service: "fermeture", isEntretien: false, poolType: "creusée", biweekly: false },
+            "fermeture_creusee": { service: "fermeture", isEntretien: false, poolType: "creusée", biweekly: false },
             "spa": { service: "spa", isEntretien: true, poolType: null, biweekly: false },
           };
 
