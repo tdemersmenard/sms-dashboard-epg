@@ -102,5 +102,38 @@ export async function GET(req: NextRequest) {
     }
   } catch {}
 
+  // Batch 2 — envoyer entre 10h et 11h
+  try {
+    const { data: pendingBatch2 } = await supabaseAdmin
+      .from("settings")
+      .select("value")
+      .eq("key", "pending_sms_batch_2")
+      .single();
+
+    if (pendingBatch2?.value) {
+      const batch = JSON.parse(pendingBatch2.value);
+      const now2 = new Date();
+      const montrealHour2 = parseInt(now2.toLocaleTimeString("en-US", { timeZone: "America/Montreal", hour: "2-digit", hour12: false }));
+
+      if (montrealHour2 >= 10 && montrealHour2 < 11) {
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
+        for (const id of batch.contactIds) {
+          try {
+            const { data: contact } = await supabaseAdmin
+              .from("contacts").select("first_name").eq("id", id).single();
+            const msg = batch.message.replace("{{prénom}}", contact?.first_name?.trim() || "");
+            await fetch(`${baseUrl}/api/sms/send`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ contactId: id, body: msg }),
+            });
+            await new Promise(r => setTimeout(r, 1500));
+          } catch (e) { console.error("[batch2] Error:", e); }
+        }
+        await supabaseAdmin.from("settings").delete().eq("key", "pending_sms_batch_2");
+      }
+    }
+  } catch {}
+
   return NextResponse.json({ ok: true, ...results });
 }
