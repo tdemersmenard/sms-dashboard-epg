@@ -102,6 +102,18 @@ export async function GET(req: NextRequest) {
     }
   } catch {}
 
+  // 7. Rapport journalier (envoyer entre 20h et 21h)
+  try {
+    const nowReport = new Date();
+    const montrealHourReport = parseInt(nowReport.toLocaleTimeString("en-US", { timeZone: "America/Montreal", hour: "2-digit", hour12: false }));
+    if (montrealHourReport >= 20 && montrealHourReport < 21) {
+      const { sendDailyReport } = await import("@/lib/automations/daily-report");
+      results.daily_report = await sendDailyReport();
+    }
+  } catch (e) {
+    results.daily_report_error = String(e);
+  }
+
   // Batch 2 — envoyer entre 10h et 11h
   try {
     const { data: pendingBatch2 } = await supabaseAdmin
