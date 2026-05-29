@@ -81,7 +81,14 @@ export async function GET(req: NextRequest) {
               .eq("id", id)
               .single();
 
-            const msg = batch.message.replace("{{prénom}}", contact?.first_name?.trim() || "");
+            let msg = "";
+            if (batch.message_map && batch.message_map[id]) {
+              msg = batch.message_map[id];
+            } else if (batch.message) {
+              msg = batch.message.replace("{{prénom}}", contact?.first_name?.trim() || "");
+            } else {
+              continue;
+            }
 
             await fetch(`${baseUrl}/api/sms/send`, {
               method: "POST",
