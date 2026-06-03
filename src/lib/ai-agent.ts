@@ -35,7 +35,7 @@ function getDispos(dateStr: string): Record<number, { start: string; end: string
 }
 
 const JOB_DURATION_MIN = 60;  // 1 heure par ouverture/fermeture
-const BUFFER_MIN = 30;        // 30 min buffer entre chaque
+const BUFFER_MIN = 45;        // 45 min buffer pour déplacement entre chaque RDV
 
 const _todayStr = new Date().toISOString().split("T")[0];
 const _currentDispos = getDispos(_todayStr);
@@ -424,6 +424,44 @@ CONTEXTE TEMPOREL:
         start: j.scheduled_time_start?.slice(0, 5) || "08:00",
         end: j.scheduled_time_end?.slice(0, 5) || "09:00",
       });
+    }
+
+    // Aussi charger les stops d'entretien depuis le route_state
+    const { data: routeState } = await supabaseAdmin.from("route_state").select("data").eq("id", 1).single();
+    if (routeState?.data?.routes) {
+      const dayToWeekday: Record<string, number> = { "Lundi": 1, "Mardi": 2, "Mercredi": 3, "Jeudi": 4, "Vendredi": 5 };
+
+      for (let i = 1; i <= 14; i++) {
+        const d = new Date(now.getTime() + i * 24 * 60 * 60 * 1000);
+        const dateStr = d.toLocaleDateString("en-CA", { timeZone: "America/Montreal" });
+        const jsDay = new Date(d.toLocaleString("en-US", { timeZone: "America/Montreal" })).getDay();
+
+        // Trouver le jour de route correspondant
+        const dayName = Object.entries(dayToWeekday).find(([, v]) => v === jsDay)?.[0];
+        if (!dayName) continue;
+
+        const dayRoute = routeState.data.routes.find((r: any) => r.day === dayName); // eslint-disable-line @typescript-eslint/no-explicit-any
+        if (!dayRoute?.stops) continue;
+
+        // Ajouter chaque stop comme un "job" bloqué
+        for (const stop of dayRoute.stops) {
+          if (stop.arrivalTime && stop.departureTime) {
+            if (!jobsByDate[dateStr]) jobsByDate[dateStr] = [];
+
+            // Vérifier que ce stop n'est pas déjà dans les jobs (éviter doublons)
+            const alreadyExists = jobsByDate[dateStr].some(
+              j => j.start === stop.arrivalTime.slice(0, 5)
+            );
+
+            if (!alreadyExists) {
+              jobsByDate[dateStr].push({
+                start: stop.arrivalTime.slice(0, 5),
+                end: stop.departureTime.slice(0, 5),
+              });
+            }
+          }
+        }
+      }
     }
 
     for (let i = 1; i <= 14; i++) {
