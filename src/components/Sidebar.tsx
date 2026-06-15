@@ -19,7 +19,7 @@ const NAV_ITEMS_MAIN = [
   { label: "Dépenses",       href: "/depenses",   icon: Receipt         },
   { label: "Odomètre",       href: "/odometre",   icon: Gauge           },
   { label: "Apprentissages", href: "/learnings",  icon: Brain           },
-  { label: "Factures",      href: "/factures",   icon: FileText        },
+  { label: "Factures",      href: "/factures/nouvelle", icon: FileText },
   { label: "Employés",      href: "/employes",   icon: Users2          },
 ];
 
