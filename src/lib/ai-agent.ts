@@ -228,6 +228,12 @@ RÈGLES IMPORTANTES:
    - Ex: "Je confirme votre rendez-vous pour le samedi 10 mai de 09h00 à 10h00. C'est bien ça?"
    - Seulement après un "oui", "parfait", "ok", "c'est ça", etc. → fais l'action
 15. (réservé)
+19. PROCHAIN PASSAGE — RÈGLE CRITIQUE: Utilise UNIQUEMENT la phrase fournie dans "⚠️ PROCHAIN PASSAGE:" du contexte client. Ne calcule JAMAIS toi-même si c'est aujourd'hui, demain, ou dans X jours. Si le contexte dit "dans 3 jours", dis la date complète. Si le contexte dit "DEMAIN", tu peux dire "demain". Si le contexte dit "AUJOURD'HUI", tu peux dire "aujourd'hui". NE JAMAIS deviner — le calcul est fait côté serveur et injecté dans le contexte.
+   Exemples:
+   - ❌ MAUVAIS: "Votre ouverture est demain!" (si le job est dans 3 jours)
+   - ✅ BON: "Votre ouverture est le mercredi 17 juin de 09h00 à 10h00."
+   - ❌ MAUVAIS: "Notre technicien arrive bientôt!" (si le job n'est PAS aujourd'hui)
+   - ✅ BON: Consulte "⚠️ PROCHAIN PASSAGE" et utilise exactement la phrase prescrite.
 16. FIN DE CONVERSATION: Quand la conversation est terminée (le client a dit "merci", "bonne journée", "parfait", "ok bye", un emoji 👍, etc.) et que tu as déjà répondu avec un "Bonne journée/soirée", NE RÉPONDS PLUS. Si le client dit juste "merci" ou "bonne journée" après ta salutation finale, c'est fini. Ne relance pas. Exemples de messages où tu ne dois PAS répondre:
    - Client: "Merci bonne journée!" (après que tu as déjà dit bonne journée)
    - Client: "👍"
@@ -350,6 +356,10 @@ export async function generateAIResponse(contactId: string, inboundMessage: stri
       .order("scheduled_date", { ascending: true })
       .limit(5);
 
+    const now = new Date();
+    const todayForJobs = now.toLocaleDateString("en-CA", { timeZone: "America/Montreal" }); // YYYY-MM-DD
+    const todayMs = new Date(todayForJobs + "T00:00:00").getTime();
+
     if (clientJobs && clientJobs.length > 0) {
       clientContext += `\nJOBS À VENIR POUR CE CLIENT:\n`;
       for (const job of clientJobs) {
@@ -357,9 +367,31 @@ export async function generateAIResponse(contactId: string, inboundMessage: stri
         const dayName = jobDate.toLocaleDateString("fr-CA", { timeZone: "America/Montreal", weekday: "long" });
         const dayNum = jobDate.toLocaleDateString("fr-CA", { timeZone: "America/Montreal", day: "numeric", month: "long" });
         const confirmed = job.confirmed_at ? "✅ CONFIRMÉ" : "⏳ En attente de paiement";
-        clientContext += `- ${job.job_type}: ${dayName} ${dayNum} de ${job.scheduled_time_start?.slice(0,5) || "?"} à ${job.scheduled_time_end?.slice(0,5) || "?"} — ${confirmed}\n`;
+        const daysUntil = Math.round((new Date(job.scheduled_date + "T00:00:00").getTime() - todayMs) / 86400000);
+        const timing = daysUntil === 0 ? "⚡ AUJOURD'HUI" : daysUntil === 1 ? "📅 DEMAIN" : `📅 dans ${daysUntil} jours`;
+        clientContext += `- ${timing} — ${job.job_type}: ${dayName} ${dayNum} de ${job.scheduled_time_start?.slice(0,5) || "?"} à ${job.scheduled_time_end?.slice(0,5) || "?"} — ${confirmed}\n`;
       }
-      clientContext += `IMPORTANT: Utilise ces dates EXACTES quand tu parles du rendez-vous du client. NE DIS JAMAIS "Thomas est en route" ou "il arrive" sauf si la date du job est AUJOURD'HUI. Si le job est demain ou plus tard, dis "votre rendez-vous est prévu pour [date exacte]".\n`;
+
+      // Compute the "prochain passage" phrase server-side so the bot never has to guess
+      const next = clientJobs[0];
+      const nextDate = new Date(next.scheduled_date + "T12:00:00");
+      const nextDay = nextDate.toLocaleDateString("fr-CA", { timeZone: "America/Montreal", weekday: "long" });
+      const nextDayNum = nextDate.toLocaleDateString("fr-CA", { timeZone: "America/Montreal", day: "numeric", month: "long" });
+      const nextStart = next.scheduled_time_start?.slice(0, 5) || "?";
+      const nextEnd = next.scheduled_time_end?.slice(0, 5) || "?";
+      const daysUntilNext = Math.round((new Date(next.scheduled_date + "T00:00:00").getTime() - todayMs) / 86400000);
+
+      let prochainePhrase: string;
+      if (daysUntilNext === 0) {
+        prochainePhrase = `AUJOURD'HUI — ${next.job_type} de ${nextStart} à ${nextEnd}. ✅ Tu PEUX dire "on passe aujourd'hui" ou "notre technicien est prévu aujourd'hui à ${nextStart}".`;
+      } else if (daysUntilNext === 1) {
+        prochainePhrase = `DEMAIN ${nextDay} — ${next.job_type} de ${nextStart} à ${nextEnd}. ✅ Tu PEUX dire "votre rendez-vous est demain ${nextDay} de ${nextStart} à ${nextEnd}".`;
+      } else {
+        prochainePhrase = `dans ${daysUntilNext} jours — le ${nextDay} ${nextDayNum} — ${next.job_type} de ${nextStart} à ${nextEnd}. ❌ NE DIS JAMAIS "demain" ou "aujourd'hui". Dis: "votre rendez-vous est le ${nextDay} ${nextDayNum} de ${nextStart} à ${nextEnd}".`;
+      }
+
+      clientContext += `\n⚠️ PROCHAIN PASSAGE: ${prochainePhrase}\n`;
+      clientContext += `RÈGLE ABSOLUE: Utilise UNIQUEMENT la phrase ci-dessus pour parler du prochain passage. Ne recalcule jamais toi-même.\n`;
     } else {
       clientContext += `\nAucun job à venir pour ce client.\n`;
     }
@@ -380,7 +412,6 @@ export async function generateAIResponse(contactId: string, inboundMessage: stri
       }
     }
 
-    const now = new Date();
     const dateStr = now.toLocaleDateString("fr-CA", { timeZone: "America/Montreal", weekday: "long", day: "numeric", month: "long", year: "numeric" });
     const timeStr = now.toLocaleTimeString("fr-CA", { timeZone: "America/Montreal", hour: "2-digit", minute: "2-digit" });
     const hour = parseInt(now.toLocaleTimeString("fr-CA", { timeZone: "America/Montreal", hour: "2-digit", hour12: false }));

@@ -30,6 +30,13 @@ const styles = StyleSheet.create({
   conditions: { fontSize: 10, lineHeight: 1.6, color: "#444", marginTop: 8 },
 });
 
+export interface LineItemData {
+  description: string;
+  qty: number;
+  unitPrice: number;
+  total: number;
+}
+
 export interface DocData {
   docNumber: string;
   docType: "facture" | "contrat";
@@ -40,55 +47,90 @@ export interface DocData {
   service: string;
   amount: number;
   paymentTerms: string;
+  lineItems?: LineItemData[];
+  notes?: string;
 }
 
 function InvoicePDF({ data }: { data: DocData }) {
   const title = data.docType === "contrat" ? "CONTRAT DE SERVICE" : "FACTURE";
   const today = new Date().toLocaleDateString("fr-CA", { year: "numeric", month: "long", day: "numeric" });
   const isContract = data.docType === "contrat";
+  const hasLineItems = !!(data.lineItems && data.lineItems.length > 0);
 
-  return React.createElement(Document, {},
-    React.createElement(Page, { size: "LETTER", style: styles.page },
-      // Header
-      React.createElement(View, { style: styles.header },
-        React.createElement(Text, { style: styles.headerTitle }, "ENTRETIEN PISCINE GRANBY"),
-        React.createElement(Text, { style: styles.headerSub }, "Thomas Demers-Ménard — 450-994-2215 — service@entretienpiscinegranby.com"),
-        React.createElement(Text, { style: styles.docType }, title),
-      ),
-      // Info bar
-      React.createElement(View, { style: styles.infoBar },
-        React.createElement(Text, { style: { fontFamily: "Helvetica-Bold" } }, data.docNumber),
-        React.createElement(Text, {}, `Date: ${today}`),
-      ),
-      // Client section
-      React.createElement(Text, { style: styles.sectionTitle }, "Client"),
-      React.createElement(Text, { style: { fontFamily: "Helvetica-Bold", marginBottom: 2 } }, data.clientName),
-      data.clientAddress ? React.createElement(Text, {}, data.clientAddress) : null,
-      data.clientPhone ? React.createElement(Text, {}, data.clientPhone) : null,
-      data.clientEmail ? React.createElement(Text, {}, data.clientEmail) : null,
-      // Services table
-      React.createElement(Text, { style: styles.sectionTitle }, "Services"),
-      React.createElement(View, { style: styles.tableHeader },
+  // Pre-compute table rows
+  const rowEls = hasLineItems
+    ? data.lineItems!.map((item) =>
+        React.createElement(View, { style: styles.row },
+          React.createElement(Text, { style: [styles.tableCell, { flex: 4 }] }, item.description),
+          React.createElement(Text, { style: [styles.tableCell, { flex: 1, textAlign: "right" }] }, item.qty !== 1 ? String(item.qty) : ""),
+          React.createElement(Text, { style: [styles.tableCell, { flex: 2, textAlign: "right" }] }, `${item.unitPrice}$`),
+          React.createElement(Text, { style: [styles.tableCell, { flex: 2, textAlign: "right" }] }, `${item.total}$`),
+        )
+      )
+    : [
+        React.createElement(View, { style: styles.row },
+          React.createElement(Text, { style: [styles.tableCell, { flex: 3 }] }, data.service),
+          React.createElement(Text, { style: [styles.tableCell, { flex: 1, textAlign: "right" }] }, `${data.amount}$`),
+        ),
+      ];
+
+  const tableHeaderEl = hasLineItems
+    ? React.createElement(View, { style: styles.tableHeader },
+        React.createElement(Text, { style: [styles.tableHeaderText, { flex: 4 }] }, "Description"),
+        React.createElement(Text, { style: [styles.tableHeaderText, { flex: 1, textAlign: "right" }] }, "Qté"),
+        React.createElement(Text, { style: [styles.tableHeaderText, { flex: 2, textAlign: "right" }] }, "Prix unit."),
+        React.createElement(Text, { style: [styles.tableHeaderText, { flex: 2, textAlign: "right" }] }, "Total"),
+      )
+    : React.createElement(View, { style: styles.tableHeader },
         React.createElement(Text, { style: [styles.tableHeaderText, { flex: 3 }] }, "Description"),
         React.createElement(Text, { style: [styles.tableHeaderText, { flex: 1, textAlign: "right" }] }, "Montant"),
+      );
+
+  // Build all page children as a flat array to allow dynamic row spreading
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const pageChildren: any[] = [
+    // Header
+    React.createElement(View, { style: styles.header },
+      React.createElement(Text, { style: styles.headerTitle }, "ENTRETIEN PISCINE GRANBY"),
+      React.createElement(Text, { style: styles.headerSub }, "Thomas Demers-Ménard — 450-994-2215 — service@entretienpiscinegranby.com"),
+      React.createElement(Text, { style: styles.docType }, title),
+    ),
+    // Info bar
+    React.createElement(View, { style: styles.infoBar },
+      React.createElement(Text, { style: { fontFamily: "Helvetica-Bold" } }, data.docNumber),
+      React.createElement(Text, {}, `Date: ${today}`),
+    ),
+    // Client section
+    React.createElement(Text, { style: styles.sectionTitle }, "Client"),
+    React.createElement(Text, { style: { fontFamily: "Helvetica-Bold", marginBottom: 2 } }, data.clientName),
+    data.clientAddress ? React.createElement(Text, {}, data.clientAddress) : null,
+    data.clientPhone ? React.createElement(Text, {}, data.clientPhone) : null,
+    data.clientEmail ? React.createElement(Text, {}, data.clientEmail) : null,
+    // Services table
+    React.createElement(Text, { style: styles.sectionTitle }, "Services"),
+    tableHeaderEl,
+    ...rowEls,
+    // Notes (optional)
+    ...(data.notes ? [
+      React.createElement(View, { style: { marginTop: 12, padding: 10, backgroundColor: "#f9f9f9", borderRadius: 4 } },
+        React.createElement(Text, { style: { fontFamily: "Helvetica-Bold", fontSize: 10, marginBottom: 4 } }, "Notes:"),
+        React.createElement(Text, { style: { fontSize: 10, color: "#555" } }, data.notes),
       ),
-      React.createElement(View, { style: styles.row },
-        React.createElement(Text, { style: [styles.tableCell, { flex: 3 }] }, data.service),
-        React.createElement(Text, { style: [styles.tableCell, { flex: 1, textAlign: "right" }] }, `${data.amount}$`),
-      ),
-      // Total
-      React.createElement(View, { style: styles.totalBox },
-        React.createElement(Text, { style: styles.totalLabel }, "TOTAL"),
-        React.createElement(Text, { style: styles.totalText }, `${data.amount}$`),
-      ),
-      // Payment
-      React.createElement(View, { style: styles.paymentBox },
-        React.createElement(Text, { style: styles.paymentTitle }, "Paiement par virement Interac:"),
-        React.createElement(Text, { style: styles.paymentEmail }, "service@entretienpiscinegranby.com"),
-        React.createElement(Text, { style: styles.paymentTerms }, data.paymentTerms),
-      ),
-      // Contract conditions + signatures
-      isContract ? React.createElement(View, {},
+    ] : []),
+    // Total
+    React.createElement(View, { style: styles.totalBox },
+      React.createElement(Text, { style: styles.totalLabel }, "TOTAL"),
+      React.createElement(Text, { style: styles.totalText }, `${data.amount}$`),
+    ),
+    // Payment
+    React.createElement(View, { style: styles.paymentBox },
+      React.createElement(Text, { style: styles.paymentTitle }, "Paiement par virement Interac:"),
+      React.createElement(Text, { style: styles.paymentEmail }, "service@entretienpiscinegranby.com"),
+      React.createElement(Text, { style: styles.paymentTerms }, data.paymentTerms),
+    ),
+    // Contract conditions + signatures
+    ...(isContract ? [
+      React.createElement(View, {},
         React.createElement(Text, { style: styles.sectionTitle }, "Conditions"),
         React.createElement(Text, { style: styles.conditions }, "Le présent contrat confirme l'entente entre Entretien Piscine Granby et le client pour les services décrits ci-dessus pour la saison 2026. Le service débute à l'ouverture de la piscine (mi-avril/début mai) et se termine à la fermeture (fin septembre/octobre). L'annulation est possible avec un préavis de 14 jours. Des frais d'administration de 100$ s'appliquent."),
         React.createElement(View, { style: styles.sigSection },
@@ -103,13 +145,17 @@ function InvoicePDF({ data }: { data: DocData }) {
             React.createElement(Text, { style: { fontSize: 9, color: "#999", marginTop: 2 } }, "Entretien Piscine Granby"),
           ),
         ),
-      ) : null,
-      // Footer
-      React.createElement(View, { style: styles.footer },
-        React.createElement(Text, { style: styles.footerText }, "Entretien Piscine Granby — 86 rue de Windsor, Granby QC J2H 1V4 — 450-994-2215"),
       ),
-    )
-  );
+    ] : []),
+    // Footer
+    React.createElement(View, { style: styles.footer },
+      React.createElement(Text, { style: styles.footerText }, "Entretien Piscine Granby — 86 rue de Windsor, Granby QC J2H 1V4 — 450-994-2215"),
+    ),
+  ].filter(Boolean);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const PageEl = (React.createElement as any)(Page, { size: "LETTER", style: styles.page }, ...pageChildren);
+  return React.createElement(Document, {}, PageEl);
 }
 
 export async function generatePDFBuffer(data: DocData): Promise<Buffer> {
