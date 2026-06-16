@@ -144,6 +144,13 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   const [showAllAdminJobs, setShowAllAdminJobs] = useState(false);
 
   // Job modal
+  // Water tests
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [waterTests, setWaterTests] = useState<any[]>([]);
+  const [showWaterForm, setShowWaterForm] = useState(false);
+  const [waterForm, setWaterForm] = useState({ ph: "", alkalinity: "", chlorine: "", calcium_hardness: "", stabilizer: "", notes: "" });
+  const [savingWater, setSavingWater] = useState(false);
+
   const [showJobModal, setShowJobModal] = useState(false);
   const [savingJob, setSavingJob] = useState(false);
   const [jobForm, setJobForm] = useState({
@@ -204,6 +211,12 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   const [newPayToast, setNewPayToast] = useState(false);
   const [markPaidId, setMarkPaidId] = useState<string | null>(null);
 
+  const loadWaterTests = useCallback(async () => {
+    const res = await fetch(`/api/water-tests?contactId=${id}`);
+    const data = await res.json();
+    if (!data.migrationRequired) setWaterTests(data.tests || []);
+  }, [id]);
+
   const load = useCallback(async () => {
     const [{ data: c }, m, { data: j }, { data: d }, { data: p }] = await Promise.all([
       supabaseBrowser.from("contacts").select("*").eq("id", id).single(),
@@ -220,7 +233,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
     setLoading(false);
   }, [id]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); loadWaterTests(); }, [load, loadWaterTests]);
 
   const save = async (fields: Partial<Contact>) => {
     const { data } = await supabaseBrowser
@@ -1143,6 +1156,94 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
                           <X size={12} />
                         </button>
                       </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Analyses d'eau */}
+          <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-bold text-gray-800">Analyses d&apos;eau</h2>
+              <button onClick={() => setShowWaterForm(v => !v)}
+                className="text-xs px-2 py-1 bg-blue-50 text-blue-700 rounded hover:bg-blue-100">
+                {showWaterForm ? "Annuler" : "+ Ajouter"}
+              </button>
+            </div>
+            {showWaterForm && (
+              <div className="mb-3 p-3 bg-blue-50 rounded-lg border border-blue-100 space-y-2">
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { key: "ph", label: "pH", hint: "7.2–7.6" },
+                    { key: "alkalinity", label: "Alcalinité", hint: "80–120 ppm" },
+                    { key: "chlorine", label: "Chlore libre", hint: "1–3 ppm" },
+                    { key: "calcium_hardness", label: "Dureté calcique", hint: "200–400 ppm" },
+                    { key: "stabilizer", label: "Stabilisant", hint: "30–50 ppm" },
+                  ].map(f => (
+                    <div key={f.key}>
+                      <label className="block text-[10px] text-gray-500 mb-0.5">{f.label} <span className="text-gray-400">({f.hint})</span></label>
+                      <input type="number" step="0.1"
+                        value={waterForm[f.key as keyof typeof waterForm]}
+                        onChange={e => setWaterForm(p => ({ ...p, [f.key]: e.target.value }))}
+                        className="w-full px-2 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:border-blue-400"
+                        placeholder="—" />
+                    </div>
+                  ))}
+                </div>
+                <input type="text" value={waterForm.notes}
+                  onChange={e => setWaterForm(p => ({ ...p, notes: e.target.value }))}
+                  className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded focus:outline-none focus:border-blue-400"
+                  placeholder="Notes optionnelles..." />
+                <button disabled={savingWater}
+                  onClick={async () => {
+                    setSavingWater(true);
+                    await fetch("/api/water-tests", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ contact_id: id, ...waterForm }),
+                    });
+                    setSavingWater(false);
+                    setShowWaterForm(false);
+                    setWaterForm({ ph: "", alkalinity: "", chlorine: "", calcium_hardness: "", stabilizer: "", notes: "" });
+                    loadWaterTests();
+                  }}
+                  className="w-full py-1.5 bg-blue-600 text-white text-xs font-medium rounded hover:bg-blue-700 disabled:opacity-50">
+                  {savingWater ? "Sauvegarde..." : "Enregistrer l'analyse"}
+                </button>
+              </div>
+            )}
+            {waterTests.length === 0 ? (
+              <p className="text-xs text-gray-400">Aucune analyse enregistrée</p>
+            ) : (
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {waterTests.map((t) => {
+                  const dt = new Date(t.tested_at).toLocaleDateString("fr-CA", { day: "numeric", month: "short", year: "numeric" });
+                  const params = [
+                    { k: "pH", v: t.ph, min: 7.2, max: 7.6 },
+                    { k: "Alc", v: t.alkalinity, min: 80, max: 120 },
+                    { k: "Cl", v: t.chlorine, min: 1, max: 3 },
+                    { k: "Ca", v: t.calcium_hardness, min: 200, max: 400 },
+                    { k: "Stab", v: t.stabilizer, min: 30, max: 50 },
+                  ];
+                  return (
+                    <div key={t.id} className="border border-gray-100 rounded-lg p-2">
+                      <p className="text-[10px] text-gray-400 mb-1">{dt}</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {params.map(p => {
+                          if (p.v === null || p.v === undefined) return null;
+                          const ok = p.v >= p.min && p.v <= p.max;
+                          const warn = !ok && p.v >= p.min * 0.8 && p.v <= p.max * 1.3;
+                          const color = ok ? "bg-green-50 text-green-700" : warn ? "bg-yellow-50 text-yellow-700" : "bg-red-50 text-red-700";
+                          return (
+                            <span key={p.k} className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${color}`}>
+                              {p.k}: {p.v}
+                            </span>
+                          );
+                        })}
+                      </div>
+                      {t.notes && <p className="text-[10px] text-gray-400 mt-1">{t.notes}</p>}
                     </div>
                   );
                 })}

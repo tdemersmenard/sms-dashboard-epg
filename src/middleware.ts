@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 const PUBLIC_PATHS = [
   "/login",
   "/portail",
+  "/employe",
   "/api",
   "/_next",
   "/favicon.ico",

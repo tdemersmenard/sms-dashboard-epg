@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Home, Calendar, CreditCard, User, LogOut } from "lucide-react";
+import { Home, Calendar, CreditCard, User, LogOut, Droplets } from "lucide-react";
 
 export default function PortailLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -41,6 +41,7 @@ export default function PortailLayout({ children }: { children: React.ReactNode 
   const navItems = [
     { icon: Home, label: "Accueil", path: "/portail/dashboard" },
     { icon: Calendar, label: "Rendez-vous", path: "/portail/rendez-vous" },
+    { icon: Droplets, label: "Analyses", path: "/portail/analyses" },
     { icon: CreditCard, label: "Paiements", path: "/portail/paiements" },
     { icon: User, label: "Compte", path: "/portail/settings" },
   ];

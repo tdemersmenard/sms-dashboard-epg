@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 import {
   LayoutDashboard, Kanban, MessageSquare, Users, Calendar,
-  Navigation, Gauge, Receipt, Brain, Activity, FileText, Users2,
+  Navigation, Gauge, Receipt, Brain, Activity, FileText, Users2, Tag,
 } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
@@ -24,6 +24,7 @@ const NAV_ITEMS_MAIN = [
 ];
 
 const NAV_ITEMS_ADMIN = [
+  { label: "Catalogue",  href: "/catalogue",  icon: Tag      },
   { label: "Diagnostic", href: "/diagnostic", icon: Activity },
 ];
 

@@ -3,7 +3,13 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { FileText, Plus, Trash2, Search, Send, Download, ChevronDown, ChevronUp } from "lucide-react";
-import { CATALOG_ITEMS, CATALOG_CATEGORIES, CatalogItem } from "@/lib/catalog";
+interface CatalogItem {
+  id: string;
+  name: string;
+  description?: string | null;
+  default_price: number;
+  category?: string | null;
+}
 
 interface Contact {
   id: string;
@@ -24,15 +30,18 @@ interface LineItem {
 export default function NouvelleFacturePage() {
   const router = useRouter();
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([]);
   const [search, setSearch] = useState("");
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
   const [notes, setNotes] = useState("");
   const [showCatalog, setShowCatalog] = useState(false);
-  const [activeCategory, setActiveCategory] = useState<string>(CATALOG_CATEGORIES[0]);
+  const [activeCategory, setActiveCategory] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; docNumber?: string; pdfUrl?: string; emailSent?: boolean; emailError?: string | null; noEmail?: boolean } | null>(null);
+
+  const catalogCategories = Array.from(new Set(catalogItems.map(i => i.category || "Autre")));
 
   const filteredContacts = contacts.filter(c => {
     const name = [c.first_name, c.last_name].filter(Boolean).join(" ").toLowerCase();
@@ -47,7 +56,17 @@ export default function NouvelleFacturePage() {
     setContacts(data.contacts || []);
   }, []);
 
-  useEffect(() => { loadContacts(); }, [loadContacts]);
+  const loadCatalog = useCallback(async () => {
+    const res = await fetch("/api/catalog");
+    const data = await res.json();
+    const items = data.items || [];
+    setCatalogItems(items);
+    if (items.length > 0 && !activeCategory) {
+      setActiveCategory(items[0].category || "Autre");
+    }
+  }, [activeCategory]);
+
+  useEffect(() => { loadContacts(); loadCatalog(); }, [loadContacts, loadCatalog]);
 
   const selectContact = (c: Contact) => {
     setSelectedContact(c);
@@ -59,8 +78,8 @@ export default function NouvelleFacturePage() {
     setLineItems(prev => [...prev, {
       description: item.name,
       qty: 1,
-      unitPrice: item.defaultPrice,
-      total: item.defaultPrice,
+      unitPrice: item.default_price,
+      total: item.default_price,
     }]);
     setShowCatalog(false);
   };
@@ -209,21 +228,21 @@ export default function NouvelleFacturePage() {
           {/* Catalog picker */}
           {showCatalog && (
             <div className="mb-4 border border-gray-200 rounded-lg overflow-hidden">
-              <div className="flex border-b border-gray-200 bg-gray-50">
-                {CATALOG_CATEGORIES.map(cat => (
+              <div className="flex border-b border-gray-200 bg-gray-50 overflow-x-auto">
+                {catalogCategories.map(cat => (
                   <button key={cat} onClick={() => setActiveCategory(cat)}
-                    className={`px-4 py-2 text-xs font-medium transition ${activeCategory === cat ? "bg-white text-[#0a1f3f] border-b-2 border-[#0a1f3f]" : "text-gray-500 hover:text-gray-700"}`}>
+                    className={`px-4 py-2 text-xs font-medium whitespace-nowrap transition ${activeCategory === cat ? "bg-white text-[#0a1f3f] border-b-2 border-[#0a1f3f]" : "text-gray-500 hover:text-gray-700"}`}>
                     {cat}
                   </button>
                 ))}
               </div>
               <div className="p-2 grid grid-cols-1 sm:grid-cols-2 gap-1">
-                {CATALOG_ITEMS.filter(i => i.category === activeCategory).map(item => (
+                {catalogItems.filter(i => (i.category || "Autre") === activeCategory).map(item => (
                   <button key={item.id} onClick={() => addCatalogItem(item)}
                     className="text-left px-3 py-2 rounded hover:bg-gray-50 border border-transparent hover:border-gray-200 transition">
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium text-gray-800">{item.name}</span>
-                      <span className="text-sm font-semibold text-[#0a1f3f]">{item.defaultPrice}$</span>
+                      <span className="text-sm font-semibold text-[#0a1f3f]">{item.default_price}$</span>
                     </div>
                     {item.description && <p className="text-xs text-gray-400 mt-0.5">{item.description}</p>}
                   </button>
