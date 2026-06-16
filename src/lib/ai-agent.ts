@@ -598,7 +598,7 @@ CONTEXTE TEMPOREL:
     }
 
     const response = await callClaudeWithRetry({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-4-6",
       max_tokens: 500,
       system: SYSTEM_PROMPT + clientContext + learnings,
       messages: finalMessages,
