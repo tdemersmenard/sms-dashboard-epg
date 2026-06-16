@@ -2,91 +2,159 @@
 
 import { useState, useEffect } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
-import { Navigation, Check, Phone, MapPin, Clock, ArrowLeft, Loader2, Camera } from "lucide-react";
+import { Navigation, Check, Phone, MapPin, Clock, ArrowLeft, Loader2, Camera, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import PostVisitChecklist from "@/components/PostVisitChecklist";
 
 const DAYS_FR = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
 const HOME_ADDR = "86 rue de Windsor, Granby, QC";
 
+const JOB_BADGE: Record<string, { label: string; color: string; bg: string }> = {
+  entretien: { label: "Entretien",  color: "#3b82f6", bg: "#eff6ff" },
+  ouverture: { label: "Ouverture",  color: "#10b981", bg: "#f0fdf4" },
+  fermeture: { label: "Fermeture",  color: "#f97316", bg: "#fff7ed" },
+  visite:    { label: "Visite",     color: "#a855f7", bg: "#faf5ff" },
+  autre:     { label: "Autre",      color: "#6b7280", bg: "#f9fafb" },
+};
+
+interface Stop {
+  key: string;
+  jobId?: string;
+  contactId: string;
+  contactName: string;
+  phone: string;
+  address: string;
+  jobType: string;
+  startTime?: string;
+  endTime?: string;
+  fromRouteState?: boolean;
+}
+
 export default function TodayRoutePage() {
   const [loading, setLoading] = useState(true);
   const [todayName, setTodayName] = useState("");
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [stops, setStops] = useState<any[]>([]);
-  const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
+  const [stops, setStops] = useState<Stop[]>([]);
+  const [doneKeys, setDoneKeys] = useState<Set<string>>(new Set());
   const [checklistStop, setChecklistStop] = useState<{ name: string; id: string; jobType: string } | null>(null);
   const [photoUploading, setPhotoUploading] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadToday();
-  }, []);
+  useEffect(() => { loadToday(); }, []);
 
   const loadToday = async () => {
     setLoading(true);
-
     const today = new Date();
     const dayName = DAYS_FR[today.getDay()];
     setTodayName(dayName);
+    const todayStr = today.toISOString().split("T")[0];
 
-    const { data: routeState } = await supabaseBrowser
-      .from("route_state")
-      .select("data")
-      .eq("id", 1)
-      .single();
+    // 1. Load all today's jobs
+    const { data: jobs } = await supabaseBrowser
+      .from("jobs")
+      .select("id, contact_id, job_type, scheduled_time_start, scheduled_time_end, status")
+      .eq("scheduled_date", todayStr)
+      .in("status", ["planifié", "confirmé", "en_cours"])
+      .order("scheduled_time_start", { ascending: true, nullsFirst: false });
 
-    if (!routeState?.data?.routes) {
-      setStops([]);
-      setLoading(false);
-      return;
+    // 2. Fetch contacts for those jobs
+    const jobContactIds = (jobs || []).map(j => j.contact_id);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const contactMap = new Map<string, any>();
+    if (jobContactIds.length > 0) {
+      const { data: contacts } = await supabaseBrowser
+        .from("contacts")
+        .select("id, first_name, last_name, phone, address")
+        .in("id", jobContactIds);
+      (contacts || []).forEach(c => contactMap.set(c.id, c));
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const dayRoute = routeState.data.routes.find((r: any) => r.day === dayName);
-    if (!dayRoute || !dayRoute.stops || dayRoute.stops.length === 0) {
-      setStops([]);
-      setLoading(false);
-      return;
-    }
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const contactIds = dayRoute.stops.map((s: any) => s.id);
-    const { data: contacts } = await supabaseBrowser
-      .from("contacts")
-      .select("id, first_name, last_name, phone, address")
-      .in("id", contactIds);
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const contactMap = new Map((contacts || []).map((c: any) => [c.id, c]));
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const enrichedStops = dayRoute.stops.map((s: any, i: number) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const c = contactMap.get(s.id) as any;
+    // 3. Build stops from jobs
+    const jobStops: Stop[] = (jobs || []).map(j => {
+      const c = contactMap.get(j.contact_id);
       return {
-        ...s,
-        contactName: c ? `${c.first_name} ${c.last_name || ""}`.trim() : s.name || "Inconnu",
+        key: j.id,
+        jobId: j.id,
+        contactId: j.contact_id,
+        contactName: c ? `${c.first_name || ""} ${c.last_name || ""}`.trim() || "Inconnu" : "Inconnu",
         phone: c?.phone || "",
-        address: c?.address || s.address || "",
-        position: i + 1,
+        address: c?.address || "",
+        jobType: j.job_type || "entretien",
+        startTime: j.scheduled_time_start?.slice(0, 5),
+        endTime: j.scheduled_time_end?.slice(0, 5),
       };
     });
 
-    setStops(enrichedStops);
+    // 4. Load route_state for recurring entretiens not yet confirmed (no job entry today)
+    const { data: routeState } = await supabaseBrowser
+      .from("route_state").select("data").eq("id", 1).single();
 
-    const todayStr = today.toISOString().split("T")[0];
-    const { data: completedJobs } = await supabaseBrowser
-      .from("jobs")
-      .select("contact_id")
-      .eq("scheduled_date", todayStr)
-      .eq("status", "complété");
+    const jobContactSet = new Set(jobContactIds);
+    const rsStops: Stop[] = [];
 
-    if (completedJobs) {
+    if (routeState?.data?.routes) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      setCompletedIds(new Set(completedJobs.map((j: any) => j.contact_id)));
+      const dayRoute = routeState.data.routes.find((r: any) => r.day === dayName);
+      if (dayRoute?.stops) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const extraIds = dayRoute.stops.filter((s: any) => !jobContactSet.has(s.id)).map((s: any) => s.id);
+        if (extraIds.length > 0) {
+          const { data: extraContacts } = await supabaseBrowser
+            .from("contacts").select("id, first_name, last_name, phone, address").in("id", extraIds);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const extraMap = new Map((extraContacts || []).map((c: any) => [c.id, c]));
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          dayRoute.stops.filter((s: any) => !jobContactSet.has(s.id)).forEach((s: any) => {
+            const c = extraMap.get(s.id);
+            rsStops.push({
+              key: `rs-${s.id}`,
+              contactId: s.id,
+              contactName: c ? `${c.first_name || ""} ${c.last_name || ""}`.trim() || "Inconnu" : s.name || "Inconnu",
+              phone: c?.phone || s.phone || "",
+              address: c?.address || s.address || "",
+              jobType: "entretien",
+              startTime: s.startTime,
+              fromRouteState: true,
+            });
+          });
+        }
+      }
+    }
+
+    // 5. Merge and sort by startTime (nulls last)
+    const allStops = [...jobStops, ...rsStops].sort((a, b) => {
+      if (!a.startTime && !b.startTime) return 0;
+      if (!a.startTime) return 1;
+      if (!b.startTime) return -1;
+      return a.startTime.localeCompare(b.startTime);
+    });
+    setStops(allStops);
+
+    // 6. Mark already-completed
+    const { data: completedJobs } = await supabaseBrowser
+      .from("jobs").select("id, contact_id").eq("scheduled_date", todayStr).eq("status", "complété");
+    if (completedJobs) {
+      const keys = new Set<string>();
+      completedJobs.forEach(j => { keys.add(j.id); keys.add(`rs-${j.contact_id}`); keys.add(j.contact_id); });
+      setDoneKeys(keys);
     }
 
     setLoading(false);
+  };
+
+  const isDone = (stop: Stop) =>
+    doneKeys.has(stop.key) || (stop.jobId ? doneKeys.has(stop.jobId) : false) || doneKeys.has(stop.contactId);
+
+  const markAsDone = async (stop: Stop) => {
+    const todayStr = new Date().toISOString().split("T")[0];
+    if (stop.jobId) {
+      await supabaseBrowser.from("jobs").update({ status: "complété" }).eq("id", stop.jobId);
+    } else {
+      const { data: existing } = await supabaseBrowser.from("jobs").select("id")
+        .eq("contact_id", stop.contactId).eq("scheduled_date", todayStr).eq("job_type", "entretien").limit(1);
+      if (existing && existing.length > 0) {
+        await supabaseBrowser.from("jobs").update({ status: "complété" }).eq("id", existing[0].id);
+      }
+    }
+    setDoneKeys(prev => new Set(Array.from(prev).concat([stop.key, stop.contactId])));
   };
 
   const handlePhotoCapture = async (contactId: string, file: File) => {
@@ -105,62 +173,25 @@ export default function TodayRoutePage() {
     }
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const navigateToStop = (stop: any) => {
-    const destination = encodeURIComponent(stop.address || stop.contactName);
-    const url = `https://www.google.com/maps/dir/?api=1&destination=${destination}&travelmode=driving`;
-    window.open(url, "_blank");
+  const navigateToStop = (stop: Stop) => {
+    const dest = encodeURIComponent(stop.address || stop.contactName);
+    window.open(`https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=driving`, "_blank");
   };
 
   const navigateAll = () => {
-    if (stops.length === 0) return;
-
-    const origin = encodeURIComponent(HOME_ADDR);
-
-    // Tous les arrêts deviennent des waypoints, sauf le DERNIER qui devient la destination
-    // Et on ajoute la maison comme dernier waypoint forcé pour le retour
-    const allPoints = [
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ...stops.map((s: any) => s.address || s.contactName),
-      HOME_ADDR, // retour à la maison
-    ];
-
-    // Le dernier point = destination (la maison)
-    const destination = encodeURIComponent(allPoints[allPoints.length - 1]);
-
-    // Tous les autres = waypoints
-    const waypoints = allPoints
-      .slice(0, -1)
-      .map((p) => encodeURIComponent(p))
-      .join("|");
-
-    const url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&waypoints=${waypoints}&travelmode=driving`;
-    window.open(url, "_blank");
+    const remaining = stops.filter(s => !isDone(s));
+    if (remaining.length === 0) return;
+    const points = [...remaining.map(s => s.address || s.contactName), HOME_ADDR];
+    const dest = encodeURIComponent(points[points.length - 1]);
+    const waypoints = points.slice(0, -1).map(p => encodeURIComponent(p)).join("|");
+    window.open(
+      `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(HOME_ADDR)}&destination=${dest}&waypoints=${waypoints}&travelmode=driving`,
+      "_blank"
+    );
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const markAsDone = async (stop: any) => {
-    const today = new Date().toISOString().split("T")[0];
-
-    const { data: jobs } = await supabaseBrowser
-      .from("jobs")
-      .select("id")
-      .eq("contact_id", stop.id)
-      .eq("scheduled_date", today)
-      .eq("job_type", "entretien")
-      .limit(1);
-
-    if (jobs && jobs.length > 0) {
-      await supabaseBrowser
-        .from("jobs")
-        .update({ status: "complété" })
-        .eq("id", jobs[0].id);
-    }
-
-    setCompletedIds(prev => new Set(Array.from(prev).concat(stop.id)));
-  };
-
-  const allDone = stops.length > 0 && completedIds.size === stops.length;
+  const remaining = stops.filter(s => !isDone(s));
+  const allDone = stops.length > 0 && remaining.length === 0;
 
   return (
     <div className="p-4 max-w-2xl mx-auto space-y-4">
@@ -168,12 +199,13 @@ export default function TodayRoutePage() {
         <Link href="/routes" className="p-2 bg-gray-100 rounded-lg hover:bg-gray-200">
           <ArrowLeft size={18} />
         </Link>
-        <div>
+        <div className="flex-1">
           <h1 className="text-xl font-bold text-gray-900">Itinéraire {todayName}</h1>
-          <p className="text-xs text-gray-500">
-            {completedIds.size} / {stops.length} complétés
-          </p>
+          <p className="text-xs text-gray-500">{stops.length - remaining.length} / {stops.length} complétés</p>
         </div>
+        <button onClick={loadToday} className="p-2 bg-gray-100 rounded-lg hover:bg-gray-200" title="Rafraîchir">
+          <RefreshCw size={16} />
+        </button>
       </div>
 
       {loading ? (
@@ -182,13 +214,14 @@ export default function TodayRoutePage() {
         </div>
       ) : stops.length === 0 ? (
         <div className="bg-white rounded-xl border p-8 text-center">
-          <p className="text-gray-500">Aucun client prévu pour {todayName}</p>
+          <p className="text-gray-500">Aucun job prévu pour {todayName}</p>
+          <p className="text-xs text-gray-400 mt-2">Les ouvertures, fermetures et entretiens planifiés apparaissent ici.</p>
         </div>
       ) : allDone ? (
         <div className="bg-green-50 border border-green-200 rounded-xl p-6 text-center">
           <p className="text-2xl mb-2">🎉</p>
           <p className="font-bold text-green-900">Journée terminée!</p>
-          <p className="text-sm text-green-700 mt-1">{stops.length} clients visités</p>
+          <p className="text-sm text-green-700 mt-1">{stops.length} stops complétés</p>
         </div>
       ) : (
         <>
@@ -196,75 +229,70 @@ export default function TodayRoutePage() {
             onClick={navigateAll}
             className="w-full bg-blue-600 text-white rounded-xl py-4 font-bold text-base flex items-center justify-center gap-2 hover:bg-blue-700"
           >
-            <Navigation size={20} /> Lancer Google Maps avec tous les arrêts
+            <Navigation size={20} /> Google Maps — {remaining.length} arrêts restants
           </button>
 
           <div className="space-y-2">
-            {stops.map((stop) => {
-              const isDone = completedIds.has(stop.id);
+            {stops.map((stop, idx) => {
+              const done = isDone(stop);
+              const badge = JOB_BADGE[stop.jobType] || JOB_BADGE.autre;
               return (
-                <div
-                  key={stop.id}
-                  className={`bg-white rounded-xl border p-4 ${isDone ? "opacity-50" : ""}`}
-                >
+                <div key={stop.key} className={`bg-white rounded-xl border p-4 transition-opacity ${done ? "opacity-40" : ""}`}>
                   <div className="flex items-start gap-3">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0 ${isDone ? "bg-green-500" : "bg-[#0a1f3f]"}`}>
-                      {isDone ? "✓" : stop.position}
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0 ${done ? "bg-green-500" : "bg-[#0a1f3f]"}`}>
+                      {done ? "✓" : idx + 1}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className={`font-semibold text-gray-900 ${isDone ? "line-through" : ""}`}>
-                        {stop.contactName}
-                      </p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className={`font-semibold text-gray-900 ${done ? "line-through" : ""}`}>{stop.contactName}</p>
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                          style={{ color: badge.color, backgroundColor: badge.bg }}>
+                          {badge.label}
+                        </span>
+                        {stop.fromRouteState && (
+                          <span className="text-[10px] text-gray-400 px-1.5 py-0.5 bg-gray-100 rounded-full">route récurrente</span>
+                        )}
+                      </div>
                       {stop.address && (
                         <p className="text-xs text-gray-500 mt-0.5 flex items-start gap-1">
                           <MapPin size={11} className="mt-0.5 flex-shrink-0" /> {stop.address}
                         </p>
                       )}
-                      {stop.startTime && (
+                      {(stop.startTime || stop.endTime) && (
                         <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-1">
-                          <Clock size={11} /> {stop.startTime}
+                          <Clock size={11} />
+                          {stop.startTime}{stop.endTime ? ` → ${stop.endTime}` : ""}
                         </p>
                       )}
 
-                      {!isDone && (
+                      {!done && (
                         <div className="flex gap-2 mt-3">
-                          <button
-                            onClick={() => navigateToStop(stop)}
-                            className="flex-1 bg-blue-50 text-blue-700 rounded-lg py-2 text-xs font-medium flex items-center justify-center gap-1 hover:bg-blue-100"
-                          >
+                          <button onClick={() => navigateToStop(stop)}
+                            className="flex-1 bg-blue-50 text-blue-700 rounded-lg py-2 text-xs font-medium flex items-center justify-center gap-1 hover:bg-blue-100">
                             <Navigation size={12} /> Naviguer
                           </button>
                           {stop.phone && (
-                            <a
-                              href={`tel:${stop.phone}`}
-                              className="bg-gray-100 text-gray-700 rounded-lg py-2 px-3 text-xs font-medium flex items-center justify-center hover:bg-gray-200"
-                            >
+                            <a href={`tel:${stop.phone}`}
+                              className="bg-gray-100 text-gray-700 rounded-lg py-2 px-3 text-xs font-medium flex items-center justify-center hover:bg-gray-200">
                               <Phone size={12} />
                             </a>
                           )}
                           <label className="cursor-pointer flex items-center justify-center gap-1 px-3 py-2 bg-gray-100 rounded-lg text-xs font-medium text-gray-700 hover:bg-gray-200">
-                            {photoUploading === stop.id ? (
-                              <Loader2 size={12} className="animate-spin" />
-                            ) : (
-                              <Camera size={12} />
-                            )}
+                            {photoUploading === stop.contactId
+                              ? <Loader2 size={12} className="animate-spin" />
+                              : <Camera size={12} />}
                             Photo
-                            <input
-                              type="file"
-                              accept="image/*"
-                              capture="environment"
-                              className="hidden"
+                            <input type="file" accept="image/*" capture="environment" className="hidden"
                               onChange={e => {
                                 const file = e.target.files?.[0];
-                                if (file) handlePhotoCapture(stop.id, file);
+                                if (file) handlePhotoCapture(stop.contactId, file);
                                 e.target.value = "";
                               }}
                             />
                           </label>
                           <button
-                            onClick={() => setChecklistStop({ name: stop.contactName, id: stop.id, jobType: stop.jobType || "entretien" })}
-                            className="flex-1 bg-green-600 text-white rounded-lg py-2 text-xs font-medium flex items-center justify-center gap-1 hover:bg-green-700"
-                          >
+                            onClick={() => setChecklistStop({ name: stop.contactName, id: stop.contactId, jobType: stop.jobType })}
+                            className="flex-1 bg-green-600 text-white rounded-lg py-2 text-xs font-medium flex items-center justify-center gap-1 hover:bg-green-700">
                             <Check size={12} /> Fait
                           </button>
                         </div>
@@ -277,6 +305,7 @@ export default function TodayRoutePage() {
           </div>
         </>
       )}
+
       {checklistStop && (
         <PostVisitChecklist
           clientName={checklistStop.name}
@@ -284,7 +313,7 @@ export default function TodayRoutePage() {
           jobType={checklistStop.jobType}
           onClose={() => setChecklistStop(null)}
           onComplete={() => {
-            const stop = stops.find(s => s.id === checklistStop.id);
+            const stop = stops.find(s => s.contactId === checklistStop.id);
             if (stop) markAsDone(stop);
             setChecklistStop(null);
           }}
