@@ -142,6 +142,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   const [loading, setLoading] = useState(true);
   const [showStageDropdown, setShowStageDropdown] = useState(false);
   const [showAllAdminJobs, setShowAllAdminJobs] = useState(false);
+  const [employees, setEmployees] = useState<{ id: string; name: string }[]>([]);
 
   // Job modal
   // Water tests
@@ -233,7 +234,20 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
     setLoading(false);
   }, [id]);
 
-  useEffect(() => { load(); loadWaterTests(); }, [load, loadWaterTests]);
+  useEffect(() => {
+    load();
+    loadWaterTests();
+    fetch("/api/employes/list").then(r => r.json()).then(d => setEmployees(d.employees || []));
+  }, [load, loadWaterTests]);
+
+  const assignJob = async (jobId: string, employeeId: string | null) => {
+    await fetch("/api/jobs/assign", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jobId, employeeId: employeeId || null }),
+    });
+    load();
+  };
 
   const save = async (fields: Partial<Contact>) => {
     const { data } = await supabaseBrowser
@@ -809,15 +823,31 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
                 <div className="space-y-2">
                   {displayedUpcoming.map((j) => {
                     const jsc = JOB_STATUS_COLORS[j.status];
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const assigned = (j as any).assigned_employee_id ?? "";
                     return (
-                      <div key={j.id} className="flex items-center justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="text-xs font-medium text-gray-800">{formatDate(j.scheduled_date)}</p>
-                          <p className="text-xs text-gray-500">{j.job_type}{j.scheduled_time_start ? ` · ${j.scheduled_time_start}` : ""}</p>
+                      <div key={j.id} className="space-y-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-xs font-medium text-gray-800">{formatDate(j.scheduled_date)}</p>
+                            <p className="text-xs text-gray-500">{j.job_type}{j.scheduled_time_start ? ` · ${j.scheduled_time_start}` : ""}</p>
+                          </div>
+                          <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full flex-shrink-0 ${jsc?.bg ?? "bg-gray-100"} ${jsc?.text ?? "text-gray-600"}`}>
+                            {j.status}
+                          </span>
                         </div>
-                        <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full flex-shrink-0 ${jsc?.bg ?? "bg-gray-100"} ${jsc?.text ?? "text-gray-600"}`}>
-                          {j.status}
-                        </span>
+                        {employees.length > 0 && (
+                          <select
+                            value={assigned}
+                            onChange={e => assignJob(j.id, e.target.value || null)}
+                            className="w-full text-[10px] border border-gray-200 rounded px-1.5 py-1 text-gray-600 bg-gray-50 focus:outline-none focus:border-blue-300"
+                          >
+                            <option value="">— Non assigné</option>
+                            {employees.map(emp => (
+                              <option key={emp.id} value={emp.id}>{emp.name}</option>
+                            ))}
+                          </select>
+                        )}
                       </div>
                     );
                   })}

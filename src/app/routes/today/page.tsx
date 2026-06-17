@@ -28,6 +28,7 @@ interface Stop {
   startTime?: string;
   endTime?: string;
   fromRouteState?: boolean;
+  assignedEmployeeId?: string | null;
 }
 
 export default function TodayRoutePage() {
@@ -37,8 +38,12 @@ export default function TodayRoutePage() {
   const [doneKeys, setDoneKeys] = useState<Set<string>>(new Set());
   const [checklistStop, setChecklistStop] = useState<{ name: string; id: string; jobType: string } | null>(null);
   const [photoUploading, setPhotoUploading] = useState<string | null>(null);
+  const [employees, setEmployees] = useState<{ id: string; name: string }[]>([]);
 
-  useEffect(() => { loadToday(); }, []);
+  useEffect(() => {
+    loadToday();
+    fetch("/api/employes/list").then(r => r.json()).then(d => setEmployees(d.employees || []));
+  }, []);
 
   const loadToday = async () => {
     setLoading(true);
@@ -50,7 +55,7 @@ export default function TodayRoutePage() {
     // 1. Load all today's jobs
     const { data: jobs } = await supabaseBrowser
       .from("jobs")
-      .select("id, contact_id, job_type, scheduled_time_start, scheduled_time_end, status")
+      .select("id, contact_id, job_type, scheduled_time_start, scheduled_time_end, status, assigned_employee_id")
       .eq("scheduled_date", todayStr)
       .in("status", ["planifié", "confirmé", "en_cours"])
       .order("scheduled_time_start", { ascending: true, nullsFirst: false });
@@ -80,6 +85,8 @@ export default function TodayRoutePage() {
         jobType: j.job_type || "entretien",
         startTime: j.scheduled_time_start?.slice(0, 5),
         endTime: j.scheduled_time_end?.slice(0, 5),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        assignedEmployeeId: (j as any).assigned_employee_id ?? null,
       };
     });
 
@@ -155,6 +162,15 @@ export default function TodayRoutePage() {
       }
     }
     setDoneKeys(prev => new Set(Array.from(prev).concat([stop.key, stop.contactId])));
+  };
+
+  const assignJob = async (jobId: string, employeeId: string | null) => {
+    await fetch("/api/jobs/assign", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jobId, employeeId: employeeId || null }),
+    });
+    setStops(prev => prev.map(s => s.jobId === jobId ? { ...s, assignedEmployeeId: employeeId } : s));
   };
 
   const handlePhotoCapture = async (contactId: string, file: File) => {
@@ -263,6 +279,21 @@ export default function TodayRoutePage() {
                           <Clock size={11} />
                           {stop.startTime}{stop.endTime ? ` → ${stop.endTime}` : ""}
                         </p>
+                      )}
+
+                      {stop.jobId && employees.length > 0 && (
+                        <div className="mt-2">
+                          <select
+                            value={stop.assignedEmployeeId ?? ""}
+                            onChange={e => assignJob(stop.jobId!, e.target.value || null)}
+                            className="w-full text-[10px] border border-gray-200 rounded px-1.5 py-1 text-gray-600 bg-gray-50 focus:outline-none focus:border-blue-300"
+                          >
+                            <option value="">— Non assigné</option>
+                            {employees.map(emp => (
+                              <option key={emp.id} value={emp.id}>{emp.name}</option>
+                            ))}
+                          </select>
+                        </div>
                       )}
 
                       {!done && (
