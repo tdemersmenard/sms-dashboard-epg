@@ -8,7 +8,7 @@ export async function GET() {
   try {
     const { data, error } = await supabaseAdmin
       .from("employees")
-      .select("*")
+      .select("id, name, phone, email, zone, work_days, max_hours_per_day, active, created_at")
       .order("name");
 
     if (error) {
@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
         active: true,
         password_hash,
       })
-      .select()
+      .select("id, name, phone, email, zone, work_days, max_hours_per_day, active, created_at")
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -83,7 +83,7 @@ export async function PATCH(req: NextRequest) {
       .from("employees")
       .update(updates)
       .eq("id", id)
-      .select()
+      .select("id, name, phone, email, zone, work_days, max_hours_per_day, active, created_at")
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });

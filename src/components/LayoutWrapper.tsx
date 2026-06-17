@@ -6,9 +6,9 @@ import AppShell from "./AppShell";
 export default function LayoutWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isPortail = pathname?.startsWith("/portail") ?? false;
+  const isEmploye = pathname === "/employe" || (pathname?.startsWith("/employe/") ?? false);
 
-  if (isPortail) {
-    // Portail: no sidebar, no h-screen, natural scroll
+  if (isPortail || isEmploye) {
     return <div style={{ minHeight: "100vh" }}>{children}</div>;
   }
 
