@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
+import bcrypt from "bcryptjs";
 
 export async function GET() {
   try {
@@ -27,22 +28,31 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const { name, phone, email, zone, work_days, max_hours_per_day } = await req.json();
+    const { name, phone, email, zone, work_days, max_hours_per_day, password } = await req.json();
 
     if (!name) {
       return NextResponse.json({ error: "Nom requis" }, { status: 400 });
     }
+    if (!email) {
+      return NextResponse.json({ error: "Email requis pour la connexion" }, { status: 400 });
+    }
+    if (!password || password.length < 4) {
+      return NextResponse.json({ error: "Mot de passe requis (min 4 caractères)" }, { status: 400 });
+    }
+
+    const password_hash = await bcrypt.hash(password, 10);
 
     const { data, error } = await supabaseAdmin
       .from("employees")
       .insert({
         name,
         phone: phone || null,
-        email: email || null,
+        email: email.toLowerCase().trim(),
         zone: zone || "granby",
         work_days: work_days || [1, 2, 3, 4, 5],
         max_hours_per_day: max_hours_per_day || 8,
         active: true,
+        password_hash,
       })
       .select()
       .single();
@@ -57,9 +67,17 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const { id, ...updates } = await req.json();
+    const { id, password, ...updates } = await req.json();
 
     if (!id) return NextResponse.json({ error: "id requis" }, { status: 400 });
+
+    // Si un nouveau mot de passe est fourni, le hasher
+    if (password && password.length >= 4) {
+      updates.password_hash = await bcrypt.hash(password, 10);
+    }
+    if (updates.email) {
+      updates.email = updates.email.toLowerCase().trim();
+    }
 
     const { data, error } = await supabaseAdmin
       .from("employees")
