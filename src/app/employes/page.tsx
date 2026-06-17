@@ -23,6 +23,7 @@ interface EmployeeForm {
   zone: string;
   work_days: number[];
   max_hours_per_day: number;
+  password: string;
 }
 
 const EMPTY: EmployeeForm = {
@@ -32,6 +33,7 @@ const EMPTY: EmployeeForm = {
   zone: "granby",
   work_days: [1, 2, 3, 4, 5],
   max_hours_per_day: 8,
+  password: "",
 };
 
 const MIGRATION_SQL = `CREATE TABLE IF NOT EXISTS employees (
@@ -88,6 +90,7 @@ export default function EmployesPage() {
       zone: emp.zone,
       work_days: emp.work_days,
       max_hours_per_day: emp.max_hours_per_day,
+      password: "",
     });
     setShowModal(true);
   };
@@ -254,6 +257,13 @@ export default function EmployesPage() {
                   <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#0a1f3f]"
                     placeholder="email@exemple.com" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Mot de passe</label>
+                  <input type="text" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#0a1f3f]"
+                    placeholder="Mot de passe pour la connexion" />
+                  <p className="text-xs text-gray-400 mt-1">L&apos;employé utilisera son email + ce mot de passe pour se connecter. Laisse vide en modification pour garder l&apos;ancien.</p>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
