@@ -5,13 +5,14 @@ import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 import {
   LayoutDashboard, Kanban, MessageSquare, Users, Calendar,
-  Navigation, Gauge, Receipt, Brain, Activity, FileText, Users2, Tag, Bot,
+  Navigation, Gauge, Receipt, Brain, Activity, FileText, Users2, Tag, Bot, Phone,
 } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
 const NAV_ITEMS_MAIN = [
   { label: "Dashboard",      href: "/dashboard",  icon: LayoutDashboard },
   { label: "Messages",       href: "/messages",   icon: MessageSquare   },
+  { label: "À rappeler",     href: "/a-rappeler", icon: Phone           },
   { label: "Routes",         href: "/routes",     icon: Navigation      },
   { label: "Clients",        href: "/clients",    icon: Users           },
   { label: "Calendrier",     href: "/calendar",   icon: Calendar        },
@@ -32,6 +33,7 @@ const NAV_ITEMS_ADMIN = [
 export default function Sidebar() {
   const pathname = usePathname();
   const [unreadCount, setUnreadCount] = useState(0);
+  const [callbackCount, setCallbackCount] = useState(0);
 
   useEffect(() => {
     const loadUnread = async () => {
@@ -50,6 +52,28 @@ export default function Sidebar() {
       .subscribe();
 
     return () => { supabaseBrowser.removeChannel(channel); };
+  }, []);
+
+  useEffect(() => {
+    const loadCallback = async () => {
+      try {
+        const { count } = await supabaseBrowser
+          .from("contacts")
+          .select("id", { count: "exact", head: true })
+          .eq("callback_status", "a_rappeler");
+        setCallbackCount(count ?? 0);
+      } catch {
+        setCallbackCount(0);
+      }
+    };
+    loadCallback();
+
+    const ch = supabaseBrowser
+      .channel("sidebar-callback")
+      .on("postgres_changes", { event: "*", schema: "public", table: "contacts" }, loadCallback)
+      .subscribe();
+
+    return () => { supabaseBrowser.removeChannel(ch); };
   }, []);
 
   // Ne pas afficher la nav sur les pages du portail client ou la page de login
@@ -83,6 +107,11 @@ export default function Sidebar() {
                     {item.href === "/messages" && unreadCount > 0 && (
                       <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-0.5 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center leading-none">
                         {unreadCount > 99 ? "99+" : unreadCount}
+                      </span>
+                    )}
+                    {item.href === "/a-rappeler" && callbackCount > 0 && (
+                      <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-0.5 bg-orange-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center leading-none">
+                        {callbackCount > 99 ? "99+" : callbackCount}
                       </span>
                     )}
                   </div>
@@ -142,6 +171,11 @@ export default function Sidebar() {
                   {item.href === "/messages" && unreadCount > 0 && (
                     <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-0.5 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center leading-none">
                       {unreadCount > 99 ? "99+" : unreadCount}
+                    </span>
+                  )}
+                  {item.href === "/a-rappeler" && callbackCount > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-0.5 bg-orange-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center leading-none">
+                      {callbackCount > 99 ? "99+" : callbackCount}
                     </span>
                   )}
                 </div>

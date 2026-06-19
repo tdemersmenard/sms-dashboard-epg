@@ -109,7 +109,27 @@ export async function GET(req: NextRequest) {
     }
   } catch {}
 
-  // 7. Rapport journalier (envoyer entre 20h et 21h)
+  // 7. Scan leads entretien à rappeler (chaque run)
+  try {
+    const { scanCallbackLeads } = await import("@/lib/automations/callback-list");
+    results.callback_scan = await scanCallbackLeads();
+  } catch (e) {
+    results.callback_scan_error = String(e);
+  }
+
+  // 8. Récap SMS callback (entre 8h et 9h, 1 fois par jour)
+  try {
+    const nowCb = new Date();
+    const montrealHourCb = parseInt(nowCb.toLocaleTimeString("en-US", { timeZone: "America/Montreal", hour: "2-digit", hour12: false }));
+    if (montrealHourCb >= 8 && montrealHourCb < 9) {
+      const { sendCallbackRecap } = await import("@/lib/automations/callback-list");
+      results.callback_recap = await sendCallbackRecap();
+    }
+  } catch (e) {
+    results.callback_recap_error = String(e);
+  }
+
+  // 10. Rapport journalier (envoyer entre 20h et 21h)
   try {
     const nowReport = new Date();
     const montrealHourReport = parseInt(nowReport.toLocaleTimeString("en-US", { timeZone: "America/Montreal", hour: "2-digit", hour12: false }));

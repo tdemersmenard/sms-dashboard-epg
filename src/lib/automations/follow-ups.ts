@@ -18,6 +18,18 @@ export async function sendFollowUps(): Promise<string[]> {
   const now = new Date();
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
 
+  // Leads dans la liste de rappel téléphonique — le bot n'envoie pas de relance SMS pour ces contacts
+  const callbackIds = new Set<string>();
+  try {
+    const { data: cbLeads } = await supabaseAdmin
+      .from("contacts")
+      .select("id")
+      .eq("callback_status", "a_rappeler");
+    for (const c of cbLeads ?? []) callbackIds.add(c.id);
+  } catch {
+    // Colonne pas encore créée — ignorer, aucun lead exclu
+  }
+
   // Relances intelligentes (dates prévues par le bot)
   const { data: allContacts } = await supabaseAdmin
     .from("contacts")
@@ -27,6 +39,7 @@ export async function sendFollowUps(): Promise<string[]> {
   for (const contact of allContacts || []) {
     if (contact.phone === "+14509942215") continue;
     if (!contact.notes) continue;
+    if (callbackIds.has(contact.id)) continue; // Thomas rappelle par téléphone
 
     // Chercher RELANCE_PREVUE dans les notes
     const relanceMatch = contact.notes.match(/RELANCE_PREVUE:(\d{4}-\d{2}-\d{2}):(.+)/);
@@ -89,6 +102,11 @@ export async function sendFollowUps(): Promise<string[]> {
   for (const contact of contacts) {
     // Skip Thomas Admin
     if (contact.phone === "+14509942215") continue;
+    // Skip leads dans la liste de rappel téléphonique
+    if (callbackIds.has(contact.id)) {
+      logs.push(`Skip relance SMS ${contact.first_name} — dans la liste de rappel`);
+      continue;
+    }
 
     // Vérifier combien de relances déjà envoyées
     const { data: existingFollowUps } = await supabaseAdmin
