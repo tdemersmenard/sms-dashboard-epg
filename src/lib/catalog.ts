@@ -31,15 +31,15 @@ export const CATALOG_ITEMS: CatalogItem[] = [
   {
     id: "entretien_hebdo",
     name: "Entretien hebdomadaire",
-    description: "Visite chaque semaine — ouverture + fermeture + produits de balancement inclus",
-    defaultPrice: 1799,
+    description: "Visite chaque semaine — ouverture + fermeture + produits de balancement inclus (rabais 300$, rég. 1799$)",
+    defaultPrice: 1499,
     category: "Entretien",
   },
   {
     id: "entretien_2sem",
     name: "Entretien aux 2 semaines",
-    description: "Visite aux 2 semaines — ouverture + fermeture + produits de balancement inclus",
-    defaultPrice: 1397,
+    description: "Visite aux 2 semaines — ouverture + fermeture + produits inclus (rabais 300$, rég. 1397$)",
+    defaultPrice: 1097,
     category: "Entretien",
   },
   {
