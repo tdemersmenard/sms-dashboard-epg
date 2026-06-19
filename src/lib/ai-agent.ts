@@ -262,6 +262,26 @@ RÈGLES IMPORTANTES:
    - Argument hebdo vs 2 semaines: pour 400$ de plus, la piscine est 2x plus propre (~30$/semaine de différence).
 `;
 
+// Exporter le prompt par défaut pour la page de réglages (reset)
+export const DEFAULT_SYSTEM_PROMPT = SYSTEM_PROMPT;
+
+// Charger le system prompt éditable depuis la DB (fallback sur la constante)
+async function loadSystemPrompt(): Promise<string> {
+  try {
+    const { data } = await supabaseAdmin
+      .from("settings")
+      .select("value")
+      .eq("key", "bot_system_prompt")
+      .maybeSingle();
+    const text = (data?.value as { text?: string } | null)?.text;
+    if (text && text.trim().length > 100) {
+      return text;
+    }
+  } catch {
+    // fallback silently
+  }
+  return SYSTEM_PROMPT;
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function callClaudeWithRetry(params: any, maxRetries = 5): Promise<any> {
@@ -606,7 +626,7 @@ CONTEXTE TEMPOREL:
     const response = await callClaudeWithRetry({
       model: "claude-sonnet-4-6",
       max_tokens: 500,
-      system: SYSTEM_PROMPT + clientContext + learnings,
+      system: (await loadSystemPrompt()) + clientContext + learnings,
       messages: finalMessages,
     });
 
