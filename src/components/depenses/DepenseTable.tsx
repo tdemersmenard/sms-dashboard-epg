@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Eye, Trash2 } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import { useFranchise } from "@/components/FranchiseProvider";
 import {
   Depense, CATS, CategorieDepense,
   deleteDepense, montantDeductible, fmt,
@@ -16,6 +17,7 @@ interface Props {
 }
 
 export default function DepenseTable({ depenses, onDeleted }: Props) {
+  const { franchiseId } = useFranchise();
   const [catFilter, setCatFilter] = useState<CategorieDepense | "all">("all");
   const [recuModal, setRecuModal] = useState<{ url: string; nom: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -27,7 +29,7 @@ export default function DepenseTable({ depenses, onDeleted }: Props) {
   const handleDelete = async (d: Depense) => {
     setDeleting(true);
     try {
-      await deleteDepense(d.id, d.recu_url);
+      await deleteDepense(d.id, d.recu_url, franchiseId!);
       setConfirmDelete(null);
       onDeleted();
     } catch (err) {

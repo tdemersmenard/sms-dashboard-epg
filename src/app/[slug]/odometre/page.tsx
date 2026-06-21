@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { Camera, Loader2 } from "lucide-react";
+import { useFranchise } from "@/components/FranchiseProvider";
 
 interface OdometerLog {
   id: string;
@@ -18,6 +19,7 @@ interface OdometerLog {
 }
 
 export default function OdometrePage() {
+  const { franchiseId } = useFranchise();
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [kmStart, setKmStart] = useState("");
   const [kmEnd, setKmEnd] = useState("");
@@ -26,16 +28,18 @@ export default function OdometrePage() {
   const [saving, setSaving] = useState(false);
   const [logs, setLogs] = useState<OdometerLog[]>([]);
 
-  const loadLogs = async () => {
+  const loadLogs = useCallback(async () => {
+    if (!franchiseId) return;
     const { data } = await supabaseBrowser
       .from("odometer_logs")
       .select("*")
+      .eq("franchise_id", franchiseId)
       .order("date", { ascending: false })
       .limit(20);
     setLogs(data || []);
-  };
+  }, [franchiseId]);
 
-  useEffect(() => { loadLogs(); }, []);
+  useEffect(() => { loadLogs(); }, [loadLogs]);
 
   const handleScan = async (type: "start" | "end", file: File) => {
     setScanning(type);

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import { useFranchise } from "@/components/FranchiseProvider";
 import { Navigation, Check, Phone, MapPin, Clock, ArrowLeft, Loader2, Camera, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import PostVisitChecklist from "@/components/PostVisitChecklist";
@@ -32,6 +33,7 @@ interface Stop {
 }
 
 export default function TodayRoutePage() {
+  const { franchiseId } = useFranchise();
   const [loading, setLoading] = useState(true);
   const [todayName, setTodayName] = useState("");
   const [stops, setStops] = useState<Stop[]>([]);
@@ -41,9 +43,10 @@ export default function TodayRoutePage() {
   const [employees, setEmployees] = useState<{ id: string; name: string }[]>([]);
 
   useEffect(() => {
+    if (!franchiseId) return;
     loadToday();
     fetch("/api/employes/list").then(r => r.json()).then(d => setEmployees(d.employees || []));
-  }, []);
+  }, [franchiseId]);
 
   const loadToday = async () => {
     setLoading(true);
@@ -56,6 +59,7 @@ export default function TodayRoutePage() {
     const { data: jobs } = await supabaseBrowser
       .from("jobs")
       .select("id, contact_id, job_type, scheduled_time_start, scheduled_time_end, status, assigned_employee_id")
+      .eq("franchise_id", franchiseId)
       .eq("scheduled_date", todayStr)
       .in("status", ["planifié", "confirmé", "en_cours"])
       .order("scheduled_time_start", { ascending: true, nullsFirst: false });
@@ -92,7 +96,7 @@ export default function TodayRoutePage() {
 
     // 4. Load route_state for recurring entretiens not yet confirmed (no job entry today)
     const { data: routeState } = await supabaseBrowser
-      .from("route_state").select("data").eq("id", 1).single();
+      .from("route_state").select("data").eq("franchise_id", franchiseId).maybeSingle();
 
     const jobContactSet = new Set(jobContactIds);
     const rsStops: Stop[] = [];
@@ -137,7 +141,7 @@ export default function TodayRoutePage() {
 
     // 6. Mark already-completed
     const { data: completedJobs } = await supabaseBrowser
-      .from("jobs").select("id, contact_id").eq("scheduled_date", todayStr).eq("status", "complété");
+      .from("jobs").select("id, contact_id").eq("franchise_id", franchiseId).eq("scheduled_date", todayStr).eq("status", "complété");
     if (completedJobs) {
       const keys = new Set<string>();
       completedJobs.forEach(j => { keys.add(j.id); keys.add(`rs-${j.contact_id}`); keys.add(j.contact_id); });

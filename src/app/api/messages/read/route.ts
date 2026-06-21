@@ -2,9 +2,11 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
+import { getActiveFranchiseId } from "@/lib/franchise-context";
 
 export async function POST(request: NextRequest) {
   try {
+    const franchiseId = await getActiveFranchiseId();
     const { contactId } = await request.json();
 
     if (!contactId) {
@@ -14,6 +16,7 @@ export async function POST(request: NextRequest) {
     const { error } = await supabaseAdmin
       .from("messages")
       .update({ is_read: true })
+      .eq("franchise_id", franchiseId)
       .eq("contact_id", contactId)
       .eq("direction", "inbound")
       .eq("is_read", false);

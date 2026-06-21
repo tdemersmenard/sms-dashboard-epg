@@ -7,6 +7,7 @@ import {
   AreaChart, Area, PieChart, Pie, Cell, Legend,
 } from "recharts";
 import { supabaseBrowser as supabase } from "@/lib/supabase-browser";
+import { useFranchise } from "@/components/FranchiseProvider";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface Contact {
@@ -67,23 +68,26 @@ const FR_MONTHS = ["Jan", "Fév", "Mar", "Avr", "Mai", "Jun", "Jul", "Aoû", "Se
 
 // ── Page ──────────────────────────────────────────────────────────────────
 export default function AnalyticsPage() {
+  const { franchiseId } = useFranchise();
   const [period, setPeriod] = useState<Period>("all");
   // allContacts = no period filter (used for pipeline, sources, conversions)
   const [allContacts, setAllContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!franchiseId) return;
     const load = async () => {
       setLoading(true);
       const { data } = await supabase
         .from("contacts")
         .select("id, first_name, last_name, phone, stage, season_price, services, lead_source, created_at, updated_at")
+        .eq("franchise_id", franchiseId)
         .order("created_at", { ascending: false });
       setAllContacts((data as Contact[]) || []);
       setLoading(false);
     };
     load();
-  }, []);
+  }, [franchiseId]);
 
   // contacts filtered by period (for stats, revenue chart, leads chart)
   const contacts = (() => {

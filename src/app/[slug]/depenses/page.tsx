@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { Plus, Receipt } from "lucide-react";
 import { fetchDepenses, Depense, CATS, montantDeductible, fmt } from "@/lib/depenses";
+import { useFranchise } from "@/components/FranchiseProvider";
 import { getVehicleDeduction } from "@/lib/depenses-deduction";
 import DepenseForm from "@/components/depenses/DepenseForm";
 import DepenseTable from "@/components/depenses/DepenseTable";
@@ -21,6 +22,7 @@ const TABS: { id: Tab; label: string }[] = [
 const ANNEES = [2024, 2025, 2026, 2027];
 
 export default function DepensesPage() {
+  const { franchiseId } = useFranchise();
   const [activeTab, setActiveTab] = useState<"depenses" | "transferts">("depenses");
   const [tab, setTab] = useState<Tab>("liste");
   const [annee, setAnnee] = useState(new Date().getFullYear());
@@ -29,16 +31,17 @@ export default function DepensesPage() {
   const [showForm, setShowForm] = useState(false);
 
   const load = useCallback(async () => {
+    if (!franchiseId) return;
     setLoading(true);
     try {
-      const data = await fetchDepenses(annee);
+      const data = await fetchDepenses(annee, franchiseId);
       setDepenses(data);
     } catch (err) {
       console.error("[depenses] fetch error:", err);
     } finally {
       setLoading(false);
     }
-  }, [annee]);
+  }, [annee, franchiseId]);
 
   useEffect(() => { load(); }, [load]);
 

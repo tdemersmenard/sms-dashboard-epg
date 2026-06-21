@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Upload, X, Camera, Loader2 } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import { useFranchise } from "@/components/FranchiseProvider";
 import { CATS, CategorieDepense, uploadRecu } from "@/lib/depenses";
 
 interface Props {
@@ -12,6 +13,7 @@ interface Props {
 }
 
 export default function DepenseForm({ annee, onCreated, onCancel }: Props) {
+  const { franchiseId } = useFranchise();
   const today = new Date().toISOString().split("T")[0];
 
   const [date, setDate] = useState(today);
@@ -100,6 +102,7 @@ export default function DepenseForm({ annee, onCreated, onCancel }: Props) {
         recu_url: recuUrl,
         recu_nom: recuNom,
         annee,
+        franchise_id: franchiseId,
       });
 
       if (dbError) throw dbError;

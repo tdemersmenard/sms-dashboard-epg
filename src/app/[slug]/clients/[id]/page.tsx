@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { MessageSquare, CalendarPlus, ChevronDown, Upload, Download, Trash2, CheckCircle, PenLine, Copy, X, CreditCard } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import { useFranchise } from "@/components/FranchiseProvider";
 import type { Contact, Job, Document, Payment, Message } from "@/lib/types";
 
 const STAGES = [
@@ -133,6 +134,7 @@ function InlineField({
 export default function ClientDetailPage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const { id } = params;
+  const { franchiseId } = useFranchise();
 
   const [contact, setContact] = useState<Contact | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -282,7 +284,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
     const empId = (contact as any)?.assigned_employee_id ?? null;
     const { data } = await supabaseBrowser
       .from("jobs")
-      .insert({ contact_id: id, status: "planifié", ...jobForm, ...(empId ? { assigned_employee_id: empId } : {}) })
+      .insert({ contact_id: id, status: "planifié", franchise_id: franchiseId, ...jobForm, ...(empId ? { assigned_employee_id: empId } : {}) })
       .select()
       .single();
     if (data) setJobs((prev) => [...prev, data as Job]);
@@ -356,7 +358,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
         .gte("scheduled_date", today);
 
       // Retirer le client du route_state ET recalculer les totalKm
-      const { data: routeState } = await supabaseBrowser.from("route_state").select("data").eq("id", 1).single();
+      const { data: routeState } = await supabaseBrowser.from("route_state").select("data").eq("franchise_id", franchiseId).maybeSingle();
       if (routeState?.data?.routes) {
         const newRoutes = routeState.data.routes.map((r: any) => ({
           ...r,
@@ -375,14 +377,14 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
             await supabaseBrowser.from("route_state").update({
               data: { ...routeState.data, routes: recalcResult.routes },
               updated_at: new Date().toISOString(),
-            }).eq("id", 1);
+            }).eq("franchise_id", franchiseId);
           }
         } catch {
           // Si le recalcul échoue, sauvegarder quand même sans recalcul
           await supabaseBrowser.from("route_state").update({
             data: { ...routeState.data, routes: newRoutes },
             updated_at: new Date().toISOString(),
-          }).eq("id", 1);
+          }).eq("franchise_id", franchiseId);
         }
       }
 
@@ -463,6 +465,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
       if (!existingOuverture || existingOuverture.length === 0) {
         await supabaseBrowser.from("jobs").insert({
           contact_id: id,
+          franchise_id: franchiseId,
           job_type: "ouverture",
           scheduled_date: newPayOuvertureDate,
           scheduled_time_start: "08:00",
@@ -485,6 +488,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
       if (!existingOuverture || existingOuverture.length === 0) {
         await supabaseBrowser.from("jobs").insert({
           contact_id: id,
+          franchise_id: franchiseId,
           job_type: "ouverture",
           scheduled_date: newPayOuvertureDate,
           scheduled_time_start: "08:00",
@@ -751,6 +755,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
                     } else {
                       await supabaseBrowser.from("jobs").insert({
                         contact_id: id,
+                        franchise_id: franchiseId,
                         job_type: "ouverture",
                         scheduled_date: newDate,
                         scheduled_time_start: "08:00",
@@ -789,6 +794,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
                     } else {
                       await supabaseBrowser.from("jobs").insert({
                         contact_id: id,
+                        franchise_id: franchiseId,
                         job_type: "fermeture",
                         scheduled_date: newDate,
                         scheduled_time_start: "08:00",

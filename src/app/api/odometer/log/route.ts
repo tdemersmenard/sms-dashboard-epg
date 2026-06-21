@@ -2,9 +2,11 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
+import { getActiveFranchiseId } from "@/lib/franchise-context";
 
 export async function POST(req: NextRequest) {
   try {
+    const franchiseId = await getActiveFranchiseId();
     const { date, kmStart, kmEnd, notes } = await req.json();
     if (!date) return NextResponse.json({ error: "Date requise" }, { status: 400 });
 
@@ -14,6 +16,7 @@ export async function POST(req: NextRequest) {
     const { data: jobs } = await supabaseAdmin
       .from("jobs")
       .select("contact_id")
+      .eq("franchise_id", franchiseId)
       .eq("scheduled_date", date)
       .eq("job_type", "entretien")
       .in("status", ["planifié", "complété"]);
@@ -22,8 +25,8 @@ export async function POST(req: NextRequest) {
       const { data: routeState } = await supabaseAdmin
         .from("route_state")
         .select("data")
-        .eq("id", 1)
-        .single();
+        .eq("franchise_id", franchiseId)
+        .maybeSingle();
 
       if (routeState?.data?.routes) {
         const dayOfWeek = new Date(date + "T12:00:00").toLocaleDateString("fr-CA", { weekday: "long" });
@@ -49,6 +52,7 @@ export async function POST(req: NextRequest) {
         km_end: kmEnd,
         km_business: kmBusiness,
         notes: notes || null,
+        franchise_id: franchiseId,
       }, { onConflict: "date" })
       .select()
       .single();

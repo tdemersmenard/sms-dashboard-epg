@@ -5,35 +5,36 @@ import { usePathname } from "next/navigation";
 import { useState, useEffect, useMemo } from "react";
 import {
   LayoutDashboard, Kanban, MessageSquare, Users, Calendar,
-  Navigation, Gauge, Receipt, Brain, Activity, FileText, Users2, Tag, Bot, Phone, Building2,
+  Navigation, Gauge, Receipt, Brain, Activity, FileText, Users2, Tag, Bot, Phone, Building2, Settings,
 } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { useFranchise } from "./FranchiseProvider";
 
 const NAV_ITEMS_MAIN = [
-  { label: "Dashboard",      href: "",            icon: LayoutDashboard },
-  { label: "Messages",       href: "/messages",   icon: MessageSquare   },
-  { label: "À rappeler",     href: "/a-rappeler", icon: Phone           },
-  { label: "Routes",         href: "/routes",     icon: Navigation      },
-  { label: "Clients",        href: "/clients",    icon: Users           },
-  { label: "Calendrier",     href: "/calendar",   icon: Calendar        },
-  { label: "Pipeline",       href: "/pipeline",   icon: Kanban          },
-  { label: "Dépenses",       href: "/depenses",   icon: Receipt         },
-  { label: "Odomètre",       href: "/odometre",   icon: Gauge           },
-  { label: "Apprentissages", href: "/learnings",  icon: Brain           },
-  { label: "Factures",      href: "/factures/nouvelle", icon: FileText },
-  { label: "Employés",      href: "/employes",   icon: Users2          },
+  { label: "Dashboard",      href: "",            icon: LayoutDashboard, masterOnly: false },
+  { label: "Messages",       href: "/messages",   icon: MessageSquare,   masterOnly: false },
+  { label: "À rappeler",     href: "/a-rappeler", icon: Phone,           masterOnly: false },
+  { label: "Routes",         href: "/routes",     icon: Navigation,      masterOnly: false },
+  { label: "Clients",        href: "/clients",    icon: Users,           masterOnly: false },
+  { label: "Calendrier",     href: "/calendar",   icon: Calendar,        masterOnly: false },
+  { label: "Pipeline",       href: "/pipeline",   icon: Kanban,          masterOnly: false },
+  { label: "Dépenses",       href: "/depenses",   icon: Receipt,         masterOnly: true  },
+  { label: "Odomètre",       href: "/odometre",   icon: Gauge,           masterOnly: true  },
+  { label: "Apprentissages", href: "/learnings",  icon: Brain,           masterOnly: true  },
+  { label: "Factures",      href: "/factures/nouvelle", icon: FileText, masterOnly: false },
+  { label: "Employés",      href: "/employes",   icon: Users2,          masterOnly: false },
 ];
 
 const NAV_ITEMS_ADMIN = [
-  { label: "Catalogue",  href: "/catalogue",     icon: Tag      },
-  { label: "Bot",        href: "/reglages-bot",  icon: Bot      },
-  { label: "Diagnostic", href: "/diagnostic",    icon: Activity },
+  { label: "Catalogue",  href: "/catalogue",     icon: Tag,      masterOnly: false },
+  { label: "Réglages",   href: "/reglages",      icon: Settings, masterOnly: false },
+  { label: "Bot",        href: "/reglages-bot",  icon: Bot,      masterOnly: true  },
+  { label: "Diagnostic", href: "/diagnostic",    icon: Activity, masterOnly: true  },
 ];
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const { franchiseSlug, isMaster, franchiseName } = useFranchise();
+  const { franchiseSlug, isMaster, franchiseName, franchiseId } = useFranchise();
   const [unreadCount, setUnreadCount] = useState(0);
   const [callbackCount, setCallbackCount] = useState(0);
 
@@ -51,12 +52,14 @@ export default function Sidebar() {
   const base = slug ? `/${slug}` : "";
 
   useEffect(() => {
+    if (!franchiseId) return;
     const loadUnread = async () => {
       const { count } = await supabaseBrowser
         .from("messages")
         .select("*", { count: "exact", head: true })
         .eq("is_read", false)
-        .eq("direction", "inbound");
+        .eq("direction", "inbound")
+        .eq("franchise_id", franchiseId);
       setUnreadCount(count ?? 0);
     };
     loadUnread();
@@ -67,15 +70,17 @@ export default function Sidebar() {
       .subscribe();
 
     return () => { supabaseBrowser.removeChannel(channel); };
-  }, []);
+  }, [franchiseId]);
 
   useEffect(() => {
+    if (!franchiseId) return;
     const loadCallback = async () => {
       try {
         const { count } = await supabaseBrowser
           .from("contacts")
           .select("id", { count: "exact", head: true })
-          .eq("callback_status", "a_rappeler");
+          .eq("callback_status", "a_rappeler")
+          .eq("franchise_id", franchiseId);
         setCallbackCount(count ?? 0);
       } catch {
         setCallbackCount(0);
@@ -89,7 +94,7 @@ export default function Sidebar() {
       .subscribe();
 
     return () => { supabaseBrowser.removeChannel(ch); };
-  }, []);
+  }, [franchiseId]);
 
   // Don't render on login/portail pages
   if (pathname === "/login" || pathname?.startsWith("/portail")) return null;
@@ -115,7 +120,7 @@ export default function Sidebar() {
         </div>
         <nav className="flex-1 px-3 py-4 overflow-y-auto flex flex-col">
           <div className="space-y-1 flex-1">
-            {NAV_ITEMS_MAIN.map(item => {
+            {NAV_ITEMS_MAIN.filter(item => !item.masterOnly || isMaster).map(item => {
               const Icon = item.icon;
               const fullHref = `${base}${item.href}`;
               const active = isItemActive(item.href);
@@ -163,7 +168,7 @@ export default function Sidebar() {
                 <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-orange-500 text-white uppercase">SaaS</span>
               </Link>
             )}
-            {NAV_ITEMS_ADMIN.map(item => {
+            {NAV_ITEMS_ADMIN.filter(item => !item.masterOnly || isMaster).map(item => {
               const Icon = item.icon;
               const fullHref = `${base}${item.href}`;
               const active = isItemActive(item.href);
@@ -195,7 +200,7 @@ export default function Sidebar() {
       {/* BOTTOM NAV MOBILE (< md) — scrollable */}
       <nav className="md:hidden fixed bottom-0 inset-x-0 bg-white border-t border-gray-200 z-50 pb-[env(safe-area-inset-bottom)] overflow-x-auto">
         <div className="flex h-16 min-w-max px-2">
-          {[...NAV_ITEMS_MAIN, ...NAV_ITEMS_ADMIN, ...(isMaster ? [{ label: "Master", href: "___master", icon: Building2 }] : [])].map(item => {
+          {[...NAV_ITEMS_MAIN, ...NAV_ITEMS_ADMIN].filter(item => !item.masterOnly || isMaster).concat(isMaster ? [{ label: "Master", href: "___master", icon: Building2, masterOnly: false }] : []).map(item => {
             const Icon = item.icon;
             const isMasterLink = item.href === "___master";
             const fullHref = isMasterLink ? "/master" : `${base}${item.href}`;

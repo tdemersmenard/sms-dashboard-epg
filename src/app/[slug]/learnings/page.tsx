@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabaseBrowser as supabase } from "@/lib/supabase-browser";
 import { Brain, Plus, Trash2, RefreshCw } from "lucide-react";
+import { useFranchise } from "@/components/FranchiseProvider";
 
 interface Learning {
   id: string;
@@ -32,6 +33,7 @@ const CATEGORY_COLORS: Record<string, string> = {
 const CATEGORIES = ["politesse", "prix", "paiement", "refus", "date", "identite", "upsell", "technique", "timing", "ton", "info_client", "erreur", "general"];
 
 export default function LearningsPage() {
+  const { franchiseId } = useFranchise();
   const [learnings, setLearnings] = useState<Learning[]>([]);
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
@@ -41,28 +43,30 @@ export default function LearningsPage() {
   const [newLesson, setNewLesson] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const load = async () => {
+  const load = useCallback(async () => {
+    if (!franchiseId) return;
     setLoading(true);
     const { data } = await supabase
       .from("ai_learnings")
       .select("*")
+      .eq("franchise_id", franchiseId)
       .order("created_at", { ascending: false });
     setLearnings((data as Learning[]) || []);
     setLoading(false);
-  };
+  }, [franchiseId]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   const toggleActive = async (id: string, current: boolean) => {
     setLearnings((prev) =>
       prev.map((l) => (l.id === id ? { ...l, active: !current } : l))
     );
-    await supabase.from("ai_learnings").update({ active: !current }).eq("id", id);
+    await supabase.from("ai_learnings").update({ active: !current }).eq("id", id).eq("franchise_id", franchiseId);
   };
 
   const deleteLearning = async (id: string) => {
     setLearnings((prev) => prev.filter((l) => l.id !== id));
-    await supabase.from("ai_learnings").delete().eq("id", id);
+    await supabase.from("ai_learnings").delete().eq("id", id).eq("franchise_id", franchiseId);
   };
 
   const addLearning = async () => {
@@ -70,7 +74,7 @@ export default function LearningsPage() {
     setSaving(true);
     const { data } = await supabase
       .from("ai_learnings")
-      .insert({ category: newCategory, lesson: newLesson.trim(), source: "Thomas", active: true })
+      .insert({ category: newCategory, lesson: newLesson.trim(), source: "Thomas", active: true, franchise_id: franchiseId })
       .select()
       .single();
     if (data) {

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import { useFranchise } from "@/components/FranchiseProvider";
 import {
   format, eachDayOfInterval, isToday, parseISO, addDays, addMonths, addWeeks,
   startOfWeek, endOfWeek, startOfMonth, endOfMonth, isSameMonth,
@@ -45,6 +46,8 @@ interface Contact {
 type ViewMode = "day" | "week" | "month";
 
 export default function CalendarPage() {
+  const { franchiseId } = useFranchise();
+
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     if (typeof window === "undefined") return "week";
     return (localStorage.getItem("calendar_view") as ViewMode) || "week";
@@ -80,6 +83,8 @@ export default function CalendarPage() {
   }, [viewMode, currentDate]);
 
   const loadJobs = useCallback(async () => {
+    if (!franchiseId) return;
+
     let from: Date, to: Date;
     if (viewMode === "day") {
       from = startOfDay(currentDate);
@@ -98,6 +103,7 @@ export default function CalendarPage() {
     const { data: jobsData } = await supabaseBrowser
       .from("jobs")
       .select("*")
+      .eq("franchise_id", franchiseId)
       .gte("scheduled_date", fromStr)
       .lte("scheduled_date", toStr)
       .order("scheduled_date", { ascending: true })
@@ -108,6 +114,7 @@ export default function CalendarPage() {
       const { data: contactsData } = await supabaseBrowser
         .from("contacts")
         .select("id, first_name, last_name, phone")
+        .eq("franchise_id", franchiseId)
         .in("id", contactIds);
 
       const contactMap = new Map(contactsData?.map((c) => [c.id, c]) || []);
@@ -121,17 +128,19 @@ export default function CalendarPage() {
       });
       setJobs(enriched as JobWithContact[]);
     }
-  }, [viewMode, currentDate]);
+  }, [viewMode, currentDate, franchiseId]);
 
   useEffect(() => { loadJobs(); }, [loadJobs]);
 
   useEffect(() => {
+    if (!franchiseId) return;
     supabaseBrowser
       .from("contacts")
       .select("id, first_name, last_name, phone")
+      .eq("franchise_id", franchiseId)
       .order("first_name", { ascending: true })
       .then(({ data }) => setContacts(data || []));
-  }, []);
+  }, [franchiseId]);
 
   const navigatePrev = () => {
     if (viewMode === "day") setCurrentDate(subDays(currentDate, 1));
@@ -184,6 +193,7 @@ export default function CalendarPage() {
       const { data: existing } = await supabaseBrowser
         .from("jobs")
         .select("id, scheduled_date")
+        .eq("franchise_id", franchiseId)
         .eq("contact_id", jobForm.contact_id)
         .eq("job_type", jobForm.job_type)
         .limit(1);
@@ -196,6 +206,7 @@ export default function CalendarPage() {
     }
 
     await supabaseBrowser.from("jobs").insert({
+      franchise_id: franchiseId,
       contact_id: jobForm.contact_id,
       job_type: jobForm.job_type,
       scheduled_date: jobForm.scheduled_date,
@@ -209,6 +220,7 @@ export default function CalendarPage() {
       await supabaseBrowser
         .from("contacts")
         .update({ ouverture_date: jobForm.scheduled_date })
+        .eq("franchise_id", franchiseId)
         .eq("id", jobForm.contact_id);
     }
 
@@ -220,7 +232,7 @@ export default function CalendarPage() {
 
   const deleteJob = async (jobId: string) => {
     if (!confirm("Supprimer ce rendez-vous?")) return;
-    await supabaseBrowser.from("jobs").delete().eq("id", jobId);
+    await supabaseBrowser.from("jobs").delete().eq("id", jobId).eq("franchise_id", franchiseId);
     setSelectedJob(null);
     await loadJobs();
   };
@@ -443,7 +455,8 @@ export default function CalendarPage() {
                           await supabaseBrowser
                             .from("jobs")
                             .update({ scheduled_time_start: newStart })
-                            .eq("id", selectedJob.id);
+                            .eq("id", selectedJob.id)
+                            .eq("franchise_id", franchiseId);
                           setSelectedJob({ ...selectedJob, scheduled_time_start: newStart });
                           await loadJobs();
                         }}
@@ -460,7 +473,8 @@ export default function CalendarPage() {
                           await supabaseBrowser
                             .from("jobs")
                             .update({ scheduled_time_end: newEnd })
-                            .eq("id", selectedJob.id);
+                            .eq("id", selectedJob.id)
+                            .eq("franchise_id", franchiseId);
                           setSelectedJob({ ...selectedJob, scheduled_time_end: newEnd });
                           await loadJobs();
                         }}
@@ -478,7 +492,8 @@ export default function CalendarPage() {
                         await supabaseBrowser
                           .from("jobs")
                           .update({ scheduled_date: newDate })
-                          .eq("id", selectedJob.id);
+                          .eq("id", selectedJob.id)
+                          .eq("franchise_id", franchiseId);
                         setSelectedJob({ ...selectedJob, scheduled_date: newDate });
 
                         // Si c'est une ouverture, mettre à jour ouverture_date du contact
@@ -486,7 +501,8 @@ export default function CalendarPage() {
                           await supabaseBrowser
                             .from("contacts")
                             .update({ ouverture_date: newDate })
-                            .eq("id", selectedJob.contact_id);
+                            .eq("id", selectedJob.contact_id)
+                            .eq("franchise_id", franchiseId);
                         }
 
                         await loadJobs();

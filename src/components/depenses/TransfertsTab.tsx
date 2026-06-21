@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import { useFranchise } from "@/components/FranchiseProvider";
 import { ArrowRight, Trash2, TrendingUp, TrendingDown } from "lucide-react";
 
 const CATEGORIES = [
@@ -14,6 +15,7 @@ const CATEGORIES = [
 ];
 
 export default function TransfertsTab() {
+  const { franchiseId } = useFranchise();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [transferts, setTransferts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -31,15 +33,17 @@ export default function TransfertsTab() {
   const [yearFilter, setYearFilter] = useState(new Date().getFullYear());
 
   const load = useCallback(async () => {
+    if (!franchiseId) return;
     setLoading(true);
     const { data } = await supabaseBrowser
       .from("transferts")
       .select("*")
       .eq("annee", yearFilter)
+      .eq("franchise_id", franchiseId)
       .order("date", { ascending: false });
     setTransferts(data || []);
     setLoading(false);
-  }, [yearFilter]);
+  }, [yearFilter, franchiseId]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -57,6 +61,7 @@ export default function TransfertsTab() {
       note: form.note || null,
       compte_source: form.compte_source || null,
       compte_destination: form.compte_destination || null,
+      franchise_id: franchiseId,
     });
     setForm({
       date: new Date().toISOString().split("T")[0],
@@ -74,7 +79,7 @@ export default function TransfertsTab() {
 
   const handleDelete = async (id: string) => {
     if (!confirm("Supprimer ce transfert?")) return;
-    await supabaseBrowser.from("transferts").delete().eq("id", id);
+    await supabaseBrowser.from("transferts").delete().eq("id", id).eq("franchise_id", franchiseId);
     await load();
   };
 

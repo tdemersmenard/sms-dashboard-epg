@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { getCurrentUser } from "@/lib/auth";
+import { getActiveFranchiseId } from "@/lib/franchise-context";
 
 const MIGRATION_REQUIRED_CODES = ["42703", "PGRST204"];
 
@@ -12,9 +13,11 @@ function isMigrationError(code: string | undefined) {
 
 export async function GET() {
   try {
+    const franchiseId = await getActiveFranchiseId();
     const { data: contacts, error } = await supabaseAdmin
       .from("contacts")
       .select("id, first_name, last_name, phone, stage, callback_status, callback_added_at")
+      .eq("franchise_id", franchiseId)
       .eq("callback_status", "a_rappeler")
       .order("callback_added_at", { ascending: true });
 
@@ -79,10 +82,12 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "action invalide" }, { status: 400 });
   }
 
+  const franchiseId = await getActiveFranchiseId();
   const { error } = await supabaseAdmin
     .from("contacts")
     .update(updates)
-    .eq("id", contactId);
+    .eq("id", contactId)
+    .eq("franchise_id", franchiseId);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
@@ -91,9 +96,11 @@ export async function PATCH(req: NextRequest) {
 // Count endpoint — used by sidebar badge
 export async function HEAD() {
   try {
+    const franchiseId = await getActiveFranchiseId();
     const { count, error } = await supabaseAdmin
       .from("contacts")
       .select("id", { count: "exact", head: true })
+      .eq("franchise_id", franchiseId)
       .eq("callback_status", "a_rappeler");
 
     if (error) return new NextResponse(null, { status: 204, headers: { "X-Count": "0" } });

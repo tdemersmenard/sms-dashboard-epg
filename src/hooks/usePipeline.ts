@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import { useFranchise } from "@/components/FranchiseProvider";
 import type { Contact } from "@/lib/types";
 
 export const STAGES = [
@@ -17,13 +18,16 @@ export const STAGES = [
 export type Stage = (typeof STAGES)[number];
 
 export function usePipeline() {
+  const { franchiseId } = useFranchise();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadContacts = useCallback(async () => {
+    if (!franchiseId) return;
     const { data, error } = await supabaseBrowser
       .from("contacts")
       .select("*")
+      .eq("franchise_id", franchiseId)
       .order("created_at", { ascending: false });
     if (error) {
       console.error("usePipeline loadContacts:", error);
@@ -31,7 +35,7 @@ export function usePipeline() {
     }
     setContacts((data ?? []) as Contact[]);
     setLoading(false);
-  }, []);
+  }, [franchiseId]);
 
   // Initial load
   useEffect(() => {
@@ -48,7 +52,7 @@ export function usePipeline() {
       })
       .subscribe();
     return () => { supabaseBrowser.removeChannel(channel); };
-  }, [loadContacts]);
+  }, [loadContacts, franchiseId]);
 
   const updateStage = useCallback(async (contactId: string, newStage: string) => {
     // Optimistic update
@@ -71,7 +75,8 @@ export function usePipeline() {
       const { error } = await supabaseBrowser
         .from("contacts")
         .update({ stage: newStage })
-        .eq("id", contactId);
+        .eq("id", contactId)
+        .eq("franchise_id", franchiseId);
       if (error) {
         console.error("usePipeline updateStage:", error);
         // Rollback
@@ -83,7 +88,7 @@ export function usePipeline() {
   const createContact = useCallback(async (fields: Partial<Contact>) => {
     const { data, error } = await supabaseBrowser
       .from("contacts")
-      .insert({ stage: "nouveau", ...fields })
+      .insert({ stage: "nouveau", franchise_id: franchiseId, ...fields })
       .select()
       .single();
     if (error) throw error;

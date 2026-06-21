@@ -6,17 +6,18 @@ import type { Depense } from "@/lib/depenses-config";
 
 // ── Supabase CRUD ─────────────────────────────────────────────────
 
-export async function fetchDepenses(annee: number): Promise<Depense[]> {
+export async function fetchDepenses(annee: number, franchiseId: string): Promise<Depense[]> {
   const { data, error } = await supabaseBrowser
     .from("depenses")
     .select("*")
     .eq("annee", annee)
+    .eq("franchise_id", franchiseId)
     .order("date", { ascending: false });
   if (error) throw error;
   return (data as Depense[]) || [];
 }
 
-export async function deleteDepense(id: string, recuUrl: string | null): Promise<void> {
+export async function deleteDepense(id: string, recuUrl: string | null, franchiseId: string): Promise<void> {
   if (recuUrl) {
     try {
       const url = new URL(recuUrl);
@@ -30,7 +31,7 @@ export async function deleteDepense(id: string, recuUrl: string | null): Promise
       // Ignore storage errors silently
     }
   }
-  const { error } = await supabaseBrowser.from("depenses").delete().eq("id", id);
+  const { error } = await supabaseBrowser.from("depenses").delete().eq("id", id).eq("franchise_id", franchiseId);
   if (error) throw error;
 }
 
