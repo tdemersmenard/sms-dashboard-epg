@@ -3,6 +3,7 @@ export const maxDuration = 30;
 
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
+import { getActiveFranchiseId } from "@/lib/franchise-context";
 
 interface Issue {
   severity: "error" | "warning" | "info";
@@ -16,10 +17,13 @@ export async function GET() {
   const stats: Record<string, unknown> = {};
 
   try {
+    const franchiseId = await getActiveFranchiseId();
+
     // ─── 1. CONTACTS ───
     const { data: contacts } = await supabaseAdmin
       .from("contacts")
-      .select("*");
+      .select("*")
+      .eq("franchise_id", franchiseId);
 
     stats.totalContacts = contacts?.length || 0;
 
@@ -56,7 +60,8 @@ export async function GET() {
     // ─── 2. JOBS ───
     const { data: jobs } = await supabaseAdmin
       .from("jobs")
-      .select("*");
+      .select("*")
+      .eq("franchise_id", franchiseId);
 
     stats.totalJobs = jobs?.length || 0;
     stats.jobsByType = {} as Record<string, number>;
@@ -76,7 +81,8 @@ export async function GET() {
     // ─── 3. PAYMENTS ───
     const { data: payments } = await supabaseAdmin
       .from("payments")
-      .select("*");
+      .select("*")
+      .eq("franchise_id", franchiseId);
 
     stats.totalPayments = payments?.length || 0;
     stats.paymentsByStatus = {} as Record<string, number>;
@@ -97,7 +103,8 @@ export async function GET() {
     // ─── 4. DOCUMENTS ───
     const { data: documents } = await supabaseAdmin
       .from("documents")
-      .select("*");
+      .select("*")
+      .eq("franchise_id", franchiseId);
 
     stats.totalDocuments = documents?.length || 0;
 
@@ -123,7 +130,8 @@ export async function GET() {
       .from("messages")
       .select("id, direction, is_read")
       .eq("is_read", false)
-      .eq("direction", "inbound");
+      .eq("direction", "inbound")
+      .eq("franchise_id", franchiseId);
 
     stats.unreadMessages = messages?.length || 0;
 
@@ -148,6 +156,7 @@ export async function GET() {
     const { data: automationLogs } = await supabaseAdmin
       .from("automation_logs")
       .select("action, status, created_at")
+      .eq("franchise_id", franchiseId)
       .order("created_at", { ascending: false })
       .limit(20);
 

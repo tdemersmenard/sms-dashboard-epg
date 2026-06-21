@@ -3,10 +3,12 @@ export const revalidate = 0;
 
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
+import { getActiveFranchiseId } from "@/lib/franchise-context";
 
 export async function GET() {
   try {
-    const { data, error } = await supabaseAdmin.rpc("get_conversations_v2");
+    const franchiseId = await getActiveFranchiseId();
+    const { data, error } = await supabaseAdmin.rpc("get_conversations_v2", { p_franchise_id: franchiseId });
 
     if (error) throw error;
 

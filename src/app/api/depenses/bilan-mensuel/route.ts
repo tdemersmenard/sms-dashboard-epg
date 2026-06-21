@@ -4,9 +4,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { generateBilanMensuelBuffer } from "@/lib/depenses-pdf";
 import type { Depense } from "@/lib/depenses-config";
+import { getActiveFranchiseId } from "@/lib/franchise-context";
 
 export async function GET(req: NextRequest) {
   try {
+    const franchiseId = await getActiveFranchiseId();
     const { searchParams } = new URL(req.url);
     const annee = parseInt(searchParams.get("annee") || String(new Date().getFullYear()));
 
@@ -14,6 +16,7 @@ export async function GET(req: NextRequest) {
       .from("depenses")
       .select("*")
       .eq("annee", annee)
+      .eq("franchise_id", franchiseId)
       .order("date", { ascending: true });
 
     if (error) throw error;

@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
+import { getActiveFranchiseId } from "@/lib/franchise-context";
 
 // Normalise n'importe quel format de date en YYYY-MM-DD
 function toDate(val: string | null | undefined): string | null {
@@ -52,6 +53,7 @@ function getPrevPeriodStart(period: string, now: Date): string {
 }
 
 export async function GET(req: NextRequest) {
+  const franchiseId = await getActiveFranchiseId();
   const period = req.nextUrl.searchParams.get("period") || "30d";
   const now = new Date();
   const todayStr = toDate(now.toISOString())!;
@@ -62,7 +64,8 @@ export async function GET(req: NextRequest) {
   // Tous les paiements
   const { data: allPayments } = await supabaseAdmin
     .from("payments")
-    .select("amount, status, received_date, due_date, created_at");
+    .select("amount, status, received_date, due_date, created_at")
+    .eq("franchise_id", franchiseId);
 
   // Pour les paiements reçus : utilise received_date si dispo, sinon created_at comme fallback
   const received = (allPayments || [])
@@ -106,7 +109,8 @@ export async function GET(req: NextRequest) {
   // Dépenses
   const { data: depenses } = await supabaseAdmin
     .from("depenses")
-    .select("montant, date, categorie");
+    .select("montant, date, categorie")
+    .eq("franchise_id", franchiseId);
 
   const totalDepenses = (depenses || []).reduce((s, d) => s + (d.montant || 0), 0);
 
@@ -124,6 +128,7 @@ export async function GET(req: NextRequest) {
   const { data: contacts } = await supabaseAdmin
     .from("contacts")
     .select("id, stage, phone")
+    .eq("franchise_id", franchiseId)
     .neq("phone", "+14509942215");
 
   const totalClients   = (contacts || []).filter(c => ["closé", "planifié", "complété"].includes(c.stage || "")).length;
@@ -157,7 +162,8 @@ export async function GET(req: NextRequest) {
   const { data: paymentsWithContacts } = await supabaseAdmin
     .from("payments")
     .select("amount, status, received_date, created_at, contact_id, contacts(services)")
-    .eq("status", "reçu");
+    .eq("status", "reçu")
+    .eq("franchise_id", franchiseId);
 
   const revenueByService: Record<string, number> = {};
   for (const p of paymentsWithContacts || []) {
@@ -193,6 +199,7 @@ export async function GET(req: NextRequest) {
   const { data: upcomingJobs } = await supabaseAdmin
     .from("jobs")
     .select("id")
+    .eq("franchise_id", franchiseId)
     .gte("scheduled_date", todayStr)
     .lte("scheduled_date", weekEnd);
 

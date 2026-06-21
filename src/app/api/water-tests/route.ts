@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
+import { getActiveFranchiseId } from "@/lib/franchise-context";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -28,6 +29,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const franchiseId = await getActiveFranchiseId();
     const { contact_id, job_id, ph, alkalinity, chlorine, calcium_hardness, stabilizer, notes } = await req.json();
     if (!contact_id) return NextResponse.json({ error: "contact_id requis" }, { status: 400 });
 
@@ -43,6 +45,7 @@ export async function POST(req: NextRequest) {
         stabilizer: stabilizer !== "" ? Number(stabilizer) : null,
         notes: notes || null,
         tested_at: new Date().toISOString(),
+        franchise_id: franchiseId,
       })
       .select()
       .single();

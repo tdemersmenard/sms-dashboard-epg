@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { Building2, Plus, Check, Clock, XCircle, DollarSign, Users, Briefcase, Loader2, X, ChevronRight, LogIn } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 
 const STATUS_BADGE: Record<string, { label: string; bg: string; text: string; icon: typeof Check }> = {
   active:    { label: "Active",    bg: "bg-green-100",  text: "text-green-700",  icon: Check    },
@@ -14,6 +13,7 @@ const STATUS_BADGE: Record<string, { label: string; bg: string; text: string; ic
 interface FranchiseStat {
   id: string;
   name: string;
+  slug: string;
   owner_name: string | null;
   owner_email: string | null;
   owner_phone: string | null;
@@ -41,7 +41,6 @@ const EMPTY_FORM = {
 };
 
 export default function MasterPage() {
-  const router = useRouter();
   const [franchises, setFranchises] = useState<FranchiseStat[]>([]);
   const [loading, setLoading] = useState(true);
   const [forbidden, setForbidden] = useState(false);
@@ -49,7 +48,6 @@ export default function MasterPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  const [entering, setEntering] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -96,16 +94,7 @@ export default function MasterPage() {
     setTimeout(() => setToast(null), 3000);
   };
 
-  const enterFranchise = async (franchiseId: string) => {
-    setEntering(franchiseId);
-    await fetch("/api/master/impersonate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ franchiseId }),
-    });
-    router.push("/dashboard");
-    router.refresh();
-  };
+  // No longer needed — franchises open in new tabs via slug URLs
 
   const totalMonthRevenue = franchises.reduce((s, f) => s + f.stats.monthRevenue, 0);
   const totalRoyalties    = franchises.reduce((s, f) => s + f.stats.royaltyDue,   0);
@@ -202,14 +191,15 @@ export default function MasterPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      <button
-                        onClick={() => enterFranchise(f.id)}
-                        disabled={entering === f.id}
-                        className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-[#0a1f3f] text-white hover:bg-[#0d2a52] font-medium transition disabled:opacity-60"
+                      <a
+                        href={`/${f.slug || f.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-[#0a1f3f] text-white hover:bg-[#0d2a52] font-medium transition"
                       >
-                        {entering === f.id ? <Loader2 size={12} className="animate-spin" /> : <LogIn size={12} />}
-                        Entrer
-                      </button>
+                        <LogIn size={12} />
+                        Ouvrir le CRM
+                      </a>
                       {f.status !== "active" && (
                         <button
                           onClick={() => setStatus(f.id, "active")}

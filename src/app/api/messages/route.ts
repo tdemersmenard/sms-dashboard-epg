@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { twilioClient, twilioPhoneNumber } from "@/lib/twilio";
+import { getActiveFranchiseId } from "@/lib/franchise-context";
 
 // GET messages for a contact
 export async function GET(request: NextRequest) {
@@ -16,6 +17,20 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    const franchiseId = await getActiveFranchiseId();
+
+    // Verify the contact belongs to the active franchise
+    const { data: contact } = await supabaseAdmin
+      .from("contacts")
+      .select("id")
+      .eq("id", contactId)
+      .eq("franchise_id", franchiseId)
+      .maybeSingle();
+
+    if (!contact) {
+      return NextResponse.json({ error: "Contact not found" }, { status: 404 });
+    }
+
     // Fetch messages
     const { data: messages, error } = await supabaseAdmin
       .from("messages")

@@ -3,13 +3,16 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { CATALOG_ITEMS } from "@/lib/catalog";
+import { getActiveFranchiseId } from "@/lib/franchise-context";
 
 export async function GET() {
   try {
+    const franchiseId = await getActiveFranchiseId();
     const { data, error } = await supabaseAdmin
       .from("catalog_items")
       .select("*")
       .eq("active", true)
+      .eq("franchise_id", franchiseId)
       .order("sort_order", { ascending: true })
       .order("name", { ascending: true });
 
@@ -46,9 +49,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "name et default_price requis" }, { status: 400 });
     }
 
+    const franchiseId = await getActiveFranchiseId();
     const { data, error } = await supabaseAdmin
       .from("catalog_items")
-      .insert({ name, description: description || null, default_price: Number(default_price), category: category || null, sort_order: sort_order ?? 0, active: true })
+      .insert({ name, description: description || null, default_price: Number(default_price), category: category || null, sort_order: sort_order ?? 0, active: true, franchise_id: franchiseId })
       .select()
       .single();
 
@@ -64,10 +68,12 @@ export async function PATCH(req: NextRequest) {
     const { id, ...updates } = await req.json();
     if (!id) return NextResponse.json({ error: "id requis" }, { status: 400 });
 
+    const franchiseId = await getActiveFranchiseId();
     const { data, error } = await supabaseAdmin
       .from("catalog_items")
       .update(updates)
       .eq("id", id)
+      .eq("franchise_id", franchiseId)
       .select()
       .single();
 
@@ -83,10 +89,12 @@ export async function DELETE(req: NextRequest) {
     const { id } = await req.json();
     if (!id) return NextResponse.json({ error: "id requis" }, { status: 400 });
 
+    const franchiseId = await getActiveFranchiseId();
     const { error } = await supabaseAdmin
       .from("catalog_items")
       .update({ active: false })
-      .eq("id", id);
+      .eq("id", id)
+      .eq("franchise_id", franchiseId);
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true });

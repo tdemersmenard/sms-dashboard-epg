@@ -3,12 +3,15 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import bcrypt from "bcryptjs";
+import { getActiveFranchiseId } from "@/lib/franchise-context";
 
 export async function GET() {
   try {
+    const franchiseId = await getActiveFranchiseId();
     const { data, error } = await supabaseAdmin
       .from("employees")
       .select("id, name, phone, email, zone, work_days, max_hours_per_day, active, created_at")
+      .eq("franchise_id", franchiseId)
       .order("name");
 
     if (error) {
@@ -42,6 +45,7 @@ export async function POST(req: NextRequest) {
 
     const password_hash = await bcrypt.hash(password, 10);
 
+    const franchiseId = await getActiveFranchiseId();
     const { data, error } = await supabaseAdmin
       .from("employees")
       .insert({
@@ -53,6 +57,7 @@ export async function POST(req: NextRequest) {
         max_hours_per_day: max_hours_per_day || 8,
         active: true,
         password_hash,
+        franchise_id: franchiseId,
       })
       .select("id, name, phone, email, zone, work_days, max_hours_per_day, active, created_at")
       .single();
@@ -79,10 +84,12 @@ export async function PATCH(req: NextRequest) {
       updates.email = updates.email.toLowerCase().trim();
     }
 
+    const franchiseId = await getActiveFranchiseId();
     const { data, error } = await supabaseAdmin
       .from("employees")
       .update(updates)
       .eq("id", id)
+      .eq("franchise_id", franchiseId)
       .select("id, name, phone, email, zone, work_days, max_hours_per_day, active, created_at")
       .single();
 

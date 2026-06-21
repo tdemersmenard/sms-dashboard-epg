@@ -3,24 +3,29 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import Anthropic from "@anthropic-ai/sdk";
+import { getActiveFranchiseId } from "@/lib/franchise-context";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 async function getDBContext() {
+  const franchiseId = await getActiveFranchiseId();
   const [{ data: contacts }, { data: jobs }, { data: payments }] = await Promise.all([
     supabaseAdmin
       .from("contacts")
       .select("id, first_name, last_name, phone, address, stage, notes")
+      .eq("franchise_id", franchiseId)
       .order("created_at", { ascending: false })
       .limit(50),
     supabaseAdmin
       .from("jobs")
       .select("id, contact_id, job_type, scheduled_date, status, price")
+      .eq("franchise_id", franchiseId)
       .order("scheduled_date", { ascending: false })
       .limit(30),
     supabaseAdmin
       .from("payments")
       .select("id, contact_id, amount, status, description, received_date")
+      .eq("franchise_id", franchiseId)
       .order("created_at", { ascending: false })
       .limit(30),
   ]);

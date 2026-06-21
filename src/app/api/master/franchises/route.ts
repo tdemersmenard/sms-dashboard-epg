@@ -18,7 +18,7 @@ export async function GET() {
 
   const { data: franchises, error } = await supabaseAdmin
     .from("franchises")
-    .select("id, name, owner_name, owner_email, owner_phone, territory, status, franchise_fee_paid, royalty_percent, monthly_fee, twilio_phone_number, created_at")
+    .select("id, name, slug, owner_name, owner_email, owner_phone, territory, status, franchise_fee_paid, royalty_percent, monthly_fee, twilio_phone_number, created_at")
     .order("created_at", { ascending: true });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -71,8 +71,18 @@ export async function POST(req: NextRequest) {
 
   if (!name) return NextResponse.json({ error: "name requis" }, { status: 400 });
 
+  // Generate slug from name: "Entretien Piscine Sherbrooke" → "sherbrooke"
+  const slug = name
+    .toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // remove accents
+    .replace(/entretien\s+piscine\s*/i, "") // remove common prefix
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-") // replace non-alphanum with dashes
+    .replace(/^-|-$/g, "") // trim dashes
+    || "franchise";
+
   const insert: Record<string, unknown> = {
-    name, owner_name, owner_email, owner_phone,
+    name, slug, owner_name, owner_email, owner_phone,
     business_address, territory,
     twilio_account_sid, twilio_phone_number,
     email, payment_interac_email,

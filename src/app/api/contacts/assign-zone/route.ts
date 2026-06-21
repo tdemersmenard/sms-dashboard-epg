@@ -3,11 +3,13 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { getCurrentUser } from "@/lib/auth";
+import { getActiveFranchiseId } from "@/lib/franchise-context";
 
 export async function PATCH(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
+  const franchiseId = await getActiveFranchiseId();
   const { zone, employeeId } = await req.json();
   if (!zone) return NextResponse.json({ error: "zone requis" }, { status: 400 });
 
@@ -15,7 +17,7 @@ export async function PATCH(req: NextRequest) {
 
   let employeeName = "Thomas";
   if (empId) {
-    const { data: emp } = await supabaseAdmin.from("employees").select("name").eq("id", empId).single();
+    const { data: emp } = await supabaseAdmin.from("employees").select("name").eq("id", empId).eq("franchise_id", franchiseId).single();
     if (emp?.name) employeeName = emp.name;
   }
 
@@ -23,6 +25,7 @@ export async function PATCH(req: NextRequest) {
   const { data: contacts, error: fetchErr } = await supabaseAdmin
     .from("contacts")
     .select("id")
+    .eq("franchise_id", franchiseId)
     .ilike("city", `%${zone}%`);
 
   if (fetchErr) return NextResponse.json({ error: fetchErr.message }, { status: 500 });

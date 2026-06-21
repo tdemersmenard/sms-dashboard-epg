@@ -2,9 +2,11 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
+import { getActiveFranchiseId } from "@/lib/franchise-context";
 
 export async function POST(req: NextRequest) {
   try {
+    const franchiseId = await getActiveFranchiseId();
     const { contactId, stage } = await req.json();
     if (!contactId || !stage) return NextResponse.json({ error: "contactId et stage requis" }, { status: 400 });
 
@@ -12,12 +14,13 @@ export async function POST(req: NextRequest) {
       .from("contacts")
       .select("id, stage, portal_password, email, phone, first_name")
       .eq("id", contactId)
+      .eq("franchise_id", franchiseId)
       .single();
 
     if (!contact) return NextResponse.json({ error: "Contact non trouvé" }, { status: 404 });
 
     // Update le stage
-    await supabaseAdmin.from("contacts").update({ stage }).eq("id", contactId);
+    await supabaseAdmin.from("contacts").update({ stage }).eq("id", contactId).eq("franchise_id", franchiseId);
 
     // Si le client passe à "closé" pour la première fois ET a un email ET pas encore de portail
     if (stage === "closé" && contact.email && !contact.portal_password) {

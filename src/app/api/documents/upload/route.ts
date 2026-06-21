@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
+import { getActiveFranchiseId } from "@/lib/franchise-context";
 
 export async function POST(req: NextRequest) {
   try {
@@ -35,11 +36,13 @@ export async function POST(req: NextRequest) {
       .from("documents")
       .getPublicUrl(filePath);
 
+    const franchiseId = await getActiveFranchiseId();
     const prefix = docType === "contrat" ? "C" : docType === "facture" ? "F" : "S";
     const { count } = await supabaseAdmin
       .from("documents")
       .select("id", { count: "exact", head: true })
-      .eq("doc_type", docType);
+      .eq("doc_type", docType)
+      .eq("franchise_id", franchiseId);
     const docNumber = `${prefix}-2026-${String((count || 0) + 1).padStart(3, "0")}`;
 
     const { data: doc, error: docError } = await supabaseAdmin
@@ -51,6 +54,7 @@ export async function POST(req: NextRequest) {
         amount: 0,
         status: "envoyé",
         pdf_url: urlData.publicUrl,
+        franchise_id: franchiseId,
       })
       .select()
       .single();

@@ -3,11 +3,13 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { getCurrentUser } from "@/lib/auth";
+import { getActiveFranchiseId } from "@/lib/franchise-context";
 
 export async function PATCH(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
+  const franchiseId = await getActiveFranchiseId();
   const { contactId, employeeId } = await req.json();
   if (!contactId) return NextResponse.json({ error: "contactId requis" }, { status: 400 });
 
@@ -16,7 +18,7 @@ export async function PATCH(req: NextRequest) {
   // Fetch employee name for response
   let employeeName = "Thomas";
   if (empId) {
-    const { data: emp } = await supabaseAdmin.from("employees").select("name").eq("id", empId).single();
+    const { data: emp } = await supabaseAdmin.from("employees").select("name").eq("id", empId).eq("franchise_id", franchiseId).single();
     if (emp?.name) employeeName = emp.name;
   }
 
@@ -24,7 +26,8 @@ export async function PATCH(req: NextRequest) {
   const { error: contactError } = await supabaseAdmin
     .from("contacts")
     .update({ assigned_employee_id: empId })
-    .eq("id", contactId);
+    .eq("id", contactId)
+    .eq("franchise_id", franchiseId);
 
   if (contactError) return NextResponse.json({ error: contactError.message }, { status: 500 });
 

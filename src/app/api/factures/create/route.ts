@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { generatePDFBuffer } from "@/lib/generate-pdf";
+import { getActiveFranchiseId } from "@/lib/franchise-context";
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,11 +13,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "contactId et lineItems requis" }, { status: 400 });
     }
 
+    const franchiseId = await getActiveFranchiseId();
+
     // Fetch contact
     const { data: contact } = await supabaseAdmin
       .from("contacts")
       .select("*")
       .eq("id", contactId)
+      .eq("franchise_id", franchiseId)
       .single();
 
     if (!contact) {
@@ -32,7 +36,8 @@ export async function POST(req: NextRequest) {
     const { count } = await supabaseAdmin
       .from("documents")
       .select("id", { count: "exact", head: true })
-      .eq("doc_type", "facture");
+      .eq("doc_type", "facture")
+      .eq("franchise_id", franchiseId);
     const docNumber = `FACT-2026-${String((count || 0) + 1).padStart(4, "0")}`;
 
     const clientName = [contact.first_name, contact.last_name].filter(Boolean).join(" ") || "Client";
@@ -76,6 +81,7 @@ export async function POST(req: NextRequest) {
         amount: total,
         status: "brouillon",
         pdf_url: pdfUrl,
+        franchise_id: franchiseId,
         data: {
           client_name: clientName,
           client_address: contact.address,

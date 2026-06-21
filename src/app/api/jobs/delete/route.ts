@@ -2,8 +2,10 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
+import { getActiveFranchiseId } from "@/lib/franchise-context";
 
 export async function DELETE(req: NextRequest) {
+  const franchiseId = await getActiveFranchiseId();
   const { searchParams } = new URL(req.url);
   const jobId = searchParams.get("id");
   const contactId = searchParams.get("contactId");
@@ -16,7 +18,8 @@ export async function DELETE(req: NextRequest) {
       .from("jobs")
       .delete()
       .eq("job_type", type)
-      .eq("status", "planifié");
+      .eq("status", "planifié")
+      .eq("franchise_id", franchiseId);
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ success: true, deleted: "all " + type });
@@ -28,7 +31,8 @@ export async function DELETE(req: NextRequest) {
       .delete()
       .eq("contact_id", contactId)
       .eq("job_type", "entretien")
-      .eq("status", "planifié");
+      .eq("status", "planifié")
+      .eq("franchise_id", franchiseId);
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ success: true, deleted: "bulk" });
@@ -38,7 +42,8 @@ export async function DELETE(req: NextRequest) {
     const { error } = await supabaseAdmin
       .from("jobs")
       .delete()
-      .eq("id", jobId);
+      .eq("id", jobId)
+      .eq("franchise_id", franchiseId);
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ success: true, deleted: jobId });

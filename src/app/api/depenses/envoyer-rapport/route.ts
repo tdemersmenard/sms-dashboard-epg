@@ -7,9 +7,11 @@ import { getAuthedGmail } from "@/lib/google";
 import { MOIS_FR, fmt, montantDeductible, CATS, TAUX_MARGINAL } from "@/lib/depenses-config";
 import type { Depense } from "@/lib/depenses-config";
 import { getVehicleDeductionPrecise } from "@/lib/depenses-deduction-server";
+import { getActiveFranchiseId } from "@/lib/franchise-context";
 
 export async function POST(req: NextRequest) {
   try {
+    const franchiseId = await getActiveFranchiseId();
     const { annee, mois } = await req.json() as { annee: number; mois: number };
 
     if (!annee || !mois || mois < 1 || mois > 12) {
@@ -24,6 +26,7 @@ export async function POST(req: NextRequest) {
     const { data, error } = await supabaseAdmin
       .from("depenses")
       .select("*")
+      .eq("franchise_id", franchiseId)
       .gte("date", dateFrom)
       .lte("date", dateTo)
       .order("date", { ascending: true });

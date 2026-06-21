@@ -2,15 +2,16 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   LayoutDashboard, Kanban, MessageSquare, Users, Calendar,
   Navigation, Gauge, Receipt, Brain, Activity, FileText, Users2, Tag, Bot, Phone, Building2,
 } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import { useFranchise } from "./FranchiseProvider";
 
 const NAV_ITEMS_MAIN = [
-  { label: "Dashboard",      href: "/dashboard",  icon: LayoutDashboard },
+  { label: "Dashboard",      href: "",            icon: LayoutDashboard },
   { label: "Messages",       href: "/messages",   icon: MessageSquare   },
   { label: "À rappeler",     href: "/a-rappeler", icon: Phone           },
   { label: "Routes",         href: "/routes",     icon: Navigation      },
@@ -32,15 +33,22 @@ const NAV_ITEMS_ADMIN = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const { franchiseSlug, isMaster, franchiseName } = useFranchise();
   const [unreadCount, setUnreadCount] = useState(0);
   const [callbackCount, setCallbackCount] = useState(0);
-  const [isMaster, setIsMaster] = useState(false);
 
-  useEffect(() => {
-    fetch("/api/auth/me").then(r => r.json()).then(d => {
-      if (d.user?.is_master) setIsMaster(true);
-    }).catch(() => {});
-  }, []);
+  // Derive slug from URL path (reliable for link generation even before context loads)
+  const slug = useMemo(() => {
+    if (franchiseSlug) return franchiseSlug;
+    // Extract slug from pathname as fallback
+    const segments = pathname?.split("/").filter(Boolean) || [];
+    if (segments.length > 0 && !["login", "master", "portail", "employe", "api"].includes(segments[0])) {
+      return segments[0];
+    }
+    return "";
+  }, [franchiseSlug, pathname]);
+
+  const base = slug ? `/${slug}` : "";
 
   useEffect(() => {
     const loadUnread = async () => {
@@ -83,8 +91,19 @@ export default function Sidebar() {
     return () => { supabaseBrowser.removeChannel(ch); };
   }, []);
 
-  // Ne pas afficher la nav sur les pages du portail client ou la page de login
+  // Don't render on login/portail pages
   if (pathname === "/login" || pathname?.startsWith("/portail")) return null;
+
+  const isItemActive = (itemHref: string) => {
+    const fullHref = `${base}${itemHref}`;
+    if (itemHref === "") {
+      // Dashboard: exact match on /slug
+      return pathname === base || pathname === `${base}/`;
+    }
+    return pathname === fullHref || pathname?.startsWith(fullHref + "/");
+  };
+
+  const displayName = franchiseName || slug || "CHLORE";
 
   return (
     <>
@@ -92,19 +111,20 @@ export default function Sidebar() {
       <aside className="hidden md:flex fixed inset-y-0 left-0 flex-col bg-[#0a1f3f] z-40 w-[260px]">
         <div className="px-5 pt-6 pb-5 border-b border-white/10">
           <p className="text-white font-bold text-2xl tracking-tight">CHLORE</p>
-          <p className="text-[#94a3b8] text-sm mt-0.5">Entretien Piscine Granby</p>
+          <p className="text-[#94a3b8] text-sm mt-0.5 truncate">{displayName}</p>
         </div>
         <nav className="flex-1 px-3 py-4 overflow-y-auto flex flex-col">
           <div className="space-y-1 flex-1">
             {NAV_ITEMS_MAIN.map(item => {
               const Icon = item.icon;
-              const isActive = pathname === item.href || pathname?.startsWith(item.href + "/");
+              const fullHref = `${base}${item.href}`;
+              const active = isItemActive(item.href);
               return (
                 <Link
                   key={item.href}
-                  href={item.href}
+                  href={fullHref}
                   className={`flex items-center gap-3 px-5 py-3 rounded-lg text-sm transition-all ${
-                    isActive
+                    active
                       ? "bg-white/10 text-white font-medium"
                       : "text-gray-400 hover:bg-white/5 hover:text-gray-200"
                   }`}
@@ -145,13 +165,14 @@ export default function Sidebar() {
             )}
             {NAV_ITEMS_ADMIN.map(item => {
               const Icon = item.icon;
-              const isActive = pathname === item.href || pathname?.startsWith(item.href + "/");
+              const fullHref = `${base}${item.href}`;
+              const active = isItemActive(item.href);
               return (
                 <Link
                   key={item.href}
-                  href={item.href}
+                  href={fullHref}
                   className={`flex items-center gap-3 px-5 py-3 rounded-lg text-sm transition-all ${
-                    isActive
+                    active
                       ? "bg-white/10 text-white font-medium"
                       : "text-gray-400 hover:bg-white/5 hover:text-gray-200"
                   }`}
@@ -171,24 +192,28 @@ export default function Sidebar() {
         </div>
       </aside>
 
-      {/* BOTTOM NAV MOBILE (< md) — scrollable horizontale pour tout voir */}
+      {/* BOTTOM NAV MOBILE (< md) — scrollable */}
       <nav className="md:hidden fixed bottom-0 inset-x-0 bg-white border-t border-gray-200 z-50 pb-[env(safe-area-inset-bottom)] overflow-x-auto">
         <div className="flex h-16 min-w-max px-2">
-          {[...NAV_ITEMS_MAIN, ...NAV_ITEMS_ADMIN, ...(isMaster ? [{ label: "Master", href: "/master", icon: Building2 }] : [])].map(item => {
+          {[...NAV_ITEMS_MAIN, ...NAV_ITEMS_ADMIN, ...(isMaster ? [{ label: "Master", href: "___master", icon: Building2 }] : [])].map(item => {
             const Icon = item.icon;
-            const isActive = pathname === item.href || pathname?.startsWith(item.href + "/");
+            const isMasterLink = item.href === "___master";
+            const fullHref = isMasterLink ? "/master" : `${base}${item.href}`;
+            const active = isMasterLink
+              ? pathname === "/master"
+              : isItemActive(item.href);
             return (
               <Link
                 key={item.href}
-                href={item.href}
+                href={fullHref}
                 className={`flex flex-col items-center justify-center gap-0.5 px-4 min-w-[70px] transition-colors ${
-                  isActive
+                  active
                     ? "text-[#0a1f3f]"
                     : "text-gray-400 hover:text-gray-600"
                 }`}
               >
                 <div className="relative">
-                  <Icon size={20} strokeWidth={isActive ? 2.25 : 1.75} />
+                  <Icon size={20} strokeWidth={active ? 2.25 : 1.75} />
                   {item.href === "/messages" && unreadCount > 0 && (
                     <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-0.5 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center leading-none">
                       {unreadCount > 99 ? "99+" : unreadCount}

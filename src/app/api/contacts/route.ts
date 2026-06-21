@@ -2,12 +2,15 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
+import { getActiveFranchiseId } from "@/lib/franchise-context";
 
 export async function GET() {
   try {
+    const franchiseId = await getActiveFranchiseId();
     const { data, error } = await supabaseAdmin
       .from("contacts")
       .select("id, first_name, last_name, phone, email, address, city")
+      .eq("franchise_id", franchiseId)
       .order("first_name", { ascending: true });
 
     if (error) throw error;
@@ -34,10 +37,12 @@ export async function PATCH(request: NextRequest) {
     if (notes !== undefined) updates.notes = notes;
     if (address !== undefined) updates.address = address;
 
+    const franchiseId = await getActiveFranchiseId();
     const { data, error } = await supabaseAdmin
       .from("contacts")
       .update(updates)
       .eq("id", contactId)
+      .eq("franchise_id", franchiseId)
       .select()
       .single();
 

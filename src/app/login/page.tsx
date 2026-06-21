@@ -7,7 +7,7 @@ import { Loader2, Lock, Mail } from "lucide-react";
 function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const redirect = params.get("redirect") || "/dashboard";
+  const redirect = params.get("redirect") || "/";
 
   const [step, setStep] = useState<"credentials" | "totp">("credentials");
   const [email, setEmail] = useState("");

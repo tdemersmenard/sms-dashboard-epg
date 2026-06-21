@@ -1,9 +1,11 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
+import { getActiveFranchiseId } from "@/lib/franchise-context";
 
 export async function POST(req: NextRequest) {
   try {
+    const franchiseId = await getActiveFranchiseId();
     const { contactId, amount, description, dueDate, method, silentClient } = await req.json();
 
     if (!contactId || !amount || !description) {
@@ -14,6 +16,7 @@ export async function POST(req: NextRequest) {
       .from("contacts")
       .select("first_name, last_name, phone")
       .eq("id", contactId)
+      .eq("franchise_id", franchiseId)
       .single();
 
     if (!contact) return NextResponse.json({ error: "Contact non trouvé" }, { status: 404 });
@@ -25,6 +28,7 @@ export async function POST(req: NextRequest) {
       status: "en_attente",
       due_date: dueDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
       notes: description,
+      franchise_id: franchiseId,
     }).select().single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });

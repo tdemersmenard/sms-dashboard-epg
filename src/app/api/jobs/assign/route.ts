@@ -2,9 +2,11 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
+import { getActiveFranchiseId } from "@/lib/franchise-context";
 
 export async function PATCH(req: NextRequest) {
   try {
+    const franchiseId = await getActiveFranchiseId();
     const { jobId, employeeId } = await req.json();
     if (!jobId) return NextResponse.json({ error: "jobId requis" }, { status: 400 });
 
@@ -12,6 +14,7 @@ export async function PATCH(req: NextRequest) {
       .from("jobs")
       .update({ assigned_employee_id: employeeId || null })
       .eq("id", jobId)
+      .eq("franchise_id", franchiseId)
       .select("id, contact_id, job_type, scheduled_date, scheduled_time_start, assigned_employee_id")
       .single();
 

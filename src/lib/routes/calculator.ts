@@ -241,17 +241,19 @@ export interface CalculationResult {
   fuel: { weeklyFuelLitres: number; weeklyFuelCost: number; seasonFuelCost: number };
 }
 
-export async function calculateRoutes(): Promise<CalculationResult> {
+export async function calculateRoutes(franchiseId?: string): Promise<CalculationResult> {
   console.log("[routes] Starting optimized calculation...");
   distanceCache.clear();
 
   const homeGeo = await geocode(HOME_ADDR);
   if (!homeGeo) throw new Error("Impossible de géocoder l'adresse de base");
 
-  const { data: contacts } = await supabaseAdmin
+  let query = supabaseAdmin
     .from("contacts")
     .select("id, first_name, last_name, phone, address, city, services, ouverture_date")
     .not("services", "is", null);
+  if (franchiseId) query = query.eq("franchise_id", franchiseId);
+  const { data: contacts } = await query;
 
   const entretienRaw = (contacts || []).filter(c => {
     const svcs = c.services || [];

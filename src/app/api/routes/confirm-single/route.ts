@@ -3,11 +3,13 @@ export const maxDuration = 30;
 
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
+import { getActiveFranchiseId } from "@/lib/franchise-context";
 
 const DAY_TO_JS: Record<string, number> = { Lundi: 1, Mardi: 2, Mercredi: 3, Jeudi: 4, Vendredi: 5 };
 
 export async function POST(req: NextRequest) {
   try {
+    const franchiseId = await getActiveFranchiseId();
     const { stop, day } = await req.json();
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
 
@@ -54,6 +56,7 @@ export async function POST(req: NextRequest) {
         scheduled_time_end: endTime,
         status: "planifié",
         notes: `Route ${day} — Arrêt #${stop.order}`,
+        franchise_id: franchiseId,
       });
       count++;
       cur.setDate(cur.getDate() + increment);
