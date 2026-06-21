@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, hashPassword } from "@/lib/auth";
 import { isMasterUser, encryptSecret } from "@/lib/franchise";
 
 async function requireMaster() {
@@ -66,6 +66,7 @@ export async function POST(req: NextRequest) {
     business_address, territory,
     twilio_account_sid, twilio_auth_token, twilio_phone_number,
     email, payment_interac_email,
+    owner_password,
   } = body;
 
   if (!name) return NextResponse.json({ error: "name requis" }, { status: 400 });
@@ -89,6 +90,19 @@ export async function POST(req: NextRequest) {
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Créer le compte admin_user du franchisé si email + mot de passe fournis
+  if (owner_email && owner_password && franchise) {
+    const password_hash = await hashPassword(owner_password);
+    await supabaseAdmin.from("admin_users").insert({
+      email:        owner_email,
+      password_hash,
+      franchise_id: franchise.id,
+      is_master:    false,
+      active:       true,
+    });
+  }
+
   return NextResponse.json({ franchise });
 }
 

@@ -7,6 +7,7 @@ import DashboardStats from "@/components/DashboardStats";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import { useFranchise } from "@/components/FranchiseProvider";
 import type { Job, Message } from "@/lib/types";
 import type { AuditAction } from "@/lib/ai-audit";
 
@@ -84,6 +85,7 @@ function OAuthToastHandler({
 
 export default function DashboardPage() {
   const router = useRouter();
+  const { franchiseId } = useFranchise();
   const [clients, setClients] = useState<ClientRow[]>([]);
   const [clientsLoading, setClientsLoading] = useState(true);
   const [upcomingJobs, setUpcomingJobs] = useState<JobWithContact[]>([]);
@@ -97,10 +99,12 @@ export default function DashboardPage() {
   const [docuSignToast, setDocuSignToast] = useState<"connected" | "error" | null>(null);
 
   // Load contacts with payments (stats based entirely on payments table)
-  const loadClients = async () => {
+  const loadClients = useCallback(async () => {
+    if (!franchiseId) return;
     const { data: contactsData } = await supabaseBrowser
       .from("contacts")
       .select("id, first_name, last_name, name, phone, address, services, season_price, notes")
+      .eq("franchise_id", franchiseId)
       .order("first_name");
 
     if (!contactsData || contactsData.length === 0) {
@@ -139,16 +143,17 @@ export default function DashboardPage() {
       }))
     );
     setClientsLoading(false);
-  };
+  }, [franchiseId]);
 
   // Load dynamic data (jobs + messages)
   useEffect(() => {
+    if (!franchiseId) return;
     const load = async () => {
       const todayStr = format(new Date(), "yyyy-MM-dd");
 
       const [{ data: jobsRaw }, { data: msgsRaw }] = await Promise.all([
-        supabaseBrowser.from("jobs").select("*").gte("scheduled_date", todayStr).neq("status", "annulé").order("scheduled_date").limit(5),
-        supabaseBrowser.from("messages").select("*").eq("direction", "inbound").order("created_at", { ascending: false }).limit(5),
+        supabaseBrowser.from("jobs").select("*").eq("franchise_id", franchiseId).gte("scheduled_date", todayStr).neq("status", "annulé").order("scheduled_date").limit(5),
+        supabaseBrowser.from("messages").select("*").eq("franchise_id", franchiseId).eq("direction", "inbound").order("created_at", { ascending: false }).limit(5),
       ]);
 
       if (jobsRaw && jobsRaw.length > 0) {
@@ -168,9 +173,9 @@ export default function DashboardPage() {
       setDynamicLoading(false);
     };
     load();
-  }, []);
+  }, [franchiseId]);
 
-  useEffect(() => { loadClients(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { loadClients(); }, [loadClients]);
 
   // Check Gmail connection status
   const checkGmail = useCallback(async () => {

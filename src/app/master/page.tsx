@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Building2, Plus, Check, Clock, XCircle, DollarSign, Users, Briefcase, Loader2, X, ChevronRight } from "lucide-react";
+import { Building2, Plus, Check, Clock, XCircle, DollarSign, Users, Briefcase, Loader2, X, ChevronRight, LogIn } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 const STATUS_BADGE: Record<string, { label: string; bg: string; text: string; icon: typeof Check }> = {
   active:    { label: "Active",    bg: "bg-green-100",  text: "text-green-700",  icon: Check    },
@@ -36,9 +37,11 @@ const EMPTY_FORM = {
   territory: "", business_address: "",
   twilio_account_sid: "", twilio_auth_token: "", twilio_phone_number: "",
   email: "", payment_interac_email: "",
+  owner_password: "",
 };
 
 export default function MasterPage() {
+  const router = useRouter();
   const [franchises, setFranchises] = useState<FranchiseStat[]>([]);
   const [loading, setLoading] = useState(true);
   const [forbidden, setForbidden] = useState(false);
@@ -46,6 +49,7 @@ export default function MasterPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [entering, setEntering] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -90,6 +94,17 @@ export default function MasterPage() {
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
+  };
+
+  const enterFranchise = async (franchiseId: string) => {
+    setEntering(franchiseId);
+    await fetch("/api/master/impersonate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ franchiseId }),
+    });
+    router.push("/dashboard");
+    router.refresh();
   };
 
   const totalMonthRevenue = franchises.reduce((s, f) => s + f.stats.monthRevenue, 0);
@@ -187,6 +202,14 @@ export default function MasterPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
+                      <button
+                        onClick={() => enterFranchise(f.id)}
+                        disabled={entering === f.id}
+                        className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-[#0a1f3f] text-white hover:bg-[#0d2a52] font-medium transition disabled:opacity-60"
+                      >
+                        {entering === f.id ? <Loader2 size={12} className="animate-spin" /> : <LogIn size={12} />}
+                        Entrer
+                      </button>
                       {f.status !== "active" && (
                         <button
                           onClick={() => setStatus(f.id, "active")}
@@ -257,6 +280,12 @@ export default function MasterPage() {
                   <div>
                     <label className="text-xs text-gray-500 block mb-1">Email du propriétaire</label>
                     <input type="email" value={form.owner_email} onChange={e => setForm(p => ({ ...p, owner_email: e.target.value }))}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 block mb-1">Mot de passe (accès CRM)</label>
+                    <input type="password" value={form.owner_password} onChange={e => setForm(p => ({ ...p, owner_password: e.target.value }))}
+                      placeholder="Mot de passe initial du franchisé"
                       className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
                   </div>
                   <div>

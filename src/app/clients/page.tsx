@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Search } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import { useFranchise } from "@/components/FranchiseProvider";
 import type { Contact } from "@/lib/types";
 
 const STAGES = [
@@ -31,6 +32,7 @@ function displayName(c: Contact): string {
 
 export default function ClientsPage() {
   const router = useRouter();
+  const { franchiseId } = useFranchise();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -63,15 +65,17 @@ export default function ClientsPage() {
     }));
 
   useEffect(() => {
+    if (!franchiseId) return;
     supabaseBrowser
       .from("contacts")
       .select("*")
+      .eq("franchise_id", franchiseId)
       .order("created_at", { ascending: false })
       .then(({ data }) => {
         setContacts((data ?? []) as Contact[]);
         setLoading(false);
       });
-  }, []);
+  }, [franchiseId]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -106,6 +110,7 @@ export default function ClientsPage() {
         season_price: form.season_price ? parseFloat(form.season_price) : null,
         stage: "nouveau",
         has_spa: false,
+        ...(franchiseId ? { franchise_id: franchiseId } : {}),
       })
       .select()
       .single();
