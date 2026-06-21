@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 import {
   LayoutDashboard, Kanban, MessageSquare, Users, Calendar,
-  Navigation, Gauge, Receipt, Brain, Activity, FileText, Users2, Tag, Bot, Phone,
+  Navigation, Gauge, Receipt, Brain, Activity, FileText, Users2, Tag, Bot, Phone, Building2,
 } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
@@ -34,6 +34,13 @@ export default function Sidebar() {
   const pathname = usePathname();
   const [unreadCount, setUnreadCount] = useState(0);
   const [callbackCount, setCallbackCount] = useState(0);
+  const [isMaster, setIsMaster] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/auth/me").then(r => r.json()).then(d => {
+      if (d.user?.is_master) setIsMaster(true);
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     const loadUnread = async () => {
@@ -122,6 +129,20 @@ export default function Sidebar() {
           </div>
           <div className="mt-4 pt-4 border-t border-white/10 space-y-1">
             <p className="px-5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white/30">Système</p>
+            {isMaster && (
+              <Link
+                href="/master"
+                className={`flex items-center gap-3 px-5 py-3 rounded-lg text-sm transition-all ${
+                  pathname === "/master" || pathname?.startsWith("/master/")
+                    ? "bg-white/10 text-white font-medium"
+                    : "text-gray-400 hover:bg-white/5 hover:text-gray-200"
+                }`}
+              >
+                <Building2 size={18} strokeWidth={1.75} />
+                <span className="flex-1">Master</span>
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-orange-500 text-white uppercase">SaaS</span>
+              </Link>
+            )}
             {NAV_ITEMS_ADMIN.map(item => {
               const Icon = item.icon;
               const isActive = pathname === item.href || pathname?.startsWith(item.href + "/");
@@ -153,7 +174,7 @@ export default function Sidebar() {
       {/* BOTTOM NAV MOBILE (< md) — scrollable horizontale pour tout voir */}
       <nav className="md:hidden fixed bottom-0 inset-x-0 bg-white border-t border-gray-200 z-50 pb-[env(safe-area-inset-bottom)] overflow-x-auto">
         <div className="flex h-16 min-w-max px-2">
-          {[...NAV_ITEMS_MAIN, ...NAV_ITEMS_ADMIN].map(item => {
+          {[...NAV_ITEMS_MAIN, ...NAV_ITEMS_ADMIN, ...(isMaster ? [{ label: "Master", href: "/master", icon: Building2 }] : [])].map(item => {
             const Icon = item.icon;
             const isActive = pathname === item.href || pathname?.startsWith(item.href + "/");
             return (
