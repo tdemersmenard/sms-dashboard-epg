@@ -11,10 +11,42 @@ async function requireMaster() {
   return user;
 }
 
+// ─── Period helpers ──────────────────────────────────────────────────────────
+function getPeriodRange(period: string, customStart?: string, customEnd?: string): { start: string; end: string | null; monthCount: number } {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  const pad = (n: number) => String(n).padStart(2, "0");
+
+  switch (period) {
+    case "season":
+      return { start: `${y}-04-01`, end: null, monthCount: Math.max(0, m - 3 + 1) };
+    case "month":
+      return { start: `${y}-${pad(m + 1)}-01`, end: null, monthCount: 1 };
+    case "year":
+      return { start: `${y}-01-01`, end: null, monthCount: m + 1 };
+    case "custom":
+      if (customStart) {
+        const cs = new Date(customStart);
+        const ce = customEnd ? new Date(customEnd) : now;
+        const months = Math.max(1, Math.ceil((ce.getTime() - cs.getTime()) / (30 * 86400000)));
+        return { start: customStart, end: customEnd || null, monthCount: months };
+      }
+      return { start: `${y}-04-01`, end: null, monthCount: Math.max(0, m - 3 + 1) };
+    default:
+      return { start: `${y}-04-01`, end: null, monthCount: Math.max(0, m - 3 + 1) };
+  }
+}
+
 // ─── GET: Liste toutes les franchises avec stats ──────────────────────────────
-export async function GET() {
+export async function GET(req: NextRequest) {
   const user = await requireMaster();
   if (!user) return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+
+  const period = req.nextUrl.searchParams.get("period") || "season";
+  const customStart = req.nextUrl.searchParams.get("start") || undefined;
+  const customEnd = req.nextUrl.searchParams.get("end") || undefined;
+  const { start: periodStart, end: periodEnd, monthCount } = getPeriodRange(period, customStart, customEnd);
 
   const { data: franchises, error } = await supabaseAdmin
     .from("franchises")
@@ -23,36 +55,43 @@ export async function GET() {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Enrichir avec stats (clients + revenus du mois)
   const enriched = await Promise.all(
     (franchises ?? []).map(async (f) => {
-      const [{ count: clientCount }, { count: activeJobCount }, { data: monthPayments }] = await Promise.all([
+      // Build payments query for the selected period
+      let paymentsQuery = supabaseAdmin.from("payments").select("amount, received_date, created_at")
+        .eq("franchise_id", f.id).eq("status", "reçu")
+        .gte("created_at", new Date(periodStart).toISOString());
+      if (periodEnd) {
+        paymentsQuery = paymentsQuery.lte("created_at", new Date(periodEnd + "T23:59:59").toISOString());
+      }
+
+      const [{ count: clientCount }, { count: activeJobCount }, { data: periodPayments }] = await Promise.all([
         supabaseAdmin.from("contacts").select("id", { count: "exact", head: true }).eq("franchise_id", f.id),
         supabaseAdmin.from("jobs").select("id", { count: "exact", head: true })
           .eq("franchise_id", f.id).not("status", "in", "(complété,annulé)").gte("scheduled_date", new Date().toISOString().split("T")[0]),
-        supabaseAdmin.from("payments").select("amount")
-          .eq("franchise_id", f.id).eq("status", "reçu")
-          .gte("created_at", new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()),
+        paymentsQuery,
       ]);
 
-      const monthRevenue = (monthPayments ?? []).reduce((s: number, p: { amount: number }) => s + p.amount, 0);
-      const royaltyDue   = Math.round(monthRevenue * (f.royalty_percent / 100) * 100) / 100;
+      const periodRevenue = (periodPayments ?? []).reduce((s: number, p: { amount: number }) => s + p.amount, 0);
+      const royaltyDue = Math.round(periodRevenue * (f.royalty_percent / 100) * 100) / 100;
+      const monthlyFees = f.status === "active" ? monthCount * f.monthly_fee : 0;
 
       return {
         ...f,
         stats: {
-          clientCount:   clientCount ?? 0,
+          clientCount: clientCount ?? 0,
           activeJobCount: activeJobCount ?? 0,
-          monthRevenue,
+          periodRevenue,
           royaltyDue,
           monthlyFee: f.monthly_fee,
-          totalDue:   royaltyDue + f.monthly_fee,
+          monthlyFees,
+          totalDue: royaltyDue + monthlyFees,
         },
       };
     })
   );
 
-  return NextResponse.json({ franchises: enriched });
+  return NextResponse.json({ franchises: enriched, period, periodStart, periodEnd: periodEnd || null, monthCount });
 }
 
 // ─── POST: Créer une nouvelle franchise ───────────────────────────────────────

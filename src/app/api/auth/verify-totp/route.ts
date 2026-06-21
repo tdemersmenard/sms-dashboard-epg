@@ -55,9 +55,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Session expirée" }, { status: 401 });
     }
 
+    // Fetch user to determine role
+    const { data: userForRole } = await supabaseAdmin
+      .from("admin_users")
+      .select("is_master")
+      .eq("id", session.user_id)
+      .single();
+
     const res = NextResponse.json({ success: true });
     res.cookies.set(SESSION_COOKIE_NAME, result.token, {
       httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      expires: result.expiresAt,
+      path: "/",
+    });
+    res.cookies.set("chlore_role", userForRole?.is_master ? "master" : "owner", {
+      httpOnly: false,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       expires: result.expiresAt,

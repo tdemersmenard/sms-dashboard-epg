@@ -47,6 +47,14 @@ export async function POST(req: NextRequest) {
       expires: expiresAt,
       path: "/",
     });
+    // Role cookie for middleware route protection (not httpOnly so middleware can read it)
+    res.cookies.set("chlore_role", user.is_master ? "master" : "owner", {
+      httpOnly: false,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      expires: expiresAt,
+      path: "/",
+    });
     return res;
   } catch (err: unknown) {
     console.error("[auth/login]", err instanceof Error ? err.message : String(err));

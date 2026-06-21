@@ -8,7 +8,7 @@ async function getContactFromToken(req: NextRequest) {
   if (!token) return null;
   const { data } = await supabaseAdmin
     .from("contacts")
-    .select("id, first_name, last_name, portal_token_expires")
+    .select("id, first_name, last_name, portal_token_expires, franchise_id")
     .eq("portal_token", token)
     .single();
   if (!data || new Date(data.portal_token_expires) < new Date()) return null;
@@ -33,6 +33,7 @@ export async function POST(req: NextRequest) {
     body,
     is_read: false,
     status: "received",
+    franchise_id: contact.franchise_id,
   });
 
   return NextResponse.json({ success: true });

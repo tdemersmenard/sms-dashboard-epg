@@ -110,7 +110,8 @@ export async function POST(request: NextRequest) {
         const aiReply = await generateAIResponse(
           contact!.id,
           body,
-          mediaUrls.length > 0 ? mediaUrls : undefined
+          mediaUrls.length > 0 ? mediaUrls : undefined,
+          franchiseId
         );
 
         if (aiReply) {

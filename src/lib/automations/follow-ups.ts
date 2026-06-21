@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase";
+import { getFranchiseOwner } from "@/lib/automations/helpers";
 
 const FOLLOW_UP_DELAY_DAYS = 3;
 const MAX_FOLLOW_UPS = 2;
@@ -6,17 +7,21 @@ const MAX_FOLLOW_UPS = 2;
 // Stages qui sont "en cours" (pas closés, pas perdus)
 const ACTIVE_STAGES = ["contacté", "soumission_envoyée", "nouveau"];
 
-const MESSAGES: Record<1 | 2, (name: string) => string> = {
-  1: (name: string) =>
-    `Bonjour ${name}! C'est Entretien Piscine Granby. Je voulais juste faire un suivi — avez-vous eu le temps de réfléchir pour votre piscine? N'hésitez pas si vous avez des questions, on est là pour vous! 😊`,
-  2: (name: string) =>
-    `Bonjour ${name}! Dernier petit suivi de notre part. La saison d'ouverture bat son plein et nos plages horaires se remplissent vite. Si vous êtes toujours intéressé(e), on peut vous réserver une place rapidement. Sinon, pas de souci du tout — on reste disponible si vous changez d'avis! Bonne journée!`,
-};
-
-export async function sendFollowUps(): Promise<string[]> {
+export async function sendFollowUps(franchiseId: string): Promise<string[]> {
   const logs: string[] = [];
   const now = new Date();
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
+
+  // Look up franchise name for messages
+  const franchise = await getFranchiseOwner(franchiseId);
+  const franchiseName = franchise?.name || "CHLORE";
+
+  const MESSAGES: Record<1 | 2, (name: string) => string> = {
+    1: (name: string) =>
+      `Bonjour ${name}! C'est ${franchiseName}. Je voulais juste faire un suivi — avez-vous eu le temps de réfléchir pour votre piscine? N'hésitez pas si vous avez des questions, on est là pour vous!`,
+    2: (name: string) =>
+      `Bonjour ${name}! Dernier petit suivi de notre part. La saison d'ouverture bat son plein et nos plages horaires se remplissent vite. Si vous êtes toujours intéressé(e), on peut vous réserver une place rapidement. Sinon, pas de souci du tout — on reste disponible si vous changez d'avis! Bonne journée!`,
+  };
 
   // Leads dans la liste de rappel téléphonique — le bot n'envoie pas de relance SMS pour ces contacts
   const callbackIds = new Set<string>();
@@ -24,7 +29,8 @@ export async function sendFollowUps(): Promise<string[]> {
     const { data: cbLeads } = await supabaseAdmin
       .from("contacts")
       .select("id")
-      .eq("callback_status", "a_rappeler");
+      .eq("callback_status", "a_rappeler")
+      .eq("franchise_id", franchiseId);
     for (const c of cbLeads ?? []) callbackIds.add(c.id);
   } catch {
     // Colonne pas encore créée — ignorer, aucun lead exclu
@@ -34,12 +40,12 @@ export async function sendFollowUps(): Promise<string[]> {
   const { data: allContacts } = await supabaseAdmin
     .from("contacts")
     .select("id, first_name, last_name, phone, stage, notes")
-    .not("phone", "is", null);
+    .not("phone", "is", null)
+    .eq("franchise_id", franchiseId);
 
   for (const contact of allContacts || []) {
-    if (contact.phone === "+14509942215") continue;
     if (!contact.notes) continue;
-    if (callbackIds.has(contact.id)) continue; // Thomas rappelle par téléphone
+    if (callbackIds.has(contact.id)) continue;
 
     // Chercher RELANCE_PREVUE dans les notes
     const relanceMatch = contact.notes.match(/RELANCE_PREVUE:(\d{4}-\d{2}-\d{2}):(.+)/);
@@ -64,7 +70,7 @@ export async function sendFollowUps(): Promise<string[]> {
 
     // Générer un message personnalisé basé sur le contexte
     const firstName = contact.first_name || "";
-    const message = `Bonjour ${firstName}! C'est CHLORE d'Entretien Piscine Granby. Je fais un petit suivi comme convenu — ${relanceContext}. Est-ce que vous êtes prêt(e) à aller de l'avant? N'hésitez pas si vous avez des questions!`;
+    const message = `Bonjour ${firstName}! C'est CHLORE de ${franchiseName}. Je fais un petit suivi comme convenu — ${relanceContext}. Est-ce que vous êtes prêt(e) à aller de l'avant? N'hésitez pas si vous avez des questions!`;
 
     try {
       await fetch(`${baseUrl}/api/sms/send`, {
@@ -77,6 +83,7 @@ export async function sendFollowUps(): Promise<string[]> {
         contact_id: contact.id,
         action: `smart_followup_${relanceDate}`,
         status: "sent",
+        franchise_id: franchiseId,
         details: { context: relanceContext },
       });
 
@@ -95,13 +102,15 @@ export async function sendFollowUps(): Promise<string[]> {
     .from("contacts")
     .select("id, first_name, last_name, phone, stage")
     .in("stage", ACTIVE_STAGES)
-    .not("phone", "is", null);
+    .not("phone", "is", null)
+    .eq("franchise_id", franchiseId);
 
-  if (!contacts || contacts.length === 0) return ["Aucun contact actif à relancer"];
+  if (!contacts || contacts.length === 0) {
+    if (logs.length === 0) return ["Aucun contact actif à relancer"];
+    return logs;
+  }
 
   for (const contact of contacts) {
-    // Skip Thomas Admin
-    if (contact.phone === "+14509942215") continue;
     // Skip leads dans la liste de rappel téléphonique
     if (callbackIds.has(contact.id)) {
       logs.push(`Skip relance SMS ${contact.first_name} — dans la liste de rappel`);
@@ -171,6 +180,7 @@ export async function sendFollowUps(): Promise<string[]> {
         contact_id: contact.id,
         action: `follow_up_${followUpNum}`,
         status: "sent",
+        franchise_id: franchiseId,
       });
 
       logs.push(`Relance #${followUpNum} envoyée à ${contact.first_name} ${contact.last_name || ""}`);
@@ -183,11 +193,10 @@ export async function sendFollowUps(): Promise<string[]> {
   const { data: maxedContacts } = await supabaseAdmin
     .from("contacts")
     .select("id, first_name, last_name")
-    .in("stage", ACTIVE_STAGES);
+    .in("stage", ACTIVE_STAGES)
+    .eq("franchise_id", franchiseId);
 
   for (const c of maxedContacts || []) {
-    if (c.id === "3828bc88-31da-482d-ae38-66933d534d0a") continue; // Skip Thomas
-
     const { data: fups } = await supabaseAdmin
       .from("automation_logs")
       .select("id, created_at")

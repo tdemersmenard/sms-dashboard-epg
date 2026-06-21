@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "@/lib/supabase";
 
 const GMAPS = process.env.GOOGLE_MAPS_API_KEY!;
+// TODO: HOME_ADDR should be per-franchise in the future (loaded from franchises.business_address)
 const HOME_ADDR = "86 rue de Windsor, Granby, QC, Canada";
 const DAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi"];
 // Après le cégep, tous les jours Lun-Ven sont disponibles
@@ -14,18 +15,26 @@ async function geocode(addr: string) {
   return data.results?.[0]?.geometry?.location || null;
 }
 
-export async function autoAssignNewClients(): Promise<string[]> {
+export async function autoAssignNewClients(franchiseId?: string): Promise<string[]> {
   const results: string[] = [];
 
   // Check si désactivé
-  const { data: setting } = await supabaseAdmin.from("settings").select("value").eq("key", "routes_auto_disabled").single();
+  let settingsQuery = supabaseAdmin.from("settings").select("value").eq("key", "routes_auto_disabled");
+  if (franchiseId) {
+    settingsQuery = settingsQuery.eq("franchise_id", franchiseId);
+  }
+  const { data: setting } = await settingsQuery.maybeSingle();
   if (setting?.value === "true") return ["Auto-assign disabled"];
 
   // 1. Trouver les clients candidats
-  const { data: contacts } = await supabaseAdmin
+  let contactsQuery = supabaseAdmin
     .from("contacts")
     .select("id, first_name, last_name, phone, address, city, services, ouverture_date")
     .not("services", "is", null);
+  if (franchiseId) {
+    contactsQuery = contactsQuery.eq("franchise_id", franchiseId);
+  }
+  const { data: contacts } = await contactsQuery;
 
   const candidates: any[] = [];
   for (const c of contacts || []) {
@@ -35,11 +44,14 @@ export async function autoAssignNewClients(): Promise<string[]> {
     if (!c.ouverture_date) continue;
 
     // Vérifier que le client a au moins un payment
-    const { data: payments } = await supabaseAdmin
+    let paymentsQuery = supabaseAdmin
       .from("payments")
       .select("id")
-      .eq("contact_id", c.id)
-      .limit(1);
+      .eq("contact_id", c.id);
+    if (franchiseId) {
+      paymentsQuery = paymentsQuery.eq("franchise_id", franchiseId);
+    }
+    const { data: payments } = await paymentsQuery.limit(1);
 
     if (!payments || payments.length === 0) continue;
 

@@ -154,23 +154,52 @@ Si ce n'est PAS une facture, retourne uniquement {"isInvoice": false}.`,
       }
     }
 
-    // Notifier Thomas si des factures ont été ajoutées
+    // Notifier les propriétaires de franchises si des factures ont été ajoutées
     if (detected.length > 0) {
       const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
-      const { data: thomas } = await supabaseAdmin
-        .from("contacts").select("id").eq("phone", "+14509942215").single();
+      const total = detected.reduce((s, d) => s + d.montant, 0);
+      const list  = detected.map(d => `${d.vendor} (${d.montant}$)`).join(", ");
 
-      if (thomas) {
-        const total = detected.reduce((s, d) => s + d.montant, 0);
-        const list  = detected.map(d => `${d.vendor} (${d.montant}$)`).join(", ");
-        await fetch(`${baseUrl}/api/sms/send`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contactId: thomas.id,
-            body: `CHLORE: ${detected.length} facture(s) détectée(s) auto — ${total.toFixed(2)}$ total. ${list}`,
-          }),
-        }).catch(console.error);
+      // Notify all active franchise owners
+      const { data: activeFranchises } = await supabaseAdmin
+        .from("franchises")
+        .select("id, owner_phone")
+        .eq("status", "active");
+
+      for (const franchise of activeFranchises || []) {
+        if (!franchise.owner_phone) continue;
+
+        let { data: ownerContact } = await supabaseAdmin
+          .from("contacts")
+          .select("id")
+          .eq("phone", franchise.owner_phone)
+          .eq("franchise_id", franchise.id)
+          .maybeSingle();
+
+        if (!ownerContact) {
+          const { data: newOwner } = await supabaseAdmin
+            .from("contacts")
+            .insert({
+              first_name: "Propriétaire",
+              phone: franchise.owner_phone,
+              franchise_id: franchise.id,
+              stage: "complété",
+            })
+            .select("id")
+            .single();
+          ownerContact = newOwner;
+        }
+
+        if (ownerContact) {
+          await fetch(`${baseUrl}/api/sms/send`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contactId: ownerContact.id,
+              body: `CHLORE: ${detected.length} facture(s) détectée(s) auto — ${total.toFixed(2)}$ total. ${list}`,
+            }),
+          }).catch(console.error);
+        }
       }
     }
 

@@ -30,6 +30,15 @@ const OLD_CRM_ROUTES = [
   "/factures",
 ];
 
+// Pages restricted to master (super-admin) only — franchise owners cannot access these
+const MASTER_ONLY_SUFFIXES = [
+  "/reglages-bot",
+  "/diagnostic",
+  "/depenses",
+  "/odometre",
+  "/learnings",
+];
+
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
@@ -51,6 +60,33 @@ export function middleware(req: NextRequest) {
     if (pathname === old || pathname.startsWith(old + "/")) {
       const newPath = `/granby${pathname}`;
       return NextResponse.redirect(new URL(newPath, req.url));
+    }
+  }
+
+  // Role-based route protection
+  const role = req.cookies.get("chlore_role")?.value;
+  const isMaster = role === "master";
+
+  // Block /master for non-master users
+  if (!isMaster && (pathname === "/master" || pathname.startsWith("/master/"))) {
+    // Extract slug from cookie or redirect to login
+    const redirectUrl = new URL("/login", req.url);
+    return NextResponse.redirect(redirectUrl);
+  }
+
+  // Block masterOnly CRM pages for franchise owners (e.g., /trois-rivieres/depenses)
+  if (!isMaster) {
+    // pathname format: /slug/page — extract the page part
+    const segments = pathname.split("/").filter(Boolean);
+    if (segments.length >= 2) {
+      const pagePath = "/" + segments.slice(1).join("/");
+      for (const suffix of MASTER_ONLY_SUFFIXES) {
+        if (pagePath === suffix || pagePath.startsWith(suffix + "/")) {
+          // Redirect to franchise dashboard
+          const slug = segments[0];
+          return NextResponse.redirect(new URL(`/${slug}`, req.url));
+        }
+      }
     }
   }
 

@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase";
+import { getOwnerContactId, getFranchiseOwner } from "@/lib/automations/helpers";
 
 const ENTRETIEN_KEYWORDS = [
   "entretien", "hebdomadaire", "chaque semaine", "aux 2 semaines",
@@ -13,7 +14,7 @@ const REFUSAL_KEYWORDS = [
 
 const CLOSED_STAGES = ["closé", "planifié", "complété", "perdu"];
 
-export async function scanCallbackLeads(): Promise<string[]> {
+export async function scanCallbackLeads(franchiseId: string): Promise<string[]> {
   const logs: string[] = [];
   const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
 
@@ -34,7 +35,8 @@ export async function scanCallbackLeads(): Promise<string[]> {
       .select("id, first_name, last_name, phone, stage, services, callback_status, created_at")
       .not("phone", "is", null)
       .is("callback_status", null)
-      .lte("created_at", threeDaysAgo);
+      .lte("created_at", threeDaysAgo)
+      .eq("franchise_id", franchiseId);
 
     if (error) {
       logs.push(`[callback-scan] Erreur: ${error.message}`);
@@ -49,9 +51,6 @@ export async function scanCallbackLeads(): Promise<string[]> {
   }
 
   for (const contact of candidates) {
-    // Skip Thomas admin
-    if (contact.phone === "+14509942215") continue;
-
     // At least 1 inbound message (client showed real interest)
     const { data: inboundMsgs } = await supabaseAdmin
       .from("messages")
@@ -97,15 +96,19 @@ export async function scanCallbackLeads(): Promise<string[]> {
   return logs;
 }
 
-export async function sendCallbackRecap(): Promise<string> {
+export async function sendCallbackRecap(franchiseId: string): Promise<string> {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
   const today = new Date().toISOString().split("T")[0];
 
-  // Anti-doublon: envoyer max 1 fois par jour
+  const franchise = await getFranchiseOwner(franchiseId);
+  if (!franchise?.owner_phone) return "Pas de numéro de notification configuré";
+
+  // Anti-doublon: envoyer max 1 fois par jour par franchise
   const { data: alreadySent } = await supabaseAdmin
     .from("automation_logs")
     .select("id")
     .eq("action", `callback_recap_${today}`)
+    .eq("franchise_id", franchiseId)
     .limit(1);
 
   if (alreadySent && alreadySent.length > 0) return "Récap déjà envoyé aujourd'hui";
@@ -117,6 +120,7 @@ export async function sendCallbackRecap(): Promise<string> {
       .from("contacts")
       .select("first_name, last_name, phone")
       .eq("callback_status", "a_rappeler")
+      .eq("franchise_id", franchiseId)
       .order("callback_added_at", { ascending: true });
 
     if (error) return `[callback-recap] Erreur: ${error.message}`;
@@ -132,28 +136,24 @@ export async function sendCallbackRecap(): Promise<string> {
     .map(l => `• ${l.first_name} ${l.last_name ?? ""} — ${l.phone}`)
     .join("\n");
   const extra = leads.length > 10 ? `\n... et ${leads.length - 10} autres.` : "";
-  const msg = `📞 ${leads.length} lead${leads.length > 1 ? "s" : ""} entretien à rappeler:\n${listText}${extra}\n\n${baseUrl}/a-rappeler`;
+  const msg = `${leads.length} lead${leads.length > 1 ? "s" : ""} entretien à rappeler:\n${listText}${extra}\n\n${baseUrl}/${franchise.slug}/a-rappeler`;
 
-  const { data: thomas } = await supabaseAdmin
-    .from("contacts")
-    .select("id")
-    .eq("phone", "+14509942215")
-    .maybeSingle();
-
-  if (!thomas) return "Contact Thomas introuvable";
+  const ownerContactId = await getOwnerContactId(franchiseId, franchise.owner_phone);
+  if (!ownerContactId) return "Contact propriétaire introuvable";
 
   await fetch(`${baseUrl}/api/sms/send`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ contactId: thomas.id, body: msg }),
+    body: JSON.stringify({ contactId: ownerContactId, body: msg }),
   });
 
   await supabaseAdmin.from("automation_logs").insert({
     action: `callback_recap_${today}`,
-    contact_id: thomas.id,
+    contact_id: ownerContactId,
+    franchise_id: franchiseId,
     status: "sent",
     details: { count: leads.length },
   });
 
-  return `Récap envoyé à Thomas: ${leads.length} leads`;
+  return `[${franchise.name}] Récap envoyé: ${leads.length} leads`;
 }

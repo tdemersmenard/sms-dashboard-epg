@@ -266,13 +266,16 @@ RÈGLES IMPORTANTES:
 export const DEFAULT_SYSTEM_PROMPT = SYSTEM_PROMPT;
 
 // Charger le system prompt éditable depuis la DB (fallback sur la constante)
-async function loadSystemPrompt(): Promise<string> {
+async function loadSystemPrompt(franchiseId?: string): Promise<string> {
   try {
-    const { data } = await supabaseAdmin
+    let query = supabaseAdmin
       .from("settings")
       .select("value")
-      .eq("key", "bot_system_prompt")
-      .maybeSingle();
+      .eq("key", "bot_system_prompt");
+    if (franchiseId) {
+      query = query.eq("franchise_id", franchiseId);
+    }
+    const { data } = await query.maybeSingle();
     const text = (data?.value as { text?: string } | null)?.text;
     if (text && text.trim().length > 100) {
       return text;
@@ -304,7 +307,7 @@ async function callClaudeWithRetry(params: any, maxRetries = 5): Promise<any> {
   throw lastError;
 }
 
-export async function generateAIResponse(contactId: string, inboundMessage: string, imageUrls?: string[]): Promise<string | null> {
+export async function generateAIResponse(contactId: string, inboundMessage: string, imageUrls?: string[], franchiseId?: string): Promise<string | null> {
   try {
     const { data: contact } = await supabaseAdmin
       .from("contacts")
@@ -626,7 +629,7 @@ CONTEXTE TEMPOREL:
     const response = await callClaudeWithRetry({
       model: "claude-sonnet-4-6",
       max_tokens: 500,
-      system: (await loadSystemPrompt()) + clientContext + learnings,
+      system: (await loadSystemPrompt(franchiseId)) + clientContext + learnings,
       messages: finalMessages,
     });
 

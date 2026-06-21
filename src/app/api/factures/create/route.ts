@@ -121,21 +121,47 @@ export async function POST(req: NextRequest) {
               .update({ status: "envoyé" })
               .eq("id", doc.id);
 
-            // Notify Thomas
-            const { data: thomas } = await supabaseAdmin
-              .from("contacts")
-              .select("id")
-              .eq("phone", "+14509942215")
-              .single();
-            if (thomas) {
-              await fetch(`${baseUrl}/api/sms/send`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  contactId: thomas.id,
-                  body: `CHLORE: Facture ${docNumber} envoyée à ${clientName} (${contact.email}) — ${total}$`,
-                }),
-              });
+            // Notify franchise owner
+            if (franchiseId) {
+              const { data: ownerFranchise } = await supabaseAdmin
+                .from("franchises")
+                .select("owner_phone")
+                .eq("id", franchiseId)
+                .single();
+
+              if (ownerFranchise?.owner_phone) {
+                let { data: ownerContact } = await supabaseAdmin
+                  .from("contacts")
+                  .select("id")
+                  .eq("phone", ownerFranchise.owner_phone)
+                  .eq("franchise_id", franchiseId)
+                  .maybeSingle();
+
+                if (!ownerContact) {
+                  const { data: newOwner } = await supabaseAdmin
+                    .from("contacts")
+                    .insert({
+                      first_name: "Propriétaire",
+                      phone: ownerFranchise.owner_phone,
+                      franchise_id: franchiseId,
+                      stage: "complété",
+                    })
+                    .select("id")
+                    .single();
+                  ownerContact = newOwner;
+                }
+
+                if (ownerContact) {
+                  await fetch(`${baseUrl}/api/sms/send`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      contactId: ownerContact.id,
+                      body: `CHLORE: Facture ${docNumber} envoyée à ${clientName} (${contact.email}) — ${total}$`,
+                    }),
+                  });
+                }
+              }
             }
           }
         } catch (e) {

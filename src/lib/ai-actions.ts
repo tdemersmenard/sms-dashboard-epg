@@ -94,13 +94,6 @@ export function parseActions(aiResponse: string): { cleanMessage: string; action
       case "BOOK_JOB": {
         const parts = actionParams.split(":");
         if (parts.length >= 4) {
-          // format: {type}:{date_YYYY-MM-DD}:{heure_debut_HH:MM}:{heure_fin_HH:MM}
-          // Note: HH:MM gets split again, so parts = [type, YYYY-MM-DD, HH, MM, HH, MM]
-          // Actually the regex captures up to __ so HH:MM stays together — split on : gives 6 parts
-          // parts[0]=type, parts[1]=YYYY-MM-DD (but date has dashes not colons, fine), wait...
-          // __ACTION:BOOK_JOB:ouverture:2026-05-10:09:00:10:00__
-          // actionParams = "ouverture:2026-05-10:09:00:10:00"
-          // split(":") => ["ouverture", "2026-05-10", "09", "00", "10", "00"]
           const jobType = parts[0];
           const date = parts[1];
           const startTime = `${parts[2]}:${parts[3]}`;
@@ -112,9 +105,6 @@ export function parseActions(aiResponse: string): { cleanMessage: string; action
       case "MODIFY_JOB": {
         const parts = actionParams.split(":");
         if (parts.length >= 6) {
-          // format: {oldDate_YYYY-MM-DD}:{newDate_YYYY-MM-DD}:{HH}:{MM}:{HH}:{MM}
-          // actionParams = "2026-05-08:2026-05-10:09:00:10:00"
-          // split(":") => ["2026-05-08", "2026-05-10", "09", "00", "10", "00"]
           const oldDate = parts[0];
           const newDate = parts[1];
           const startTime = `${parts[2]}:${parts[3]}`;
@@ -187,6 +177,55 @@ export function parseActions(aiResponse: string): { cleanMessage: string; action
   return { cleanMessage: cleanText, actions };
 }
 
+/**
+ * Helper: get the franchise owner's contact id for sending notifications.
+ * Looks up the contact's franchise, then the franchise's owner_phone,
+ * then finds or creates a contact for that owner in that franchise.
+ */
+async function getOwnerForContact(contactId: string): Promise<{ ownerId: string; franchiseId: string } | null> {
+  const { data: contactData } = await supabaseAdmin
+    .from("contacts")
+    .select("franchise_id")
+    .eq("id", contactId)
+    .single();
+
+  const fId = contactData?.franchise_id;
+  if (!fId) return null;
+
+  const { data: franchise } = await supabaseAdmin
+    .from("franchises")
+    .select("owner_phone")
+    .eq("id", fId)
+    .single();
+
+  if (!franchise?.owner_phone) return null;
+
+  // Find or create owner contact in this franchise
+  let { data: owner } = await supabaseAdmin
+    .from("contacts")
+    .select("id")
+    .eq("phone", franchise.owner_phone)
+    .eq("franchise_id", fId)
+    .maybeSingle();
+
+  if (!owner) {
+    const { data: newOwner } = await supabaseAdmin
+      .from("contacts")
+      .insert({
+        first_name: "Propriétaire",
+        phone: franchise.owner_phone,
+        franchise_id: fId,
+        stage: "complété",
+      })
+      .select("id")
+      .single();
+    owner = newOwner;
+  }
+
+  if (!owner) return null;
+  return { ownerId: owner.id, franchiseId: fId };
+}
+
 export async function executeActions(actions: AIAction[], contactId: string) {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
 
@@ -195,7 +234,7 @@ export async function executeActions(actions: AIAction[], contactId: string) {
       switch (action.type) {
 
         case "NOTIFY_THOMAS": {
-          // Anti-spam: check si on a déjà notifié Thomas pour ce client récemment
+          // Anti-spam: check si on a déjà notifié le propriétaire pour ce client récemment
           const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
           const { data: recentNotif } = await supabaseAdmin
             .from("automation_logs")
@@ -218,28 +257,14 @@ export async function executeActions(actions: AIAction[], contactId: string) {
           const clientName = contact ? [contact.first_name, contact.last_name].filter(Boolean).join(" ") : "Inconnu";
           const clientPhone = contact?.phone || "";
 
-          // Find or create Thomas's admin contact
-          let { data: thomas } = await supabaseAdmin
-            .from("contacts")
-            .select("id")
-            .eq("phone", "+14509942215")
-            .maybeSingle();
+          const ownerInfo = await getOwnerForContact(contactId);
 
-          if (!thomas) {
-            const { data: newThomas } = await supabaseAdmin
-              .from("contacts")
-              .insert({ first_name: "Thomas", last_name: "(Admin)", phone: "+14509942215" })
-              .select("id")
-              .single();
-            thomas = newThomas;
-          }
-
-          if (thomas) {
+          if (ownerInfo) {
             const notification = `CHLORE: ${clientName} (${clientPhone}) — ${action.message}`;
             await fetch(`${baseUrl}/api/sms/send`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ contactId: thomas.id, body: notification }),
+              body: JSON.stringify({ contactId: ownerInfo.ownerId, body: notification }),
             });
           }
 
@@ -249,9 +274,10 @@ export async function executeActions(actions: AIAction[], contactId: string) {
             contact_id: contactId,
             status: "success",
             details: { message: action.message },
+            ...(ownerInfo ? { franchise_id: ownerInfo.franchiseId } : {}),
           });
 
-          console.log(`[ai-actions] Notified Thomas: ${action.message}`);
+          console.log(`[ai-actions] Notified owner: ${action.message}`);
           break;
         }
 
@@ -411,7 +437,7 @@ export async function executeActions(actions: AIAction[], contactId: string) {
             }).catch(err => console.error("[ai-actions] Email error:", err));
             console.log("[ai-actions] Invoice sent to:", clientEmail);
 
-            // Notifier Thomas que la facture a été envoyée
+            // Notifier le propriétaire que la facture a été envoyée
             const { data: alreadyNotified } = await supabaseAdmin
               .from("automation_logs")
               .select("id")
@@ -421,21 +447,17 @@ export async function executeActions(actions: AIAction[], contactId: string) {
 
             if (!alreadyNotified || alreadyNotified.length === 0) {
               const clientName = [contact?.first_name, contact?.last_name].filter(Boolean).join(" ") || "Client";
-              let { data: thomas } = await supabaseAdmin
-                .from("contacts")
-                .select("id")
-                .eq("phone", "+14509942215")
-                .maybeSingle();
+              const ownerInfo = await getOwnerForContact(contactId);
 
-              if (thomas) {
+              if (ownerInfo) {
                 await fetch(`${baseUrl}/api/sms/send`, {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({
-                    contactId: thomas.id,
+                    contactId: ownerInfo.ownerId,
                     body: `CHLORE: Facture ${doc.doc_number} envoyée à ${clientName} (${clientEmail}) — ${action.service} ${action.amount}$`,
                   }),
-                }).catch(err => console.error("[ai-actions] Thomas notif error:", err));
+                }).catch(err => console.error("[ai-actions] Owner notif error:", err));
               }
 
               await supabaseAdmin.from("automation_logs").insert({
@@ -443,6 +465,7 @@ export async function executeActions(actions: AIAction[], contactId: string) {
                 contact_id: contactId,
                 status: "success",
                 details: { doc_number: doc.doc_number, email: clientEmail },
+                ...(ownerInfo ? { franchise_id: ownerInfo.franchiseId } : {}),
               });
             }
           } else {
@@ -550,7 +573,7 @@ export async function executeActions(actions: AIAction[], contactId: string) {
             }).catch(err => console.error("[ai-actions] Email error:", err));
             console.log("[ai-actions] Contract sent to:", clientEmail);
 
-            // Notifier Thomas que le contrat a été envoyé
+            // Notifier le propriétaire que le contrat a été envoyé
             const { data: alreadyNotified } = await supabaseAdmin
               .from("automation_logs")
               .select("id")
@@ -560,21 +583,17 @@ export async function executeActions(actions: AIAction[], contactId: string) {
 
             if (!alreadyNotified || alreadyNotified.length === 0) {
               const clientName = [contact?.first_name, contact?.last_name].filter(Boolean).join(" ") || "Client";
-              let { data: thomas } = await supabaseAdmin
-                .from("contacts")
-                .select("id")
-                .eq("phone", "+14509942215")
-                .maybeSingle();
+              const ownerInfo = await getOwnerForContact(contactId);
 
-              if (thomas) {
+              if (ownerInfo) {
                 await fetch(`${baseUrl}/api/sms/send`, {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({
-                    contactId: thomas.id,
+                    contactId: ownerInfo.ownerId,
                     body: `CHLORE: Contrat ${doc.doc_number} envoyé à ${clientName} (${clientEmail}) — ${action.service} ${action.amount}$`,
                   }),
-                }).catch(err => console.error("[ai-actions] Thomas notif error:", err));
+                }).catch(err => console.error("[ai-actions] Owner notif error:", err));
               }
 
               await supabaseAdmin.from("automation_logs").insert({
@@ -582,6 +601,7 @@ export async function executeActions(actions: AIAction[], contactId: string) {
                 contact_id: contactId,
                 status: "success",
                 details: { doc_number: doc.doc_number, email: clientEmail },
+                ...(ownerInfo ? { franchise_id: ownerInfo.franchiseId } : {}),
               });
             }
           } else {
@@ -815,7 +835,7 @@ export async function executeActions(actions: AIAction[], contactId: string) {
             notes: action.description,
           });
 
-          // Notifier Thomas
+          // Notifier le propriétaire
           const { data: payContact } = await supabaseAdmin
             .from("contacts")
             .select("first_name, last_name")
@@ -824,13 +844,9 @@ export async function executeActions(actions: AIAction[], contactId: string) {
 
           const clientName = payContact ? [payContact.first_name, payContact.last_name].filter(Boolean).join(" ") : "Client";
 
-          const { data: thomas } = await supabaseAdmin
-            .from("contacts")
-            .select("id")
-            .eq("phone", "+14509942215")
-            .single();
+          const ownerInfo = await getOwnerForContact(contactId);
 
-          if (thomas) {
+          if (ownerInfo) {
             const { data: alreadyNotified } = await supabaseAdmin
               .from("automation_logs")
               .select("id")
@@ -842,7 +858,7 @@ export async function executeActions(actions: AIAction[], contactId: string) {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                  contactId: thomas.id,
+                  contactId: ownerInfo.ownerId,
                   body: `CHLORE: Paiement créé — ${clientName}: ${action.amount}$ (${action.description})`,
                 }),
               });
@@ -851,6 +867,7 @@ export async function executeActions(actions: AIAction[], contactId: string) {
                 action: `payment_created_${contactId}_${action.amount}`,
                 contact_id: contactId,
                 status: "success",
+                franchise_id: ownerInfo.franchiseId,
               });
             }
           }
@@ -930,7 +947,7 @@ export async function executeActions(actions: AIAction[], contactId: string) {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                   contactId,
-                  body: `Votre portail client est prêt! Connectez-vous sur https://sms-dashboard-epg.vercel.app/portail avec:\nEmail: ${contact.email}\nMot de passe: ${tempPassword}\n\nVous pourrez y voir vos rendez-vous et paiements.`,
+                  body: `Votre portail client est prêt! Connectez-vous sur ${baseUrl}/portail avec:\nEmail: ${contact.email}\nMot de passe: ${tempPassword}\n\nVous pourrez y voir vos rendez-vous et paiements.`,
                 }),
               });
 
@@ -1068,15 +1085,15 @@ export async function executeActions(actions: AIAction[], contactId: string) {
                 }
               } else {
                 console.log("[ai-actions] CLOSE_DEAL: could not parse date from messages");
-                // Notifier Thomas qu'il faut ajouter la date manuellement
-                const { data: thomas } = await supabaseAdmin.from("contacts").select("id").eq("phone", "+14509942215").single();
-                if (thomas) {
+                // Notifier le propriétaire qu'il faut ajouter la date manuellement
+                const ownerInfo = await getOwnerForContact(contactId);
+                if (ownerInfo) {
                   const clientName = contact ? `${contact.first_name} ${contact.last_name || ""}`.trim() : "Client";
                   await fetch(`${baseUrl}/api/sms/send`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-                      contactId: thomas.id,
+                      contactId: ownerInfo.ownerId,
                       body: `CHLORE: ${clientName} a été closé mais je n'ai pas pu trouver la date du RDV dans la conversation. Va sur le calendrier pour l'ajouter manuellement.`,
                     }),
                   });
@@ -1111,20 +1128,16 @@ export async function executeActions(actions: AIAction[], contactId: string) {
             console.error("[ai-actions] CLOSE_DEAL: contract error", e);
           }
 
-          // 6. Notifier Thomas (une seule fois)
-          const { data: thomas } = await supabaseAdmin
-            .from("contacts")
-            .select("id")
-            .eq("phone", "+14509942215")
-            .single();
+          // 7. Notifier le propriétaire (une seule fois)
+          const ownerInfo = await getOwnerForContact(contactId);
 
-          if (thomas) {
+          if (ownerInfo) {
             const clientName = [contact.first_name, contact.last_name].filter(Boolean).join(" ") || "Client";
             await fetch(`${baseUrl}/api/sms/send`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
-                contactId: thomas.id,
+                contactId: ownerInfo.ownerId,
                 body: `CHLORE: ${clientName} a été closé pour ${amount}$ (${config.service}). Contrat + paiements + portail envoyés.`,
               }),
             });

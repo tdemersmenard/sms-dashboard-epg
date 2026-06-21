@@ -16,10 +16,21 @@ export async function GET(req: NextRequest) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const results: any = { ran_at: new Date().toISOString() };
 
+  // Fetch all active franchises once
+  const { data: activeFranchises } = await supabaseAdmin
+    .from("franchises")
+    .select("id, name, owner_phone, slug")
+    .eq("status", "active");
+
   // 1. Rappels RDV (1 jour avant + 1h avant)
   try {
     const { sendJobReminders } = await import("@/lib/automations/reminders");
-    results.job_reminders = await sendJobReminders();
+    const allResults: string[] = [];
+    for (const f of activeFranchises || []) {
+      const r = await sendJobReminders(f.id);
+      allResults.push(...(Array.isArray(r) ? r : [r]));
+    }
+    results.job_reminders = allResults;
   } catch (e) {
     results.job_reminders_error = String(e);
   }
@@ -27,12 +38,17 @@ export async function GET(req: NextRequest) {
   // 2. Rappels paiement (jour de la due_date)
   try {
     const { sendPaymentReminders } = await import("@/lib/automations/reminders");
-    results.payment_reminders = await sendPaymentReminders();
+    const allResults: string[] = [];
+    for (const f of activeFranchises || []) {
+      const r = await sendPaymentReminders(f.id);
+      allResults.push(...(Array.isArray(r) ? r : [r]));
+    }
+    results.payment_reminders = allResults;
   } catch (e) {
     results.payment_reminders_error = String(e);
   }
 
-  // 3. Auto-assign nouveaux clients aux routes
+  // 3. Auto-assign nouveaux clients aux routes (global — too complex, leave as-is)
   try {
     const { autoAssignNewClients } = await import("@/lib/routes/auto-assign");
     results.routes_auto = await autoAssignNewClients();
@@ -43,7 +59,12 @@ export async function GET(req: NextRequest) {
   // 4. Relances automatiques
   try {
     const { sendFollowUps } = await import("@/lib/automations/follow-ups");
-    results.follow_ups = await sendFollowUps();
+    const allResults: string[] = [];
+    for (const f of activeFranchises || []) {
+      const r = await sendFollowUps(f.id);
+      allResults.push(...(Array.isArray(r) ? r : [r]));
+    }
+    results.follow_ups = allResults;
   } catch (e) {
     results.follow_ups_error = String(e);
   }
@@ -51,7 +72,12 @@ export async function GET(req: NextRequest) {
   // 5. Portails manquants
   try {
     const { createMissingPortals } = await import("@/lib/automations/portal-check");
-    results.portal_check = await createMissingPortals();
+    const allResults: string[] = [];
+    for (const f of activeFranchises || []) {
+      const r = await createMissingPortals(f.id);
+      allResults.push(...(Array.isArray(r) ? r : [r]));
+    }
+    results.portal_check = allResults;
   } catch (e) {
     results.portal_check_error = String(e);
   }
@@ -112,7 +138,12 @@ export async function GET(req: NextRequest) {
   // 7. Scan leads entretien à rappeler (chaque run)
   try {
     const { scanCallbackLeads } = await import("@/lib/automations/callback-list");
-    results.callback_scan = await scanCallbackLeads();
+    const allResults: string[] = [];
+    for (const f of activeFranchises || []) {
+      const r = await scanCallbackLeads(f.id);
+      allResults.push(...(Array.isArray(r) ? r : [r]));
+    }
+    results.callback_scan = allResults;
   } catch (e) {
     results.callback_scan_error = String(e);
   }
@@ -123,7 +154,12 @@ export async function GET(req: NextRequest) {
     const montrealHourCb = parseInt(nowCb.toLocaleTimeString("en-US", { timeZone: "America/Montreal", hour: "2-digit", hour12: false }));
     if (montrealHourCb >= 8 && montrealHourCb < 9) {
       const { sendCallbackRecap } = await import("@/lib/automations/callback-list");
-      results.callback_recap = await sendCallbackRecap();
+      const allResults: string[] = [];
+      for (const f of activeFranchises || []) {
+        const r = await sendCallbackRecap(f.id);
+        allResults.push(r);
+      }
+      results.callback_recap = allResults;
     }
   } catch (e) {
     results.callback_recap_error = String(e);
@@ -135,7 +171,12 @@ export async function GET(req: NextRequest) {
     const montrealHourReport = parseInt(nowReport.toLocaleTimeString("en-US", { timeZone: "America/Montreal", hour: "2-digit", hour12: false }));
     if (montrealHourReport >= 20 && montrealHourReport < 21) {
       const { sendDailyReport } = await import("@/lib/automations/daily-report");
-      results.daily_report = await sendDailyReport();
+      const allResults: string[] = [];
+      for (const f of activeFranchises || []) {
+        const r = await sendDailyReport(f.id);
+        allResults.push(...(Array.isArray(r) ? r : [r]));
+      }
+      results.daily_report = allResults;
     }
   } catch (e) {
     results.daily_report_error = String(e);

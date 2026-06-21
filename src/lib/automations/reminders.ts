@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase";
+import { getFranchiseOwner } from "@/lib/automations/helpers";
 
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
 
@@ -20,15 +21,16 @@ async function wasAlreadySent(action: string, contactId: string): Promise<boolea
   return !!(data && data.length > 0);
 }
 
-async function logAction(action: string, contactId: string) {
+async function logAction(action: string, contactId: string, franchiseId?: string) {
   await supabaseAdmin.from("automation_logs").insert({
     action,
     contact_id: contactId,
     status: "success",
+    ...(franchiseId ? { franchise_id: franchiseId } : {}),
   });
 }
 
-export async function sendJobReminders() {
+export async function sendJobReminders(franchiseId: string) {
   const results: string[] = [];
   // Date de demain en Montreal time
   const now = new Date();
@@ -44,13 +46,17 @@ export async function sendJobReminders() {
   const currentH = montrealNow.getUTCHours();
   const currentM = montrealNow.getUTCMinutes();
 
+  const franchise = await getFranchiseOwner(franchiseId);
+  const franchisePhone = franchise?.owner_phone || "";
+
   // ─── RAPPEL 1 JOUR AVANT ───
   const { data: tomorrowJobs } = await supabaseAdmin
     .from("jobs")
     .select("id, contact_id, job_type, scheduled_time_start")
     .eq("scheduled_date", tomorrowStr)
     .in("status", ["planifié", "confirmé"])
-    .neq("job_type", "autre");
+    .neq("job_type", "autre")
+    .eq("franchise_id", franchiseId);
 
   for (const job of tomorrowJobs || []) {
     // Envoyer SEULEMENT entre 19h00 et 19h15 Montreal
@@ -71,8 +77,8 @@ export async function sendJobReminders() {
     const heure = job.scheduled_time_start ? ` à ${job.scheduled_time_start.slice(0, 5)}` : "";
     const jour = tomorrowDate.toLocaleDateString("fr-CA", { weekday: "long", day: "numeric", month: "long" });
 
-    await sendSMS(job.contact_id, `Bonjour ${name}! Petit rappel que votre ${job.job_type} de piscine est prévue demain (${jour})${heure}. Si vous avez des questions, contactez-nous au 450-994-2215. À demain!`);
-    await logAction(actionKey, job.contact_id);
+    await sendSMS(job.contact_id, `Bonjour ${name}! Petit rappel que votre ${job.job_type} de piscine est prévue demain (${jour})${heure}. Si vous avez des questions, contactez-nous au ${franchisePhone || "notre bureau"}. À demain!`);
+    await logAction(actionKey, job.contact_id, franchiseId);
     results.push(`Rappel 1 jour: ${name} pour ${job.job_type} le ${tomorrowStr}`);
   }
 
@@ -82,7 +88,8 @@ export async function sendJobReminders() {
     .select("id, contact_id, job_type, scheduled_time_start")
     .eq("scheduled_date", today)
     .in("status", ["planifié", "confirmé"])
-    .neq("job_type", "autre");
+    .neq("job_type", "autre")
+    .eq("franchise_id", franchiseId);
 
   for (const job of todayJobs || []) {
     if (!job.scheduled_time_start) continue;
@@ -111,23 +118,27 @@ export async function sendJobReminders() {
 
     const name = contact.first_name || "Bonjour";
 
-    await sendSMS(job.contact_id, `Bonjour ${name}! Thomas est en route pour votre ${job.job_type} de piscine prévu à ${job.scheduled_time_start.slice(0, 5)}. À tout de suite!`);
-    await logAction(actionKey, job.contact_id);
+    await sendSMS(job.contact_id, `Bonjour ${name}! Notre équipe est en route pour votre ${job.job_type} de piscine prévu à ${job.scheduled_time_start.slice(0, 5)}. À tout de suite!`);
+    await logAction(actionKey, job.contact_id, franchiseId);
     results.push(`Rappel 1h: ${name} pour ${job.job_type} à ${job.scheduled_time_start}`);
   }
 
   return results;
 }
 
-export async function sendPaymentReminders() {
+export async function sendPaymentReminders(franchiseId: string) {
   const results: string[] = [];
   const today = new Date().toISOString().split("T")[0];
+
+  const franchise = await getFranchiseOwner(franchiseId);
+  const paymentEmail = franchise?.payment_interac_email || franchise?.email || "";
 
   const { data: payments } = await supabaseAdmin
     .from("payments")
     .select("id, contact_id, amount, notes, due_date")
     .eq("status", "en_attente")
-    .eq("due_date", today);
+    .eq("due_date", today)
+    .eq("franchise_id", franchiseId);
 
   for (const payment of payments || []) {
     const actionKey = `payment_reminder_${payment.id}`;
@@ -142,8 +153,9 @@ export async function sendPaymentReminders() {
     if (!contact || !contact.phone?.startsWith("+")) continue;
 
     const name = contact.first_name || "Bonjour";
-    await sendSMS(payment.contact_id, `Bonjour ${name}! Un paiement de ${payment.amount}$ est dû aujourd'hui pour: ${payment.notes || "service de piscine"}. Vous pouvez payer par Interac à service@entretienpiscinegranby.com ou par carte sur votre portail. Merci!`);
-    await logAction(actionKey, payment.contact_id);
+    const emailPart = paymentEmail ? ` par Interac à ${paymentEmail} ou` : "";
+    await sendSMS(payment.contact_id, `Bonjour ${name}! Un paiement de ${payment.amount}$ est dû aujourd'hui pour: ${payment.notes || "service de piscine"}. Vous pouvez payer${emailPart} par carte sur votre portail. Merci!`);
+    await logAction(actionKey, payment.contact_id, franchiseId);
     results.push(`Rappel paiement: ${name} — ${payment.amount}$ (${payment.notes})`);
   }
 

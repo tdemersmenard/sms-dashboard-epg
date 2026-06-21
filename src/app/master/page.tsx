@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Building2, Plus, Check, Clock, XCircle, DollarSign, Users, Briefcase,
-  Loader2, X, LogIn, Settings, BarChart3, CreditCard, Home,
+  Loader2, X, LogIn, Settings, BarChart3, CreditCard, CalendarDays,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -28,16 +28,25 @@ interface FranchiseStat {
   stats: {
     clientCount: number;
     activeJobCount: number;
-    monthRevenue: number;
+    periodRevenue: number;
     royaltyDue: number;
     monthlyFee: number;
+    monthlyFees: number;
     totalDue: number;
   };
 }
 
 type MasterTab = "overview" | "billing" | "settings";
+type Period = "season" | "month" | "year" | "custom";
 
-const MASTER_NAV: { id: MasterTab; label: string; icon: typeof Home }[] = [
+const PERIOD_OPTIONS: { id: Period; label: string }[] = [
+  { id: "season", label: "Depuis le début de la saison" },
+  { id: "month",  label: "Ce mois-ci" },
+  { id: "year",   label: "Cette année" },
+  { id: "custom", label: "Période personnalisée" },
+];
+
+const MASTER_NAV: { id: MasterTab; label: string; icon: typeof BarChart3 }[] = [
   { id: "overview", label: "Vue d'ensemble", icon: BarChart3 },
   { id: "billing",  label: "Facturation",    icon: CreditCard },
   { id: "settings", label: "Réglages",       icon: Settings },
@@ -61,16 +70,34 @@ export default function MasterPage() {
   const [toast, setToast] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<MasterTab>("overview");
 
-  const load = async () => {
+  // Period selector
+  const [period, setPeriod] = useState<Period>("season");
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
+  const [periodLabel, setPeriodLabel] = useState("Depuis le début de la saison");
+  const [monthCount, setMonthCount] = useState(0);
+
+  const load = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/master/franchises");
+    let url = `/api/master/franchises?period=${period}`;
+    if (period === "custom" && customStart) {
+      url += `&start=${customStart}`;
+      if (customEnd) url += `&end=${customEnd}`;
+    }
+    const res = await fetch(url);
     if (res.status === 403) { setForbidden(true); setLoading(false); return; }
     const data = await res.json();
     setFranchises(data.franchises ?? []);
+    setMonthCount(data.monthCount ?? 0);
     setLoading(false);
-  };
+  }, [period, customStart, customEnd]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    const opt = PERIOD_OPTIONS.find(p => p.id === period);
+    setPeriodLabel(opt?.label || "");
+  }, [period]);
 
   const save = async () => {
     setSaving(true);
@@ -106,10 +133,13 @@ export default function MasterPage() {
     setTimeout(() => setToast(null), 3000);
   };
 
-  const totalMonthRevenue = franchises.reduce((s, f) => s + f.stats.monthRevenue, 0);
-  const totalRoyalties    = franchises.reduce((s, f) => s + f.stats.royaltyDue,   0);
-  const totalMonthlyFees  = franchises.reduce((s, f) => s + f.stats.monthlyFee,   0);
-  const activeCount       = franchises.filter(f => f.status === "active").length;
+  const totalRevenue    = franchises.reduce((s, f) => s + f.stats.periodRevenue, 0);
+  const totalRoyalties  = franchises.reduce((s, f) => s + f.stats.royaltyDue,    0);
+  const totalMonthlyFees = franchises.reduce((s, f) => s + f.stats.monthlyFees,  0);
+  const totalDue        = franchises.reduce((s, f) => s + f.stats.totalDue,      0);
+  const activeCount     = franchises.filter(f => f.status === "active").length;
+
+  const fmt = (n: number) => n.toLocaleString("fr-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   if (forbidden) {
     return (
@@ -120,6 +150,39 @@ export default function MasterPage() {
       </div>
     );
   }
+
+  // Period selector component
+  const PeriodSelector = () => (
+    <div className="flex items-center gap-3 flex-wrap">
+      <CalendarDays size={16} className="text-gray-400" />
+      <select
+        value={period}
+        onChange={e => setPeriod(e.target.value as Period)}
+        className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white"
+      >
+        {PERIOD_OPTIONS.map(o => (
+          <option key={o.id} value={o.id}>{o.label}</option>
+        ))}
+      </select>
+      {period === "custom" && (
+        <>
+          <input
+            type="date"
+            value={customStart}
+            onChange={e => setCustomStart(e.target.value)}
+            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+          />
+          <span className="text-gray-400 text-sm">→</span>
+          <input
+            type="date"
+            value={customEnd}
+            onChange={e => setCustomEnd(e.target.value)}
+            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+          />
+        </>
+      )}
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -174,13 +237,19 @@ export default function MasterPage() {
         {/* Tab: Overview */}
         {activeTab === "overview" && (
           <div className="space-y-6">
+            {/* Period selector */}
+            <div className="flex items-center justify-between flex-wrap gap-4">
+              <h2 className="text-lg font-bold text-gray-900">Vue d&apos;ensemble</h2>
+              <PeriodSelector />
+            </div>
+
             {/* Global stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {[
-                { label: "Franchises actives",  value: activeCount,                           icon: Building2,  color: "text-[#0a1f3f]", bg: "bg-blue-50" },
-                { label: "Revenus du mois",     value: `${totalMonthRevenue.toLocaleString("fr-CA")} $`, icon: DollarSign, color: "text-green-600", bg: "bg-green-50" },
-                { label: "Redevances dues (8%)", value: `${totalRoyalties.toLocaleString("fr-CA")} $`,  icon: DollarSign, color: "text-blue-600", bg: "bg-blue-50" },
-                { label: "Frais système",        value: `${totalMonthlyFees.toLocaleString("fr-CA")} $`, icon: Briefcase,  color: "text-orange-600", bg: "bg-orange-50" },
+                { label: "Franchises actives",  value: String(activeCount), icon: Building2,  color: "text-[#0a1f3f]", bg: "bg-blue-50" },
+                { label: `Revenus (${periodLabel.toLowerCase()})`, value: `${fmt(totalRevenue)} $`, icon: DollarSign, color: "text-green-600", bg: "bg-green-50" },
+                { label: "Redevances dues (8%)", value: `${fmt(totalRoyalties)} $`, icon: DollarSign, color: "text-blue-600", bg: "bg-blue-50" },
+                { label: `Frais système (${monthCount} mois)`, value: `${fmt(totalMonthlyFees)} $`, icon: Briefcase, color: "text-orange-600", bg: "bg-orange-50" },
               ].map(({ label, value, icon: Icon, color, bg }) => (
                 <div key={label} className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
                   <div className="flex items-center gap-2 mb-2">
@@ -230,7 +299,6 @@ export default function MasterPage() {
                                 {f.owner_email && <span>{f.owner_email}</span>}
                                 {f.owner_phone && <span>{f.owner_phone}</span>}
                                 {f.territory   && <span>{f.territory}</span>}
-                                {f.twilio_phone_number && <span>{f.twilio_phone_number}</span>}
                               </div>
                             </div>
                             <div className="flex items-center gap-2 flex-shrink-0">
@@ -265,11 +333,11 @@ export default function MasterPage() {
                           {/* Stats row */}
                           <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-5 pt-5 border-t border-gray-100">
                             {[
-                              { label: "Clients",     value: f.stats.clientCount },
-                              { label: "Jobs actifs", value: f.stats.activeJobCount },
-                              { label: "Rev. mois",   value: `${f.stats.monthRevenue.toLocaleString("fr-CA")} $` },
-                              { label: "Redevance 8%", value: `${f.stats.royaltyDue.toLocaleString("fr-CA")} $` },
-                              { label: "Total dû",    value: `${f.stats.totalDue.toLocaleString("fr-CA")} $` },
+                              { label: "Clients",       value: String(f.stats.clientCount) },
+                              { label: "Jobs actifs",   value: String(f.stats.activeJobCount) },
+                              { label: "Revenus",       value: `${fmt(f.stats.periodRevenue)} $` },
+                              { label: "Redevance 8%",  value: `${fmt(f.stats.royaltyDue)} $` },
+                              { label: "Total dû",     value: `${fmt(f.stats.totalDue)} $` },
                             ].map(({ label, value }) => (
                               <div key={label}>
                                 <p className="text-xs text-gray-400 font-medium">{label}</p>
@@ -290,70 +358,77 @@ export default function MasterPage() {
         {/* Tab: Billing */}
         {activeTab === "billing" && (
           <div className="space-y-6">
-            <h2 className="text-lg font-bold text-gray-900">Facturation</h2>
+            <div className="flex items-center justify-between flex-wrap gap-4">
+              <h2 className="text-lg font-bold text-gray-900">Facturation</h2>
+              <PeriodSelector />
+            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-white rounded-xl border p-6 shadow-sm">
-                <p className="text-xs text-gray-500 font-medium mb-1">Redevances mensuelles (8%)</p>
-                <p className="text-3xl font-bold text-blue-600">{totalRoyalties.toLocaleString("fr-CA")} $</p>
-                <p className="text-xs text-gray-400 mt-2">8% des revenus de chaque franchise</p>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="bg-white rounded-xl border p-5 shadow-sm">
+                <p className="text-xs text-gray-500 font-medium mb-1">Revenus totaux</p>
+                <p className="text-2xl font-bold text-green-600">{fmt(totalRevenue)} $</p>
               </div>
-              <div className="bg-white rounded-xl border p-6 shadow-sm">
-                <p className="text-xs text-gray-500 font-medium mb-1">Frais système mensuels</p>
-                <p className="text-3xl font-bold text-orange-600">{totalMonthlyFees.toLocaleString("fr-CA")} $</p>
-                <p className="text-xs text-gray-400 mt-2">200 $/mois par franchise active</p>
+              <div className="bg-white rounded-xl border p-5 shadow-sm">
+                <p className="text-xs text-gray-500 font-medium mb-1">Redevances (8%)</p>
+                <p className="text-2xl font-bold text-blue-600">{fmt(totalRoyalties)} $</p>
               </div>
-              <div className="bg-white rounded-xl border p-6 shadow-sm">
+              <div className="bg-white rounded-xl border p-5 shadow-sm">
+                <p className="text-xs text-gray-500 font-medium mb-1">Frais système ({monthCount} mois)</p>
+                <p className="text-2xl font-bold text-orange-600">{fmt(totalMonthlyFees)} $</p>
+              </div>
+              <div className="bg-white rounded-xl border p-5 shadow-sm">
                 <p className="text-xs text-gray-500 font-medium mb-1">Total à percevoir</p>
-                <p className="text-3xl font-bold text-[#0a1f3f]">{(totalRoyalties + totalMonthlyFees).toLocaleString("fr-CA")} $</p>
-                <p className="text-xs text-gray-400 mt-2">Redevances + frais système</p>
+                <p className="text-2xl font-bold text-[#0a1f3f]">{fmt(totalDue)} $</p>
               </div>
             </div>
 
             {/* Per-franchise billing table */}
             <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    {["Franchise", "Revenus", "Redevance 8%", "Frais système", "Total dû", "Statut"].map(h => (
-                      <th key={h} className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {franchises.map(f => (
-                    <tr key={f.id} className="hover:bg-gray-50">
-                      <td className="px-5 py-4 text-sm font-medium text-gray-900">{f.name}</td>
-                      <td className="px-5 py-4 text-sm text-gray-700">{f.stats.monthRevenue.toLocaleString("fr-CA")} $</td>
-                      <td className="px-5 py-4 text-sm text-blue-600 font-medium">{f.stats.royaltyDue.toLocaleString("fr-CA")} $</td>
-                      <td className="px-5 py-4 text-sm text-orange-600 font-medium">{f.stats.monthlyFee.toLocaleString("fr-CA")} $</td>
-                      <td className="px-5 py-4 text-sm font-bold text-gray-900">{f.stats.totalDue.toLocaleString("fr-CA")} $</td>
-                      <td className="px-5 py-4">
-                        <span className={`text-xs font-semibold px-2 py-1 rounded-full ${STATUS_BADGE[f.status]?.bg ?? ""} ${STATUS_BADGE[f.status]?.text ?? ""}`}>
-                          {STATUS_BADGE[f.status]?.label ?? f.status}
-                        </span>
-                      </td>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      {["Franchise", "Revenus", "Redevance 8%", `Frais système (${monthCount} mois)`, "Total dû", "Statut"].map(h => (
+                        <th key={h} className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">{h}</th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-                <tfoot className="bg-gray-50 border-t-2 border-gray-200">
-                  <tr>
-                    <td className="px-5 py-3 text-sm font-bold text-gray-900">Total</td>
-                    <td className="px-5 py-3 text-sm font-bold text-gray-900">{totalMonthRevenue.toLocaleString("fr-CA")} $</td>
-                    <td className="px-5 py-3 text-sm font-bold text-blue-600">{totalRoyalties.toLocaleString("fr-CA")} $</td>
-                    <td className="px-5 py-3 text-sm font-bold text-orange-600">{totalMonthlyFees.toLocaleString("fr-CA")} $</td>
-                    <td className="px-5 py-3 text-sm font-bold text-gray-900">{(totalRoyalties + totalMonthlyFees).toLocaleString("fr-CA")} $</td>
-                    <td />
-                  </tr>
-                </tfoot>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {franchises.map(f => (
+                      <tr key={f.id} className="hover:bg-gray-50">
+                        <td className="px-5 py-4 text-sm font-medium text-gray-900">{f.name}</td>
+                        <td className="px-5 py-4 text-sm text-gray-700">{fmt(f.stats.periodRevenue)} $</td>
+                        <td className="px-5 py-4 text-sm text-blue-600 font-medium">{fmt(f.stats.royaltyDue)} $</td>
+                        <td className="px-5 py-4 text-sm text-orange-600 font-medium">{fmt(f.stats.monthlyFees)} $</td>
+                        <td className="px-5 py-4 text-sm font-bold text-gray-900">{fmt(f.stats.totalDue)} $</td>
+                        <td className="px-5 py-4">
+                          <span className={`text-xs font-semibold px-2 py-1 rounded-full ${STATUS_BADGE[f.status]?.bg ?? ""} ${STATUS_BADGE[f.status]?.text ?? ""}`}>
+                            {STATUS_BADGE[f.status]?.label ?? f.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-gray-50 border-t-2 border-gray-200">
+                    <tr>
+                      <td className="px-5 py-3 text-sm font-bold text-gray-900">Total</td>
+                      <td className="px-5 py-3 text-sm font-bold text-gray-900">{fmt(totalRevenue)} $</td>
+                      <td className="px-5 py-3 text-sm font-bold text-blue-600">{fmt(totalRoyalties)} $</td>
+                      <td className="px-5 py-3 text-sm font-bold text-orange-600">{fmt(totalMonthlyFees)} $</td>
+                      <td className="px-5 py-3 text-sm font-bold text-gray-900">{fmt(totalDue)} $</td>
+                      <td />
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
             </div>
 
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-xs text-blue-700 space-y-1">
               <p className="font-semibold">Structure tarifaire</p>
               <p>Redevance: 8% des revenus mensuels de la franchise</p>
               <p>Frais système: 200 $/mois par franchise active</p>
-              <p>Frais initial: 10 000 $ (unique, à l'ouverture)</p>
+              <p>Frais initial: 10 000 $ (unique, à l&apos;ouverture)</p>
+              <p className="mt-2 text-blue-500">Début de saison: 1er avril {new Date().getFullYear()}</p>
             </div>
           </div>
         )}
@@ -381,7 +456,6 @@ export default function MasterPage() {
               </button>
             </div>
             <div className="p-6 space-y-5">
-              {/* Infos de base */}
               <div>
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Infos de base</p>
                 <div className="grid grid-cols-2 gap-3">
@@ -426,10 +500,9 @@ export default function MasterPage() {
                 </div>
               </div>
 
-              {/* Twilio */}
               <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Twilio (optionnel — configurer après)</p>
-                <p className="text-xs text-gray-400 mb-3">Le auth_token sera chiffré AES-256-GCM. La franchise peut aussi le configurer elle-même.</p>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Twilio (optionnel)</p>
+                <p className="text-xs text-gray-400 mb-3">Le auth_token sera chiffré AES-256-GCM.</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs text-gray-500 block mb-1">Account SID</label>

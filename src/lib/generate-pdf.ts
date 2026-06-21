@@ -49,6 +49,11 @@ export interface DocData {
   paymentTerms: string;
   lineItems?: LineItemData[];
   notes?: string;
+  companyName?: string;
+  companyAddress?: string;
+  companyPhone?: string;
+  companyEmail?: string;
+  companyOwner?: string;
 }
 
 function InvoicePDF({ data }: { data: DocData }) {
@@ -56,6 +61,12 @@ function InvoicePDF({ data }: { data: DocData }) {
   const today = new Date().toLocaleDateString("fr-CA", { year: "numeric", month: "long", day: "numeric" });
   const isContract = data.docType === "contrat";
   const hasLineItems = !!(data.lineItems && data.lineItems.length > 0);
+
+  const companyName = data.companyName || "Entretien Piscine Granby";
+  const companyAddress = data.companyAddress || "86 rue de Windsor, Granby QC J2H 1V4";
+  const companyPhone = data.companyPhone || "450-994-2215";
+  const companyEmail = data.companyEmail || "service@entretienpiscinegranby.com";
+  const companyOwner = data.companyOwner || "Thomas Demers-Ménard";
 
   // Pre-compute table rows
   const rowEls = hasLineItems
@@ -91,8 +102,8 @@ function InvoicePDF({ data }: { data: DocData }) {
   const pageChildren: any[] = [
     // Header
     React.createElement(View, { style: styles.header },
-      React.createElement(Text, { style: styles.headerTitle }, "ENTRETIEN PISCINE GRANBY"),
-      React.createElement(Text, { style: styles.headerSub }, "Thomas Demers-Ménard — 450-994-2215 — service@entretienpiscinegranby.com"),
+      React.createElement(Text, { style: styles.headerTitle }, companyName.toUpperCase()),
+      React.createElement(Text, { style: styles.headerSub }, `${companyOwner} — ${companyPhone} — ${companyEmail}`),
       React.createElement(Text, { style: styles.docType }, title),
     ),
     // Info bar
@@ -125,14 +136,14 @@ function InvoicePDF({ data }: { data: DocData }) {
     // Payment
     React.createElement(View, { style: styles.paymentBox },
       React.createElement(Text, { style: styles.paymentTitle }, "Paiement par virement Interac:"),
-      React.createElement(Text, { style: styles.paymentEmail }, "service@entretienpiscinegranby.com"),
+      React.createElement(Text, { style: styles.paymentEmail }, companyEmail),
       React.createElement(Text, { style: styles.paymentTerms }, data.paymentTerms),
     ),
     // Contract conditions + signatures
     ...(isContract ? [
       React.createElement(View, {},
         React.createElement(Text, { style: styles.sectionTitle }, "Conditions"),
-        React.createElement(Text, { style: styles.conditions }, "Le présent contrat confirme l'entente entre Entretien Piscine Granby et le client pour les services décrits ci-dessus pour la saison 2026. Le service débute à l'ouverture de la piscine (mi-avril/début mai) et se termine à la fermeture (fin septembre/octobre). L'annulation est possible avec un préavis de 14 jours. Des frais d'administration de 100$ s'appliquent."),
+        React.createElement(Text, { style: styles.conditions }, `Le présent contrat confirme l'entente entre ${companyName} et le client pour les services décrits ci-dessus pour la saison 2026. Le service débute à l'ouverture de la piscine (mi-avril/début mai) et se termine à la fermeture (fin septembre/octobre). L'annulation est possible avec un préavis de 14 jours. Des frais d'administration de 100$ s'appliquent.`),
         React.createElement(View, { style: styles.sigSection },
           React.createElement(View, {},
             React.createElement(View, { style: styles.sigLine }),
@@ -141,15 +152,15 @@ function InvoicePDF({ data }: { data: DocData }) {
           ),
           React.createElement(View, {},
             React.createElement(View, { style: styles.sigLine }),
-            React.createElement(Text, { style: styles.sigLabel }, "Thomas Demers-Ménard"),
-            React.createElement(Text, { style: { fontSize: 9, color: "#999", marginTop: 2 } }, "Entretien Piscine Granby"),
+            React.createElement(Text, { style: styles.sigLabel }, companyOwner),
+            React.createElement(Text, { style: { fontSize: 9, color: "#999", marginTop: 2 } }, companyName),
           ),
         ),
       ),
     ] : []),
     // Footer
     React.createElement(View, { style: styles.footer },
-      React.createElement(Text, { style: styles.footerText }, "Entretien Piscine Granby — 86 rue de Windsor, Granby QC J2H 1V4 — 450-994-2215"),
+      React.createElement(Text, { style: styles.footerText }, `${companyName} — ${companyAddress} — ${companyPhone}`),
     ),
   ].filter(Boolean);
 

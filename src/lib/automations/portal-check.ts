@@ -2,7 +2,7 @@ import { supabaseAdmin } from "@/lib/supabase";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 
-export async function createMissingPortals(): Promise<string[]> {
+export async function createMissingPortals(franchiseId: string): Promise<string[]> {
   const logs: string[] = [];
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
 
@@ -12,10 +12,10 @@ export async function createMissingPortals(): Promise<string[]> {
     .select("id, first_name, last_name, email, phone, portal_password")
     .in("stage", ["closé", "planifié", "complété"])
     .not("email", "is", null)
-    .is("portal_password", null);
+    .is("portal_password", null)
+    .eq("franchise_id", franchiseId);
 
   for (const contact of contacts || []) {
-    if (contact.phone === "+14509942215") continue;
     if (!contact.email) continue;
 
     try {
@@ -38,7 +38,7 @@ export async function createMissingPortals(): Promise<string[]> {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contactId: contact.id,
-          body: `Votre portail client est prêt! Connectez-vous sur https://sms-dashboard-epg.vercel.app/portail avec:\nEmail: ${contact.email}\nMot de passe: ${tempPassword}\n\nVous pourrez y voir vos rendez-vous et paiements.`,
+          body: `Votre portail client est prêt! Connectez-vous sur ${baseUrl}/portail avec:\nEmail: ${contact.email}\nMot de passe: ${tempPassword}\n\nVous pourrez y voir vos rendez-vous et paiements.`,
         }),
       });
 
