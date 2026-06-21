@@ -60,14 +60,14 @@ export default function TodayRoutePage() {
       .in("status", ["planifié", "confirmé", "en_cours"])
       .order("scheduled_time_start", { ascending: true, nullsFirst: false });
 
-    // 2. Fetch contacts for those jobs
+    // 2. Fetch contacts for those jobs (include assigned_employee_id for per-client display)
     const jobContactIds = (jobs || []).map(j => j.contact_id);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const contactMap = new Map<string, any>();
     if (jobContactIds.length > 0) {
       const { data: contacts } = await supabaseBrowser
         .from("contacts")
-        .select("id, first_name, last_name, phone, address")
+        .select("id, first_name, last_name, phone, address, assigned_employee_id")
         .in("id", jobContactIds);
       (contacts || []).forEach(c => contactMap.set(c.id, c));
     }
@@ -85,8 +85,8 @@ export default function TodayRoutePage() {
         jobType: j.job_type || "entretien",
         startTime: j.scheduled_time_start?.slice(0, 5),
         endTime: j.scheduled_time_end?.slice(0, 5),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        assignedEmployeeId: (j as any).assigned_employee_id ?? null,
+        // Use contact-level assignment (contact is the source of truth)
+        assignedEmployeeId: contactMap.get(j.contact_id)?.assigned_employee_id ?? (j as any).assigned_employee_id ?? null,
       };
     });
 
@@ -164,13 +164,14 @@ export default function TodayRoutePage() {
     setDoneKeys(prev => new Set(Array.from(prev).concat([stop.key, stop.contactId])));
   };
 
-  const assignJob = async (jobId: string, employeeId: string | null) => {
-    await fetch("/api/jobs/assign", {
+  const assignClient = async (contactId: string, employeeId: string | null) => {
+    await fetch("/api/contacts/assign", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ jobId, employeeId: employeeId || null }),
+      body: JSON.stringify({ contactId, employeeId: employeeId || null }),
     });
-    setStops(prev => prev.map(s => s.jobId === jobId ? { ...s, assignedEmployeeId: employeeId } : s));
+    // Update all stops for this contact (a contact can appear multiple times)
+    setStops(prev => prev.map(s => s.contactId === contactId ? { ...s, assignedEmployeeId: employeeId } : s));
   };
 
   const handlePhotoCapture = async (contactId: string, file: File) => {
@@ -281,16 +282,16 @@ export default function TodayRoutePage() {
                         </p>
                       )}
 
-                      {stop.jobId && employees.length > 0 && (
+                      {employees.length > 0 && (
                         <div className="mt-2">
                           <select
                             value={stop.assignedEmployeeId ?? ""}
-                            onChange={e => assignJob(stop.jobId!, e.target.value || null)}
+                            onChange={e => assignClient(stop.contactId, e.target.value || null)}
                             className="w-full text-[10px] border border-gray-200 rounded px-1.5 py-1 text-gray-600 bg-gray-50 focus:outline-none focus:border-blue-300"
                           >
-                            <option value="">— Non assigné</option>
+                            <option value="">— Thomas (tous les jobs)</option>
                             {employees.map(emp => (
-                              <option key={emp.id} value={emp.id}>{emp.name}</option>
+                              <option key={emp.id} value={emp.id}>{emp.name} (tous les jobs)</option>
                             ))}
                           </select>
                         </div>

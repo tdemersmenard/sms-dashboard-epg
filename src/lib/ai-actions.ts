@@ -270,6 +270,9 @@ export async function executeActions(actions: AIAction[], contactId: string) {
             break;
           }
 
+          const { data: contactForJob } = await supabaseAdmin
+            .from("contacts").select("assigned_employee_id").eq("id", contactId).single();
+
           await supabaseAdmin.from("jobs").insert({
             contact_id: contactId,
             job_type: action.jobType,
@@ -277,6 +280,7 @@ export async function executeActions(actions: AIAction[], contactId: string) {
             scheduled_time_start: action.startTime,
             scheduled_time_end: action.endTime,
             status: "confirmé",
+            ...(contactForJob?.assigned_employee_id ? { assigned_employee_id: contactForJob.assigned_employee_id } : {}),
           });
 
           // Mettre à jour ouverture_date si c'est une ouverture
@@ -733,6 +737,7 @@ export async function executeActions(actions: AIAction[], contactId: string) {
                 scheduled_time_end: endTime,
               }).eq("id", existingOuverture[0].id);
             } else {
+              const { data: cEmp } = await supabaseAdmin.from("contacts").select("assigned_employee_id").eq("id", contactId).single();
               await supabaseAdmin.from("jobs").insert({
                 contact_id: contactId,
                 job_type: "ouverture",
@@ -741,6 +746,7 @@ export async function executeActions(actions: AIAction[], contactId: string) {
                 scheduled_time_end: endTime,
                 status: "planifié",
                 notes: "Ouverture — planifiée par le bot",
+                ...(cEmp?.assigned_employee_id ? { assigned_employee_id: cEmp.assigned_employee_id } : {}),
               });
             }
           }
@@ -884,7 +890,7 @@ export async function executeActions(actions: AIAction[], contactId: string) {
           // 1. Récupérer le contact
           const { data: contact } = await supabaseAdmin
             .from("contacts")
-            .select("first_name, last_name, email, phone, services, address, portal_password")
+            .select("first_name, last_name, email, phone, services, address, portal_password, assigned_employee_id")
             .eq("id", contactId)
             .single();
 
@@ -1052,6 +1058,7 @@ export async function executeActions(actions: AIAction[], contactId: string) {
                     scheduled_time_start: jobTimeStart,
                     scheduled_time_end: jobTimeEnd,
                     status: "planifié",
+                    ...(contact?.assigned_employee_id ? { assigned_employee_id: contact.assigned_employee_id } : {}),
                   });
 
                   await supabaseAdmin.from("contacts").update({ ouverture_date: jobDate }).eq("id", contactId);

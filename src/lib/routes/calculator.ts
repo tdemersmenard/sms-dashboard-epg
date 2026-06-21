@@ -390,6 +390,10 @@ export async function confirmRoutes(routes: DayRoute[], sendSMS: boolean): Promi
     for (const stop of dayRoute.stops) {
       await supabaseAdmin.from("jobs").delete().eq("contact_id", stop.id).eq("job_type", "entretien").eq("status", "planifié");
 
+      const { data: stopContact } = await supabaseAdmin
+        .from("contacts").select("assigned_employee_id").eq("id", stop.id).single();
+      const stopEmployeeId = stopContact?.assigned_employee_id ?? null;
+
       const first = new Date(stop.firstEntretienDate + "T12:00:00");
       const cur = new Date(first);
       const increment = stop.isBiweekly ? 14 : 7;
@@ -403,6 +407,7 @@ export async function confirmRoutes(routes: DayRoute[], sendSMS: boolean): Promi
           scheduled_date: cur.toISOString().split("T")[0],
           scheduled_time_start: stop.arrivalTime, scheduled_time_end: endTime,
           status: "planifié", notes: `Route ${dayRoute.day} — Arrêt #${stop.order}`,
+          ...(stopEmployeeId ? { assigned_employee_id: stopEmployeeId } : {}),
         });
         count++;
         cur.setDate(cur.getDate() + increment);

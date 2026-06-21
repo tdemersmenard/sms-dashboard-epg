@@ -143,6 +143,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   const [showStageDropdown, setShowStageDropdown] = useState(false);
   const [showAllAdminJobs, setShowAllAdminJobs] = useState(false);
   const [employees, setEmployees] = useState<{ id: string; name: string }[]>([]);
+  const [assignToast, setAssignToast] = useState<string | null>(null);
 
   // Job modal
   // Water tests
@@ -249,6 +250,20 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
     load();
   };
 
+  const assignClient = async (employeeId: string | null) => {
+    const res = await fetch("/api/contacts/assign", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contactId: id, employeeId: employeeId || null }),
+    });
+    const result = await res.json();
+    load();
+    const n = result.jobsUpdated ?? 0;
+    const name = result.employeeName ?? (employeeId ? "l\'employé" : "Thomas");
+    setAssignToast(`${n} job${n !== 1 ? "s" : ""} réassigné${n !== 1 ? "s" : ""} à ${name}`);
+    setTimeout(() => setAssignToast(null), 3500);
+  };
+
   const save = async (fields: Partial<Contact>) => {
     const { data } = await supabaseBrowser
       .from("contacts").update(fields).eq("id", id).select().single();
@@ -263,9 +278,11 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   const handleJobCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setSavingJob(true);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const empId = (contact as any)?.assigned_employee_id ?? null;
     const { data } = await supabaseBrowser
       .from("jobs")
-      .insert({ contact_id: id, status: "planifié", ...jobForm })
+      .insert({ contact_id: id, status: "planifié", ...jobForm, ...(empId ? { assigned_employee_id: empId } : {}) })
       .select()
       .single();
     if (data) setJobs((prev) => [...prev, data as Job]);
@@ -535,6 +552,12 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
+      {/* Assignment toast */}
+      {assignToast && (
+        <div className="fixed bottom-6 right-6 z-50 bg-[#0a1f3f] text-white text-sm font-medium px-4 py-3 rounded-xl shadow-lg animate-in slide-in-from-bottom-2">
+          ✓ {assignToast}
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-center justify-between mb-6 gap-4">
         <div className="flex items-center gap-3 min-w-0">
@@ -603,6 +626,22 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
               </div>
               <InlineField label="Ville" value={contact.city ?? ""} onSave={(v) => save({ city: v })} />
               <InlineField label="Code postal" value={contact.postal_code ?? ""} onSave={(v) => save({ postal_code: v })} />
+              {employees.length > 0 && (
+                <div className="col-span-2">
+                  <p className="text-xs font-medium text-gray-500 mb-0.5">Employé assigné</p>
+                  <select
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    value={(contact as any).assigned_employee_id ?? ""}
+                    onChange={e => assignClient(e.target.value || null)}
+                    className="w-full border border-gray-200 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                  >
+                    <option value="">— Non assigné (Thomas)</option>
+                    {employees.map(emp => (
+                      <option key={emp.id} value={emp.id}>{emp.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
           </div>
 
