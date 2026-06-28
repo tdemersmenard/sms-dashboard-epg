@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { getFranchiseByPhoneNumber, GRANBY_FRANCHISE_ID } from "@/lib/franchise";
+import { normalizePhone } from "@/lib/utils";
 
 const EMPTY_TWIML = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
 
@@ -31,18 +32,39 @@ export async function POST(request: NextRequest) {
     const franchiseId = to ? await getFranchiseByPhoneNumber(to) : GRANBY_FRANCHISE_ID;
 
     // ─── FIND OR CREATE CONTACT ───────────────────────────────────────────────
-    // Important: chercher par (phone + franchise_id) après la migration phase 1
+    const normalizedFrom = normalizePhone(from);
+
+    // 1. Chercher par (phone normalisé + franchise_id)
     let { data: contact } = await supabaseAdmin
       .from("contacts")
       .select("id")
-      .eq("phone", from)
+      .eq("phone", normalizedFrom)
       .eq("franchise_id", franchiseId)
       .maybeSingle();
 
+    // 2. Fallback: chercher un orphan (même phone, franchise_id NULL) et le rattacher
+    if (!contact) {
+      const { data: orphan } = await supabaseAdmin
+        .from("contacts")
+        .select("id")
+        .eq("phone", normalizedFrom)
+        .is("franchise_id", null)
+        .maybeSingle();
+
+      if (orphan) {
+        await supabaseAdmin
+          .from("contacts")
+          .update({ franchise_id: franchiseId })
+          .eq("id", orphan.id);
+        contact = orphan;
+      }
+    }
+
+    // 3. Créer un nouveau contact si aucun trouvé
     if (!contact) {
       const { data: newContact, error: createError } = await supabaseAdmin
         .from("contacts")
-        .insert({ phone: from, franchise_id: franchiseId })
+        .insert({ phone: normalizedFrom, franchise_id: franchiseId })
         .select("id")
         .single();
 

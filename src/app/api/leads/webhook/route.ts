@@ -2,6 +2,8 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
+import { normalizePhone } from "@/lib/utils";
+import { GRANBY_FRANCHISE_ID } from "@/lib/franchise";
 
 // GET — Facebook verification handshake
 export async function GET(req: NextRequest) {
@@ -21,6 +23,52 @@ export async function GET(req: NextRequest) {
   return new NextResponse("Forbidden", { status: 403 });
 }
 
+/**
+ * Returns true if the franchise can send SMS (has its own Twilio, or is Granby using env vars).
+ * Prevents accidentally sending the first message from Granby's number for another franchise.
+ */
+async function franchiseCanSendSMS(franchiseId: string): Promise<boolean> {
+  const { data } = await supabaseAdmin
+    .from("franchises")
+    .select("twilio_phone_number, twilio_account_sid")
+    .eq("id", franchiseId)
+    .maybeSingle();
+
+  if (data?.twilio_phone_number && data?.twilio_account_sid) return true;
+
+  // Granby fallback: uses global env vars
+  if (franchiseId === GRANBY_FRANCHISE_ID) {
+    return !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_PHONE_NUMBER);
+  }
+
+  return false;
+}
+
+/**
+ * Resolve franchise_id from the request body.
+ * Supports: franchise_id (UUID), franchise_slug (lookup).
+ * Defaults to Granby.
+ */
+async function resolveFranchiseId(body: Record<string, unknown>): Promise<string> {
+  // Direct UUID
+  if (body.franchise_id && typeof body.franchise_id === "string") {
+    return body.franchise_id;
+  }
+
+  // Slug lookup
+  if (body.franchise_slug && typeof body.franchise_slug === "string") {
+    const { data } = await supabaseAdmin
+      .from("franchises")
+      .select("id")
+      .eq("slug", body.franchise_slug)
+      .eq("status", "active")
+      .maybeSingle();
+    if (data?.id) return data.id;
+  }
+
+  return GRANBY_FRANCHISE_ID;
+}
+
 // POST — Receive Facebook Lead Ads events
 export async function POST(req: NextRequest) {
   try {
@@ -34,7 +82,7 @@ export async function POST(req: NextRequest) {
       // ── MAKE.COM FORMAT ──
       let firstName = body.first_name || null;
       let lastName = body.last_name || null;
-      const phone = body.phone || null;
+      const rawPhone = body.phone || null;
       const email = body.email || null;
 
       if (!firstName && body.name) {
@@ -43,35 +91,63 @@ export async function POST(req: NextRequest) {
         lastName = parts.slice(1).join(" ") || null;
       }
 
-      if (!phone) {
+      if (!rawPhone) {
         return NextResponse.json({ error: "phone is required" }, { status: 400 });
       }
 
-      // Check if contact already exists
-      const { data: existing } = await supabaseAdmin
+      const phone = normalizePhone(rawPhone);
+      const franchiseId = await resolveFranchiseId(body);
+
+      // ── Find existing contact (same phone + same franchise) ──
+      let { data: existing } = await supabaseAdmin
         .from("contacts")
-        .select("id, phone")
+        .select("id, phone, first_name, last_name, franchise_id")
         .eq("phone", phone)
+        .eq("franchise_id", franchiseId)
         .maybeSingle();
+
+      // ── Fallback: claim orphan contact (same phone, NULL franchise_id) ──
+      if (!existing) {
+        const { data: orphan } = await supabaseAdmin
+          .from("contacts")
+          .select("id, phone, first_name, last_name, franchise_id")
+          .eq("phone", phone)
+          .is("franchise_id", null)
+          .maybeSingle();
+
+        if (orphan) {
+          // Claim orphan: set franchise_id
+          await supabaseAdmin
+            .from("contacts")
+            .update({ franchise_id: franchiseId })
+            .eq("id", orphan.id);
+          existing = { ...orphan, franchise_id: franchiseId };
+        }
+      }
 
       let contact;
 
       if (existing) {
+        // Update name/email if we have better data
+        const updates: Record<string, string> = {};
+        if (firstName && !existing.first_name) updates.first_name = firstName;
+        if (lastName && !existing.last_name) updates.last_name = lastName;
+        if (email) updates.email = email;
+        // Always update name if provided (lead form has the real name)
+        if (firstName) updates.first_name = firstName;
+        if (lastName) updates.last_name = lastName;
+
         const { data } = await supabaseAdmin
           .from("contacts")
-          .update({
-            ...(firstName && { first_name: firstName }),
-            ...(lastName && { last_name: lastName }),
-            ...(email && { email }),
-          })
+          .update(updates)
           .eq("id", existing.id)
           .select()
           .single();
         contact = data;
 
-        // Log alert so Thomas sees the re-submission in Diagnostic
         await supabaseAdmin.from("automation_logs").insert({
           contact_id: existing.id,
+          franchise_id: franchiseId,
           type: "info",
           action: "facebook_resubmit",
           message: `Lead Facebook re-soumis par ${firstName ?? existing.phone}`,
@@ -88,6 +164,7 @@ export async function POST(req: NextRequest) {
             email,
             stage: "nouveau",
             lead_source: "facebook",
+            franchise_id: franchiseId,
           })
           .select()
           .single();
@@ -97,11 +174,15 @@ export async function POST(req: NextRequest) {
       // Send SMS only for NEW contacts
       if (!existing && contact && contact.phone) {
         try {
+          const canSend = await franchiseCanSendSMS(franchiseId);
+          if (!canSend) {
+            console.warn(`[leads webhook] Franchise ${franchiseId} sans Twilio configuré — SMS ignoré pour ${contact.phone}`);
+          } else {
           const { data: template } = await supabaseAdmin
             .from("message_templates")
             .select("body")
             .eq("name", "Premier contact")
-            .single();
+            .maybeSingle();
 
           if (template) {
             const name = contact.first_name || "";
@@ -118,6 +199,7 @@ export async function POST(req: NextRequest) {
               }),
             });
           }
+          } // end else (canSend)
         } catch (smsErr) {
           console.error("[leads webhook] SMS send error:", smsErr);
         }
@@ -127,6 +209,8 @@ export async function POST(req: NextRequest) {
 
     } else if (entries.length > 0) {
       // ── FACEBOOK NATIVE FORMAT ──
+      // These leads have no phone — they need to be fetched via Facebook API.
+      // Assign to Granby by default for now.
       for (const entry of entries) {
         const changes = entry?.changes ?? [];
         for (const change of changes) {
@@ -140,6 +224,7 @@ export async function POST(req: NextRequest) {
             phone: null,
             stage: "nouveau",
             lead_source: "facebook",
+            franchise_id: GRANBY_FRANCHISE_ID,
           });
         }
       }

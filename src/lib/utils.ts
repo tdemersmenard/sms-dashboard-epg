@@ -1,6 +1,19 @@
 import { format, isToday, isYesterday } from "date-fns";
 import { fr } from "date-fns/locale";
 
+/**
+ * Normalize a phone number to E.164 format (+1XXXXXXXXXX).
+ * Handles: +14388252881, 14388252881, 4388252881, (438) 825-2881, etc.
+ * Returns the original string if it can't be normalized (e.g. too short).
+ */
+export function normalizePhone(phone: string): string {
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length === 11 && digits.startsWith("1")) return `+${digits}`;
+  if (phone.startsWith("+") && digits.length === 11) return `+${digits}`;
+  return phone; // fallback: return as-is
+}
+
 export function formatPhone(phone: string): string {
   const cleaned = phone.replace(/\D/g, "");
   if (cleaned.length === 11 && cleaned.startsWith("1")) {
