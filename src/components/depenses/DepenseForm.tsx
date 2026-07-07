@@ -12,6 +12,23 @@ interface Props {
   onCancel: () => void;
 }
 
+async function compressImage(file: File, maxWidth = 1568, quality = 0.8): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, maxWidth / img.width);
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width * scale;
+      canvas.height = img.height * scale;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL("image/jpeg", quality));
+    };
+    img.onerror = reject;
+    img.src = URL.createObjectURL(file);
+  });
+}
+
 export default function DepenseForm({ annee, onCreated, onCancel }: Props) {
   const { franchiseId } = useFranchise();
   const today = new Date().toISOString().split("T")[0];
@@ -30,35 +47,36 @@ export default function DepenseForm({ annee, onCreated, onCancel }: Props) {
 
   const handleScanPhoto = async (f: File) => {
     setFile(f); // Utilise aussi la photo comme reçu
+
+    // Les PDF ne passent pas par la compression canvas — on garde l'upload normal, sans scan.
+    if (f.type === "application/pdf") return;
+
     setScanning(true);
     setScanMsg("");
-    const reader = new FileReader();
-    reader.onload = async () => {
-      try {
-        const res = await fetch("/api/depenses/scan-photo", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ imageBase64: reader.result as string }),
-        });
-        const data = await res.json();
-        if (data.success) {
-          if (data.amount)      setMontant(String(data.amount));
-          if (data.category)    setCategorie(data.category as CategorieDepense);
-          if (data.date)        setDate(data.date);
-          if (data.vendor && data.description) setDescription(`${data.vendor} — ${data.description}`);
-          else if (data.vendor) setDescription(data.vendor);
-          else if (data.description) setDescription(data.description);
-          setScanMsg("✓ Reçu analysé — vérifiez les champs");
-        } else {
-          setScanMsg("Impossible de lire le reçu, remplis manuellement.");
-        }
-      } catch {
-        setScanMsg("Erreur lors du scan.");
-      } finally {
-        setScanning(false);
+    try {
+      const imageBase64 = await compressImage(f);
+      const res = await fetch("/api/depenses/scan-photo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageBase64 }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        if (data.amount)      setMontant(String(data.amount));
+        if (data.category)    setCategorie(data.category as CategorieDepense);
+        if (data.date)        setDate(data.date);
+        if (data.vendor && data.description) setDescription(`${data.vendor} — ${data.description}`);
+        else if (data.vendor) setDescription(data.vendor);
+        else if (data.description) setDescription(data.description);
+        setScanMsg("✓ Reçu analysé — vérifiez les champs");
+      } else {
+        setScanMsg(`Impossible de lire le reçu (${data.error || "erreur inconnue"}), remplis manuellement.`);
       }
-    };
-    reader.readAsDataURL(f);
+    } catch {
+      setScanMsg("Erreur lors du scan.");
+    } finally {
+      setScanning(false);
+    }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
