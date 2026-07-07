@@ -29,6 +29,15 @@ async function compressImage(file: File, maxWidth = 1568, quality = 0.8): Promis
   });
 }
 
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function DepenseForm({ annee, onCreated, onCancel }: Props) {
   const { franchiseId } = useFranchise();
   const today = new Date().toISOString().split("T")[0];
@@ -46,19 +55,38 @@ export default function DepenseForm({ annee, onCreated, onCancel }: Props) {
   const [scanMsg, setScanMsg] = useState("");
 
   const handleScanPhoto = async (f: File) => {
-    setFile(f); // Utilise aussi la photo comme reçu
+    setFile(f); // Utilise aussi le fichier comme reçu
+    setFileError("");
 
-    // Les PDF ne passent pas par la compression canvas — on garde l'upload normal, sans scan.
-    if (f.type === "application/pdf") return;
+    const isPdf = f.type === "application/pdf";
+
+    // Fichier trop volumineux pour l'analyse : on garde le fichier attaché,
+    // mais on saute le scan automatique.
+    if (f.size > 4 * 1024 * 1024) {
+      setScanMsg(
+        isPdf
+          ? "PDF trop volumineux pour l'analyse automatique, remplis manuellement."
+          : "Fichier trop volumineux pour l'analyse automatique, remplis manuellement."
+      );
+      return;
+    }
 
     setScanning(true);
     setScanMsg("");
     try {
-      const imageBase64 = await compressImage(f);
+      let payload: { fileBase64: string; fileType: string };
+      if (isPdf) {
+        // Pas de compression canvas sur un PDF — on lit le base64 brut.
+        const fileBase64 = await fileToBase64(f);
+        payload = { fileBase64, fileType: "application/pdf" };
+      } else {
+        const fileBase64 = await compressImage(f);
+        payload = { fileBase64, fileType: f.type || "image/jpeg" };
+      }
       const res = await fetch("/api/depenses/scan-photo", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageBase64 }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (data.success) {
@@ -79,19 +107,17 @@ export default function DepenseForm({ annee, onCreated, onCancel }: Props) {
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f) return;
     if (!f.type.startsWith("image/") && f.type !== "application/pdf") {
       setFileError("Format invalide. Accepté : image ou PDF.");
       return;
     }
-    if (f.size > 4 * 1024 * 1024) {
-      setFileError("Fichier trop grand. Maximum 4 MB.");
-      return;
-    }
     setFileError("");
-    setFile(f);
+    // Attache le fichier ET déclenche l'analyse AI (image compressée ou PDF brut).
+    // handleScanPhoto gère la limite de taille (fichier gardé, scan sauté si > 4 MB).
+    await handleScanPhoto(f);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

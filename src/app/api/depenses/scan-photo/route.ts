@@ -8,24 +8,46 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
 export async function POST(req: NextRequest) {
   try {
-    const { imageBase64 } = await req.json() as { imageBase64: string };
-    if (!imageBase64) {
-      return NextResponse.json({ error: "Image requise" }, { status: 400 });
+    const body = await req.json() as {
+      imageBase64?: string;
+      fileBase64?: string;
+      fileType?: string;
+    };
+
+    // Rétro-compat: { imageBase64 } (image simple) ou nouveau { fileBase64, fileType }
+    const rawBase64 = body.fileBase64 ?? body.imageBase64;
+    if (!rawBase64) {
+      return NextResponse.json({ error: "Fichier requis" }, { status: 400 });
     }
 
-    const mediaType = imageBase64.startsWith("data:image/png") ? "image/png" : "image/jpeg";
-    const cleanBase64 = imageBase64.replace(/^data:image\/[a-z]+;base64,/, "");
+    const isPdf =
+      body.fileType === "application/pdf" ||
+      rawBase64.startsWith("data:application/pdf");
+
+    // Retire le préfixe data: quel que soit le type
+    const cleanBase64 = rawBase64.replace(/^data:[^;]+;base64,/, "");
+
+    let fileBlock: Anthropic.ContentBlockParam;
+    if (isPdf) {
+      fileBlock = {
+        type: "document",
+        source: { type: "base64", media_type: "application/pdf", data: cleanBase64 },
+      };
+    } else {
+      const mediaType = rawBase64.startsWith("data:image/png") ? "image/png" : "image/jpeg";
+      fileBlock = {
+        type: "image",
+        source: { type: "base64", media_type: mediaType, data: cleanBase64 },
+      };
+    }
 
     const response = await anthropic.messages.create({
       model: "claude-sonnet-4-6",
-      max_tokens: 400,
+      max_tokens: 600,
       messages: [{
         role: "user",
         content: [
-          {
-            type: "image",
-            source: { type: "base64", media_type: mediaType, data: cleanBase64 },
-          },
+          fileBlock,
           {
             type: "text",
             text: `Analyse ce reçu/facture et extrais les informations. Réponds UNIQUEMENT en JSON valide (sans markdown):
