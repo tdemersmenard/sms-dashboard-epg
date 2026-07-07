@@ -81,7 +81,7 @@ export async function analyzeAndLearn(): Promise<string[]> {
 
   try {
     const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-4-5-20250929",
       max_tokens: 2000,
       system: `Tu analyses des conversations SMS entre un bot (CHLORE) et des clients d'une entreprise d'entretien de piscines. Tu dois identifier ce que le bot peut améliorer.
 

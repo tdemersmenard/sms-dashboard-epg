@@ -57,7 +57,7 @@ export async function runAudit(): Promise<AuditAction[]> {
   // 3. UN SEUL appel à Claude avec toutes les conversations
   try {
     const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-4-5-20250929",
       max_tokens: 4000,
       system: `Tu es un assistant qui analyse des conversations SMS entre une entreprise d'entretien de piscines (Entretien Piscine Granby) et ses clients. Tu dois identifier TOUTES les actions à prendre.
 
