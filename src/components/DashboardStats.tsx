@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { DollarSign, TrendingUp, TrendingDown, CreditCard, AlertTriangle, UserCheck, Target, Calendar, PiggyBank, Receipt } from "lucide-react";
+import { TrendingUp, TrendingDown, CreditCard, AlertTriangle, UserCheck, Target, Calendar, Receipt, ArrowUpRight, ArrowDownRight, Wallet } from "lucide-react";
 
 const PERIODS = [
   { key: "today",     label: "Aujourd'hui" },
@@ -60,19 +60,22 @@ export default function DashboardStats() {
   const periodLabel = PERIODS.find(p => p.key === period)?.label || "";
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       {/* Period selector */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <h2 className="text-sm font-semibold text-gray-700">Statistiques</h2>
-        <div className="flex bg-gray-100 rounded-lg p-1 gap-0.5 flex-wrap">
+        <div className="flex items-center gap-2 text-sm font-semibold text-gray-800">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          Vue d&apos;ensemble
+        </div>
+        <div className="flex bg-gray-100 rounded-xl p-1 gap-0.5 flex-wrap">
           {PERIODS.map(p => (
             <button
               key={p.key}
               onClick={() => setPeriod(p.key)}
-              className={`px-2.5 py-1.5 text-xs font-medium rounded-md transition-all whitespace-nowrap ${
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all whitespace-nowrap ${
                 period === p.key
                   ? "bg-white text-gray-900 shadow-sm"
-                  : "text-gray-500 hover:text-gray-700"
+                  : "text-gray-500 hover:text-gray-800"
               }`}
             >
               {p.label}
@@ -83,178 +86,274 @@ export default function DashboardStats() {
 
       {loading ? (
         <div className="animate-pulse space-y-4">
+          <div className="h-64 bg-gray-100 rounded-3xl" />
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {[...Array(8)].map((_, i) => <div key={i} className="h-24 bg-gray-100 rounded-xl" />)}
+            {[...Array(4)].map((_, i) => <div key={i} className="h-24 bg-gray-100 rounded-2xl" />)}
           </div>
         </div>
       ) : stats ? (
         <>
-          {/* Row 1: Revenue */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <StatCard
-              label={`Encaissé — ${periodLabel}`}
-              value={fmt(stats.periodRevenue)}
-              icon={<DollarSign size={20} />}
-              iconColor="text-green-600"
-              iconBg="bg-green-50"
-              change={stats.periodChange}
-            />
-            <StatCard
-              label={`Facturé — ${periodLabel}`}
-              value={fmt(stats.periodFacture)}
-              icon={<PiggyBank size={20} />}
-              iconColor="text-violet-600"
-              iconBg="bg-violet-50"
-              subtitle={`Total: ${fmt(stats.totalBilled)}`}
-            />
-            <StatCard
-              label="À recevoir"
-              value={fmt(stats.totalOwed)}
-              icon={<CreditCard size={20} />}
-              iconColor="text-blue-600"
-              iconBg="bg-blue-50"
-            />
-            <StatCard
-              label="En retard"
-              value={fmt(stats.totalOverdue)}
-              icon={<AlertTriangle size={20} />}
-              iconColor={stats.overdueCount > 0 ? "text-red-600" : "text-gray-400"}
-              iconBg={stats.overdueCount > 0 ? "bg-red-50" : "bg-gray-50"}
-              subtitle={stats.overdueCount > 0 ? `${stats.overdueCount} paiement${stats.overdueCount > 1 ? "s" : ""}` : "Aucun"}
-            />
-          </div>
+          {/* ── HERO : Revenu ────────────────────────────────── */}
+          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0a1f3f] via-[#0d2547] to-[#123163] text-white shadow-xl shadow-[#0a1f3f]/20">
+            {/* glow */}
+            <div className="pointer-events-none absolute -top-24 -right-16 h-64 w-64 rounded-full bg-emerald-400/20 blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-32 -left-10 h-72 w-72 rounded-full bg-blue-500/10 blur-3xl" />
 
-          {/* Row 2: Clients + Operations */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <StatCard
-              label="Clients actifs"
-              value={String(stats.activeClients)}
-              icon={<UserCheck size={20} />}
-              iconColor="text-purple-600"
-              iconBg="bg-purple-50"
-              subtitle={`${stats.totalClients} total`}
-            />
-            <StatCard
-              label="Taux conversion"
-              value={`${stats.conversionRate}%`}
-              icon={<Target size={20} />}
-              iconColor="text-indigo-600"
-              iconBg="bg-indigo-50"
-              subtitle={`${stats.totalLeads} leads`}
-            />
-            <StatCard
-              label={`Dépenses — ${periodLabel}`}
-              value={fmt(stats.periodDepenses)}
-              icon={<Receipt size={20} />}
-              iconColor="text-orange-600"
-              iconBg="bg-orange-50"
-              subtitle={`Profit: ${fmt(stats.periodProfit)}`}
-            />
-            <StatCard
-              label="Jobs cette semaine"
-              value={String(stats.upcomingJobsThisWeek)}
-              icon={<Calendar size={20} />}
-              iconColor="text-cyan-600"
-              iconBg="bg-cyan-50"
-            />
-          </div>
+            <div className="relative px-6 pt-6 sm:px-8 sm:pt-8">
+              <div className="flex items-start justify-between gap-4 flex-wrap">
+                <div>
+                  <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-blue-200/70">
+                    <Wallet size={14} />
+                    Revenu encaissé · {periodLabel}
+                  </div>
+                  <div className="mt-2 flex items-end gap-3 flex-wrap">
+                    <span className="text-4xl sm:text-5xl font-bold tracking-tight tabular-nums">
+                      {fmt(stats.periodRevenue)}
+                    </span>
+                    {stats.periodChange !== null && (
+                      <span className={`mb-1.5 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${
+                        stats.periodChange >= 0
+                          ? "bg-emerald-400/15 text-emerald-300 ring-1 ring-inset ring-emerald-400/30"
+                          : "bg-red-400/15 text-red-300 ring-1 ring-inset ring-red-400/30"
+                      }`}>
+                        {stats.periodChange >= 0 ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}
+                        {stats.periodChange >= 0 ? "+" : ""}{stats.periodChange}%
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-1.5 text-sm text-blue-200/60">
+                    {fmt(stats.totalRevenue)} encaissé depuis le début · profit {fmt(stats.periodProfit)}
+                  </p>
+                </div>
 
-          {/* Revenue chart */}
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <h3 className="text-sm font-semibold text-gray-700 mb-4">Revenus vs dépenses (6 mois)</h3>
-            <RevenueChart data={stats.revenueByMonth} />
-          </div>
-
-          {/* Revenue by service */}
-          {Object.keys(stats.revenueByService).length > 0 && (
-            <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <h3 className="text-sm font-semibold text-gray-700 mb-1">Revenus par service</h3>
-              <p className="text-xs text-gray-400 mb-3">{periodLabel}</p>
-              <div className="space-y-2">
-                {Object.entries(stats.revenueByService)
-                  .sort(([, a], [, b]) => b - a)
-                  .map(([service, amount]) => {
-                    const pct = stats.periodRevenue > 0 ? (amount / stats.periodRevenue) * 100 : 0;
-                    const colors: Record<string, string> = {
-                      entretien: "bg-blue-400",
-                      ouverture: "bg-green-400",
-                      fermeture: "bg-orange-400",
-                      spa: "bg-purple-400",
-                      réparation: "bg-red-400",
-                    };
-                    return (
-                      <div key={service}>
-                        <div className="flex justify-between text-sm mb-1">
-                          <span className="capitalize text-gray-700">{service}</span>
-                          <span className="font-medium text-gray-900">{fmt(amount)}</span>
-                        </div>
-                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                          <div className={`h-full rounded-full ${colors[service] || "bg-gray-400"}`} style={{ width: `${pct}%` }} />
-                        </div>
-                      </div>
-                    );
-                  })}
+                {/* mini legend */}
+                <div className="flex items-center gap-1.5 rounded-full bg-white/5 px-3 py-1.5 text-xs text-blue-100/80 ring-1 ring-inset ring-white/10">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
+                  6 derniers mois
+                </div>
               </div>
             </div>
-          )}
+
+            {/* Area chart */}
+            <RevenueArea data={stats.revenueByMonth} />
+          </div>
+
+          {/* ── KPI : Argent ─────────────────────────────────── */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <KpiCard
+              label="Facturé"
+              sub={periodLabel}
+              value={fmt(stats.periodFacture)}
+              foot={`Total facturé ${fmt(stats.totalBilled)}`}
+              accent="text-violet-600"
+            />
+            <KpiCard
+              label="À recevoir"
+              sub="En attente"
+              value={fmt(stats.totalOwed)}
+              icon={<CreditCard size={15} />}
+              accent="text-blue-600"
+            />
+            <KpiCard
+              label="En retard"
+              sub={stats.overdueCount > 0 ? `${stats.overdueCount} paiement${stats.overdueCount > 1 ? "s" : ""}` : "Aucun"}
+              value={fmt(stats.totalOverdue)}
+              icon={<AlertTriangle size={15} />}
+              accent={stats.overdueCount > 0 ? "text-red-600" : "text-gray-400"}
+              danger={stats.overdueCount > 0}
+            />
+            <KpiCard
+              label="Dépenses"
+              sub={periodLabel}
+              value={fmt(stats.periodDepenses)}
+              icon={<Receipt size={15} />}
+              foot={`Profit net ${fmt(stats.periodProfit)}`}
+              accent="text-orange-600"
+            />
+          </div>
+
+          {/* ── KPI : Opérations ─────────────────────────────── */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <KpiCard
+              label="Clients actifs"
+              sub={`${stats.totalClients} au total`}
+              value={String(stats.activeClients)}
+              icon={<UserCheck size={15} />}
+              accent="text-purple-600"
+            />
+            <KpiCard
+              label="Taux de conversion"
+              sub={`${stats.totalLeads} leads`}
+              value={`${stats.conversionRate}%`}
+              icon={<Target size={15} />}
+              accent="text-indigo-600"
+            />
+            <KpiCard
+              label="Profit"
+              sub={periodLabel}
+              value={fmt(stats.periodProfit)}
+              icon={stats.periodProfit >= 0 ? <TrendingUp size={15} /> : <TrendingDown size={15} />}
+              accent={stats.periodProfit >= 0 ? "text-emerald-600" : "text-red-600"}
+            />
+            <KpiCard
+              label="Jobs cette semaine"
+              sub="7 prochains jours"
+              value={String(stats.upcomingJobsThisWeek)}
+              icon={<Calendar size={15} />}
+              accent="text-cyan-600"
+            />
+          </div>
+
+          {/* ── Charts row ───────────────────────────────────── */}
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-3">
+            {/* Revenus vs dépenses */}
+            <div className="lg:col-span-3 bg-white rounded-2xl border border-gray-200/70 p-5 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-gray-800">Revenus vs dépenses</h3>
+                <div className="flex items-center gap-4 text-xs text-gray-500">
+                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" /> Revenus</span>
+                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-orange-400 inline-block" /> Dépenses</span>
+                </div>
+              </div>
+              <BarChart data={stats.revenueByMonth} />
+            </div>
+
+            {/* Revenus par service */}
+            <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-200/70 p-5 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-gray-800">Revenus par service</h3>
+                <span className="text-xs text-gray-400">{periodLabel}</span>
+              </div>
+              {Object.keys(stats.revenueByService).length > 0 ? (
+                <div className="space-y-3.5">
+                  {Object.entries(stats.revenueByService)
+                    .sort(([, a], [, b]) => b - a)
+                    .map(([service, amount]) => {
+                      const pct = stats.periodRevenue > 0 ? (amount / stats.periodRevenue) * 100 : 0;
+                      const colors: Record<string, string> = {
+                        entretien: "bg-blue-500",
+                        ouverture: "bg-emerald-500",
+                        fermeture: "bg-orange-400",
+                        spa: "bg-purple-500",
+                        réparation: "bg-red-400",
+                      };
+                      return (
+                        <div key={service}>
+                          <div className="flex justify-between items-baseline text-sm mb-1.5">
+                            <span className="capitalize text-gray-700 font-medium">{service}</span>
+                            <span className="font-semibold text-gray-900 tabular-nums">{fmt(amount)}</span>
+                          </div>
+                          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full transition-all ${colors[service] || "bg-gray-400"}`} style={{ width: `${Math.max(pct, 2)}%` }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-400 py-8 text-center">Aucun revenu sur cette période</p>
+              )}
+            </div>
+          </div>
         </>
       ) : null}
     </div>
   );
 }
 
-function RevenueChart({ data }: { data: { month: string; revenue: number; depenses: number }[] }) {
-  const maxVal = Math.max(...data.map(m => Math.max(m.revenue, m.depenses)), 1);
+/* ── Smooth area chart (hero) ─────────────────────────────── */
+function RevenueArea({ data }: { data: { month: string; revenue: number; depenses: number }[] }) {
+  const W = 600, H = 190, padT = 24, padB = 34;
+  const maxVal = Math.max(...data.map(m => m.revenue), 1);
+  const n = data.length;
+  const usableH = H - padT - padB;
+  const pts = data.map((m, i) => ({
+    x: n > 1 ? (i / (n - 1)) * W : W / 2,
+    y: padT + usableH - (m.revenue / maxVal) * usableH,
+    m,
+  }));
+
+  const smooth = (points: { x: number; y: number }[]) => {
+    if (points.length < 2) return "";
+    let d = `M ${points[0].x} ${points[0].y}`;
+    for (let i = 0; i < points.length - 1; i++) {
+      const p0 = points[i], p1 = points[i + 1];
+      const midX = (p0.x + p1.x) / 2;
+      d += ` C ${midX} ${p0.y}, ${midX} ${p1.y}, ${p1.x} ${p1.y}`;
+    }
+    return d;
+  };
+
+  const line = smooth(pts);
+  const area = `${line} L ${W} ${H - padB} L 0 ${H - padB} Z`;
+  const last = pts[pts.length - 1];
+
   return (
-    <>
-      <div className="flex items-end gap-2" style={{ height: 120 }}>
-        {data.map((m, i) => (
-          <div key={i} className="flex-1 flex flex-col items-center gap-1">
-            <div className="w-full flex gap-0.5 items-end justify-center" style={{ height: 100 }}>
-              <div
-                className="bg-green-400 rounded-t"
-                style={{ width: "40%", height: `${Math.max((m.revenue / maxVal) * 100, 2)}px` }}
-                title={`Revenus: ${fmt(m.revenue)}`}
-              />
-              <div
-                className="bg-orange-300 rounded-t"
-                style={{ width: "40%", height: `${Math.max((m.depenses / maxVal) * 100, 2)}px` }}
-                title={`Dépenses: ${fmt(m.depenses)}`}
-              />
-            </div>
-            <span className="text-[10px] text-gray-500">{m.month}</span>
-          </div>
-        ))}
+    <div className="relative mt-4">
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: 190 }} preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="revArea" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#34d399" stopOpacity="0.45" />
+            <stop offset="100%" stopColor="#34d399" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d={area} fill="url(#revArea)" />
+        <path d={line} fill="none" stroke="#34d399" strokeWidth="2.5" vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round" />
+        {last && (
+          <>
+            <circle cx={last.x} cy={last.y} r="7" fill="#34d399" opacity="0.25" />
+            <circle cx={last.x} cy={last.y} r="3.5" fill="#fff" stroke="#34d399" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+          </>
+        )}
+      </svg>
+      {/* month labels */}
+      <div className="absolute inset-x-0 bottom-2.5 flex justify-between px-6 sm:px-8 text-[11px] font-medium text-blue-200/50">
+        {data.map((m, i) => <span key={i} className="capitalize">{m.month}</span>)}
       </div>
-      <div className="flex gap-4 mt-2 text-xs text-gray-500">
-        <span className="flex items-center gap-1"><span className="w-3 h-3 bg-green-400 rounded inline-block" /> Revenus</span>
-        <span className="flex items-center gap-1"><span className="w-3 h-3 bg-orange-300 rounded inline-block" /> Dépenses</span>
-      </div>
-    </>
+    </div>
   );
 }
 
-function StatCard({ label, value, icon, iconColor, iconBg, change, subtitle }: {
-  label: string; value: string; icon: React.ReactNode;
-  iconColor: string; iconBg: string;
-  change?: number | null; subtitle?: string;
+/* ── Bar chart (revenus vs dépenses) ──────────────────────── */
+function BarChart({ data }: { data: { month: string; revenue: number; depenses: number }[] }) {
+  const maxVal = Math.max(...data.map(m => Math.max(m.revenue, m.depenses)), 1);
+  return (
+    <div className="flex items-end gap-3" style={{ height: 150 }}>
+      {data.map((m, i) => (
+        <div key={i} className="flex-1 flex flex-col items-center gap-2 group">
+          <div className="w-full flex gap-1 items-end justify-center" style={{ height: 120 }}>
+            <div
+              className="flex-1 max-w-[18px] rounded-t-md bg-emerald-500/90 group-hover:bg-emerald-500 transition-all"
+              style={{ height: `${Math.max((m.revenue / maxVal) * 120, 3)}px` }}
+              title={`Revenus: ${fmt(m.revenue)}`}
+            />
+            <div
+              className="flex-1 max-w-[18px] rounded-t-md bg-orange-300 group-hover:bg-orange-400 transition-all"
+              style={{ height: `${Math.max((m.depenses / maxVal) * 120, 3)}px` }}
+              title={`Dépenses: ${fmt(m.depenses)}`}
+            />
+          </div>
+          <span className="text-[11px] font-medium text-gray-400 capitalize">{m.month}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ── KPI card ─────────────────────────────────────────────── */
+function KpiCard({ label, sub, value, icon, foot, accent, danger }: {
+  label: string; sub?: string; value: string;
+  icon?: React.ReactNode; foot?: string; accent: string; danger?: boolean;
 }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-4">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-xs text-gray-500 leading-tight">{label}</span>
-        <div className={`w-8 h-8 rounded-lg ${iconBg} flex items-center justify-center ${iconColor} flex-shrink-0 ml-1`}>
-          {icon}
-        </div>
+    <div className={`bg-white rounded-2xl border p-4 shadow-sm transition-all hover:shadow-md ${danger ? "border-red-200" : "border-gray-200/70"}`}>
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-medium text-gray-500">{label}</span>
+        {icon && <span className={accent}>{icon}</span>}
       </div>
-      <div className="text-xl font-bold text-gray-900">{value}</div>
-      {change !== undefined && change !== null && (
-        <div className={`text-xs mt-1 flex items-center gap-1 ${change >= 0 ? "text-green-600" : "text-red-600"}`}>
-          {change >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-          {change >= 0 ? "+" : ""}{change}% vs période préc.
-        </div>
-      )}
-      {subtitle && <div className="text-xs text-gray-400 mt-1">{subtitle}</div>}
+      <div className="mt-2 text-2xl font-bold text-gray-900 tabular-nums tracking-tight">{value}</div>
+      {sub && <div className="mt-0.5 text-xs text-gray-400">{sub}</div>}
+      {foot && <div className="mt-2 pt-2 border-t border-gray-100 text-[11px] text-gray-400 tabular-nums">{foot}</div>}
     </div>
   );
 }
