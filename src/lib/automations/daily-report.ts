@@ -50,6 +50,13 @@ export async function sendDailyReport(franchiseId: string): Promise<string[]> {
     .lte("updated_at", `${today}T23:59:59`)
     .eq("franchise_id", franchiseId);
 
+  // Profils d'acheteur détectés par l'IA (leads du jour + taux de closing par profil)
+  const { data: profiledContacts } = await supabaseAdmin
+    .from("contacts")
+    .select("buyer_profile, stage, created_at")
+    .eq("franchise_id", franchiseId)
+    .not("buyer_profile", "is", null);
+
   // Contacts actifs dans les conversations aujourd'hui
   const uniqueContacts = Array.from(new Set((todayMessages || []).map(m => m.contact_id)));
   const inboundCount = (todayMessages || []).filter(m => m.direction === "inbound").length;
@@ -72,6 +79,31 @@ export async function sendDailyReport(franchiseId: string): Promise<string[]> {
   if (totalContractValue > 0) report += ` (${totalContractValue}$ en contrats)`;
   report += `\n`;
   if (revenueToday > 0) report += `PAIEMENTS REÇUS: ${revenueToday}$\n`;
+
+  // Profils d'acheteur (IA) — leads du jour + taux de closing par profil
+  const PROFILE_LABELS: Record<string, string> = {
+    presse: "Pressé", prix: "Prix", analytique: "Analytique", indecis: "Indécis", relationnel: "Relationnel",
+  };
+  const CLOSED_STAGES = ["closé", "planifié", "complété"];
+  const profiled = profiledContacts || [];
+  if (profiled.length > 0) {
+    const order = ["presse", "prix", "analytique", "indecis", "relationnel"];
+    const todayLines: string[] = [];
+    const rateLines: string[] = [];
+    for (const p of order) {
+      const all = profiled.filter((c) => c.buyer_profile === p);
+      if (all.length === 0) continue;
+      const label = PROFILE_LABELS[p];
+      const todayCount = all.filter((c) => (c.created_at || "").slice(0, 10) === today).length;
+      if (todayCount > 0) todayLines.push(`${label}: ${todayCount}`);
+      const closed = all.filter((c) => CLOSED_STAGES.includes(c.stage || "")).length;
+      const rate = Math.round((closed / all.length) * 100);
+      rateLines.push(`${label} ${rate}% (${closed}/${all.length})`);
+    }
+    report += `\nPROFILS D'ACHETEUR (IA):\n`;
+    if (todayLines.length > 0) report += `Leads du jour — ${todayLines.join(", ")}\n`;
+    if (rateLines.length > 0) report += `Taux closing — ${rateLines.join(" · ")}\n`;
+  }
 
   // 3. Résumé AI de chaque conversation
   const conversationSummaries: string[] = [];

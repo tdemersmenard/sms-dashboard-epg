@@ -31,6 +31,8 @@ export interface Contact {
   season_price: number | null;
   lead_source: string | null;
   notes: string | null;
+  // Profil d'acheteur détecté par l'IA (adapte le pitch, jamais le prix)
+  buyer_profile: "presse" | "prix" | "analytique" | "indecis" | "relationnel" | null;
 }
 
 // ---- messages (table existante, inchangée) ------------------

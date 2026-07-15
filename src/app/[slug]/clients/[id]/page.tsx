@@ -22,6 +22,15 @@ const STAGE_COLORS: Record<string, { bg: string; text: string }> = {
   "perdu":              { bg: "bg-red-100",    text: "text-red-700" },
 };
 
+// Profil d'acheteur détecté par l'IA (interne — adapte le pitch, jamais le prix)
+const PROFILE_LABELS: Record<string, string> = {
+  presse: "Pressé",
+  prix: "Prix",
+  analytique: "Analytique",
+  indecis: "Indécis",
+  relationnel: "Relationnel",
+};
+
 const JOB_STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   planifié:  { bg: "bg-blue-100",   text: "text-blue-700" },
   confirmé:  { bg: "bg-green-100",  text: "text-green-700" },
@@ -594,6 +603,15 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
               </div>
             )}
           </div>
+          {/* Profil d'acheteur détecté par l'IA (discret, interne) */}
+          {contact.buyer_profile && PROFILE_LABELS[contact.buyer_profile] && (
+            <span
+              title="Profil d'acheteur détecté par l'IA — adapte le pitch, jamais le prix"
+              className="hidden sm:inline-flex items-center text-xs font-medium px-2.5 py-1 rounded-full bg-slate-100 text-slate-600"
+            >
+              Profil: {PROFILE_LABELS[contact.buyer_profile]}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <button

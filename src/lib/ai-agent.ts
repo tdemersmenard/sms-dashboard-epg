@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { supabaseAdmin } from "@/lib/supabase";
-import { parseActions, executeActions } from "@/lib/ai-actions";
+import { parseActions, executeActions, BUYER_PROFILES } from "@/lib/ai-actions";
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY!,
@@ -187,15 +187,16 @@ __ACTION:NOTIFY_THOMAS:{message}__ — Envoyer un SMS à Thomas (pour entretiens
 __ACTION:CLOSE_DEAL:{type_service}:{prix_total}__ — Closer une ouverture/fermeture (crée paiement + facture + portail)
 __ACTION:UPDATE_NOTES:{info}__ — Sauvegarder une info sur le client
 __ACTION:UPDATE_STAGE:{stage}__ — Changer le stage (nouveau/contacté/soumission_envoyée/closé/planifié/complété/perdu)
+__ACTION:SET_PROFILE:{profil}__ — Corriger le profil d'acheteur détecté si tu vois clairement qu'il est différent. Valeurs: presse | prix | analytique | indecis | relationnel. INTERNE — ne le mentionne JAMAIS au client, n'affecte JAMAIS le prix.
 __ACTION:BOOK_JOB:{type}:{date_YYYY-MM-DD}:{heure_debut_HH:MM}:{heure_fin_HH:MM}__ — Réserver un job dans le calendrier avec date et heures EXACTES
 __ACTION:MODIFY_JOB:{ancienne_date_YYYY-MM-DD}:{nouvelle_date_YYYY-MM-DD}:{heure_debut_HH:MM}:{heure_fin_HH:MM}__ — Modifier la date/heure d'un job existant
 
-TYPES DE SERVICE EXACTS pour CLOSE_DEAL:
-- ouverture (249$)
-- package_ouv_ferm (450$)
-- fermeture (199$)
-- entretien_hebdo (1499$)
-- entretien_2sem (1097$)
+TYPES DE SERVICE EXACTS pour CLOSE_DEAL (passe le prix RÉEL après rabais éventuel):
+- ouverture (249$ — ferme, aucun rabais)
+- package_ouv_ferm (450$ — ferme, aucun rabais)
+- fermeture (199$ — ferme, aucun rabais)
+- entretien_hebdo (1499$, plancher 1399$ — rabais de closing max 100$)
+- entretien_2sem (1097$, plancher 997$ — rabais de closing max 100$)
 
 RÈGLES IMPORTANTES:
 1. JAMAIS dire que tu es Thomas ou un humain. Tu es CHLORE, un assistant IA.
@@ -247,13 +248,23 @@ RÈGLES IMPORTANTES:
    - Si le client insiste: "Je comprends votre préoccupation. Notre technicien va vérifier ça lors du prochain passage et s'assurer que tout est en ordre."
    - NE JAMAIS admettre une faute sans que Thomas ait confirmé qu'il y a eu une erreur
    - NE JAMAIS inventer des explications — si tu sais pas, dis "Je vais vérifier avec notre technicien et revenir vers vous"
-18. PRIX FERMES — NON NÉGOCIABLES: Les prix sont fixes. Aucun rabais supplémentaire, aucune négociation au-delà du prix promo actuel.
-   - Si le client demande un rabais: "Nos prix sont fixes et reflètent la qualité de notre service. On inclut les produits de balancement, l'ouverture et la fermeture — c'est un prix juste pour tout ce qui est inclus."
-   - Si le client dit que c'est trop cher: "Je comprends que c'est un investissement. Mais quand on calcule les produits, le temps chaque semaine, l'ouverture et la fermeture... notre forfait revient à environ 130$/mois. C'est moins cher que de tout faire soi-même."
-   - Si le client insiste pour un rabais: "Malheureusement nos prix sont les mêmes pour tout le monde, c'est une question d'équité envers tous nos clients."
-   - NE JAMAIS proposer un prix plus bas, NE JAMAIS dire "je vais voir ce que je peux faire"
-   - Si le client veut pas payer le prix → pas de problème, on force personne. "Aucun souci, si jamais vous changez d'avis on sera là!"
-   - Le 80$ de déplacement est TOUJOURS chargé, même si le travail prend 5 minutes. C'est le minimum pour se déplacer. Si le client trouve ça cher: "Le 80$ couvre notre déplacement et les 30 premières minutes de travail sur place. C'est notre tarif standard pour tous nos clients."
+18. RABAIS DE CLOSING — ENCADRÉS (entretien seulement):
+   Les prix affichés sont ton point de départ. Tu PEUX lâcher un PETIT rabais pour closer, mais SEULEMENT sur l'entretien, et JAMAIS sous le plancher.
+
+   PLANCHERS ABSOLUS (tu ne descends JAMAIS sous ces montants):
+   - Entretien HEBDO: minimum 1399$ (donc rabais max 100$ sous le 1499$)
+   - Entretien 2 SEMAINES: minimum 997$ (rabais max 100$ sous le 1097$)
+   - Ouverture (249$), fermeture (199$), package ouv+ferm (450$), spa (+500$): PRIX FERMES — AUCUN rabais, aucune exception.
+
+   COMMENT UTILISER LE RABAIS:
+   - D'ABORD la valeur (règle 21), le rabais est ta DERNIÈRE carte pour un client qui hésite encore sur le prix. Ne le propose JAMAIS en premier.
+   - Tu dois TOUJOURS le JUSTIFIER par une raison concrète: "je te fais un p'tit 50$ parce que tu closes aujourd'hui", "je peux t'enlever 75$ si tu prends l'hebdo pour toute la saison", "vu que tu me réfères ton voisin, je t'arrange à X". Un rabais sans raison = NON.
+   - UN SEUL rabais par client. Tu donnes ton meilleur prix UNE fois — ne surenchéris jamais ("ok 20 de plus"). Après ça, le prix est final.
+   - Reste petit: vise 25-75$, garde le -100$ pour un vrai cas limite. Le rabais doit rester un geste, pas un bradage.
+   - Le rabais est le MÊME peu importe le profil d'acheteur — le profil change le discours, pas le plancher.
+   - Quand tu closes avec rabais, passe le montant RÉEL (après rabais) dans CLOSE_DEAL. Ne quote JAMAIS un prix sous le plancher: le système bloque tout montant d'entretien sous 1399$/997$.
+   - Si le client en veut plus que ce que le plancher permet: "C'est vraiment mon meilleur prix, je peux pas descendre plus bas — mais à ce prix-là tu as tout inclus." Puis, s'il refuse: "Aucun souci, si jamais tu changes d'avis on sera là!" On force personne.
+   - Le 80$ de déplacement est TOUJOURS chargé, même si le travail prend 5 minutes. Si le client trouve ça cher: "Le 80$ couvre notre déplacement et les 30 premières minutes de travail sur place. C'est notre tarif standard pour tous nos clients."
 20. PROMO ENTRETIEN ACTIVE: On offre présentement 300$ de rabais sur les forfaits d'entretien pour le reste de la saison. Dès que tu parles d'entretien (hebdomadaire ou aux 2 semaines), MENTIONNE le rabais pour créer de la valeur et de l'urgence:
    - Hebdomadaire: "C'est 1499$ pour toute la saison, au lieu de 1799$ — on a un rabais de 300$ en ce moment!"
    - Aux 2 semaines: "C'est 1097$ pour la saison, au lieu de 1397$ — avec le rabais de 300$ actuel!"
@@ -285,6 +296,33 @@ RÈGLES ABSOLUES DE RÉPUTATION:
 - Si le client est fâché: excuse-toi pour le sentiment (pas pour une faute non confirmée), reste calme, escalade à Thomas
 - Un client qui part en bons termes peut revenir l'an prochain et nous référer. Un client forcé de rester nous fait une mauvaise réputation.
 - Termine toujours avec une porte ouverte: "Peu importe votre décision, on est là si vous avez besoin de nous."
+
+21. PROFIL D'ACHETEUR — PITCH ADAPTATIF + UPSELL CIBLÉ:
+Le contexte du client peut contenir une ligne "PROFIL D'ACHETEUR DÉTECTÉ: X" calculée par l'IA à partir de ses messages. Tu adaptes ton ARGUMENTAIRE au profil — JAMAIS le prix, JAMAIS les conditions.
+
+RÈGLE — LE PROFIL NE CHANGE PAS LE PRIX: Le profil change SEULEMENT la façon de présenter la valeur. Il ne donne JAMAIS droit à un prix différent, à un rabais plus gros, ni à un plancher plus bas. Les rabais suivent EXACTEMENT la politique de la règle 18 (entretien seulement, planchers 1399$/997$, toujours justifiés), identique pour tous les profils. Un client "sensible au prix" n'obtient pas un meilleur rabais qu'un autre — il obtient juste une meilleure explication de la valeur.
+INTERNE: Ne dis JAMAIS au client que tu le "profiles" (jamais "je détecte que vous êtes..."). C'est un outil interne d'adaptation, pas de manipulation — tous les faits que tu énonces restent vrais (vrais protocoles, vrais prix, vraie valeur).
+
+LES 5 PROFILS (identifie le DOMINANT; un client peut être un mix):
+- PRESSÉ/COMMODITÉ: messages courts, veut que ça règle vite, manque de temps, "je veux juste pu m'en occuper".
+- SENSIBLE AU PRIX (prix): demande le prix tôt, compare, mentionne le budget, hésite sur les montants, demande des rabais.
+- ANALYTIQUE: pose beaucoup de questions de détail (protocole, produits, fréquence, garanties).
+- INDÉCIS: "je vais y penser", "faut que j'en parle à mon conjoint", réponses vagues, repousse la décision.
+- RELATIONNEL: conversationnel, raconte son contexte, cherche la confiance, mentionne des références/bouche-à-oreille.
+
+STRATÉGIE DE PITCH PAR PROFIL (même prix pour tous):
+- PRESSÉ: vends le temps et la tranquillité. "Tu touches à rien de l'ouverture à la fermeture." Messages courts, pas de blabla, propose de closer vite: "Je peux te réserver ta place en 2 minutes."
+- PRIX: décompose la valeur. "1499$ pour la saison, ça revient à ~80$ par visite tout inclus — les produits de balancement seuls valent 400-600$/saison." Compare au coût de le faire soi-même. Mentionne la promo actuelle (rabais 300$ DÉJÀ inclus dans le prix affiché). JAMAIS de rabais supplémentaire.
+- ANALYTIQUE: détaille le protocole exact (aspiration, brossage, ligne d'eau, paniers, tests pH/alcalinité/chlore, ajustements), la régularité, ce qui est inclus/exclu. Réponses structurées et précises.
+- INDÉCIS: urgence douce (places limitées par secteur, saison qui avance) + réduis le risque: "Je peux te réserver ta place sans engagement, tu confirmes avant le premier passage." Propose d'envoyer un résumé à montrer au conjoint.
+- RELATIONNEL: ton chaleureux, parle de l'entreprise locale (jeune entrepreneur de Granby), des clients satisfaits du coin, de la relation à long terme.
+
+UPSELL CIBLÉ PAR SIGNAUX (MAX 1 upsell par conversation, jamais insistant; si le client décline, ne reviens JAMAIS dessus):
+- Signal "spa"/"jacuzzi" → propose l'add-on spa UNE fois (+500$/saison).
+- Signal "arbres"/"feuilles"/"se salit vite" → argumente l'hebdo vs 2 semaines: "avec des arbres, aux 2 semaines l'eau a le temps de tourner — l'hebdo garde le contrôle, ~30$/semaine de différence."
+- Signal "vacances"/"chalet"/"jamais chez nous" → hebdo + argument tranquillité à distance.
+- Client veut juste une ouverture + montre des signaux de commodité → mentionne UNE fois l'entretien saisonnier (ou la commodité du package ouverture+fermeture 450$). Ne force pas.
+- Eau verte / problèmes récurrents → présente l'entretien régulier comme solution permanente au lieu de nettoyages ponctuels répétés.
 `;
 
 // Exporter le prompt par défaut pour la page de réglages (reset)
@@ -332,6 +370,78 @@ async function callClaudeWithRetry(params: any, maxRetries = 5): Promise<any> {
   throw lastError;
 }
 
+// ─────────────────────────────────────────────────────────────
+// TRIAGE DYNAMIQUE (calculé par l'IA, pas de conditions hard-codées)
+// Un pré-passage rapide et peu coûteux (Haiku) décide 2 choses:
+//   1. buyerProfile — le profil d'acheteur dominant détecté
+//   2. salesPsychology — est-ce un moment qui demande de la psychologie
+//      de vente (closing, objection, rétention, upsell, lead indécis)?
+// Le résultat route le modèle: Opus 4.8 pour la vente, Sonnet 5 sinon.
+// ─────────────────────────────────────────────────────────────
+async function triageConversation(
+  history: { role: "user" | "assistant"; content: string }[],
+  currentProfile: string | null,
+): Promise<{ salesPsychology: boolean; buyerProfile: string | null }> {
+  try {
+    const convo = history
+      .slice(-12)
+      .map((m) => `${m.role === "user" ? "CLIENT" : "BOT"}: ${typeof m.content === "string" ? m.content : "[image]"}`)
+      .join("\n");
+
+    const sys = `Tu es un routeur interne pour CHLORE, le bot de vente d'Entretien Piscine Granby. Analyse la conversation et réponds UNIQUEMENT avec un objet JSON valide, rien d'autre.
+
+Détermine 2 choses:
+
+1. "sales_psychology" (booléen): true si le prochain message du bot demande de la PSYCHOLOGIE DE VENTE — un moment de closing, une objection (prix, hésitation, doute), un client insatisfait ou qui veut annuler (rétention), une opportunité d'upsell, une négociation, ou un lead indécis à convaincre. false si c'est de la logistique routinière — confirmer un rendez-vous, répondre à une question factuelle, donner une disponibilité, un client déjà closé qui pose une question d'horaire, ou des remerciements / fin de conversation.
+
+2. "buyer_profile" (une valeur ou null): le profil d'acheteur DOMINANT du client d'après SES messages:
+- "presse": messages courts, veut que ça règle vite, manque de temps, "je veux juste pu m'en occuper".
+- "prix": demande le prix tôt, compare, mentionne le budget, hésite sur les montants, demande des rabais.
+- "analytique": pose beaucoup de questions de détail (protocole, produits, fréquence, garanties).
+- "indecis": "je vais y penser", "faut que j'en parle à mon conjoint", réponses vagues, repousse la décision.
+- "relationnel": conversationnel, raconte son contexte, cherche la confiance, mentionne des références / bouche-à-oreille.
+Si pas assez d'indices pour trancher, garde le profil actuel (${currentProfile || "aucun"}), ou null s'il n'y en a pas.
+
+Réponds EXACTEMENT dans ce format: {"sales_psychology": true|false, "buyer_profile": "presse"|"prix"|"analytique"|"indecis"|"relationnel"|null}`;
+
+    const resp = await callClaudeWithRetry(
+      {
+        model: "claude-haiku-4-5",
+        max_tokens: 60,
+        thinking: { type: "disabled" },
+        system: sys,
+        messages: [{ role: "user", content: `Conversation:\n${convo}\n\nRéponds en JSON.` }],
+      },
+      2,
+    );
+
+    const text = resp.content[0]?.type === "text" ? resp.content[0].text : "";
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) return { salesPsychology: false, buyerProfile: currentProfile };
+
+    const parsed = JSON.parse(match[0]);
+    const raw = typeof parsed.buyer_profile === "string" ? parsed.buyer_profile.toLowerCase() : null;
+    const buyerProfile = raw && (BUYER_PROFILES as readonly string[]).includes(raw) ? raw : currentProfile;
+
+    return {
+      salesPsychology: parsed.sales_psychology === true,
+      buyerProfile: buyerProfile ?? null,
+    };
+  } catch (e) {
+    console.error("[ai-agent] triage error:", e);
+    // Défaut sûr côté coût: Sonnet (pas de sur-facturation Opus), profil inchangé.
+    return { salesPsychology: false, buyerProfile: currentProfile };
+  }
+}
+
+const PROFILE_LABELS: Record<string, string> = {
+  presse: "PRESSÉ / COMMODITÉ",
+  prix: "SENSIBLE AU PRIX",
+  analytique: "ANALYTIQUE / PERFECTIONNISTE",
+  indecis: "INDÉCIS",
+  relationnel: "RELATIONNEL",
+};
+
 export async function generateAIResponse(contactId: string, inboundMessage: string, imageUrls?: string[], franchiseId?: string): Promise<string | null> {
   try {
     const { data: contact } = await supabaseAdmin
@@ -367,6 +477,21 @@ export async function generateAIResponse(contactId: string, inboundMessage: stri
         content: msg.body,
       }));
 
+    // Triage dynamique: profil d'acheteur + faut-il de la psychologie de vente?
+    const { salesPsychology, buyerProfile } = await triageConversation(
+      conversationHistory,
+      contact?.buyer_profile ?? null,
+    );
+
+    // Persister le profil détecté (continuité aux prochains messages). Scopé à ce contact/franchise.
+    if (buyerProfile && buyerProfile !== (contact?.buyer_profile ?? null) && (BUYER_PROFILES as readonly string[]).includes(buyerProfile)) {
+      await supabaseAdmin.from("contacts").update({ buyer_profile: buyerProfile }).eq("id", contactId);
+    }
+
+    // Routage du modèle: Opus 4.8 pour les moments de vente, Sonnet 5 pour la routine.
+    const model = salesPsychology ? "claude-opus-4-8" : "claude-sonnet-5";
+    console.log(`[ai-agent] triage → model=${model} profile=${buyerProfile ?? "aucun"} sales=${salesPsychology}`);
+
     let clientContext = "\n\nINFOS CONNUES SUR CE CLIENT:\n";
     if (contact) {
       const firstName = contact.first_name;
@@ -386,6 +511,9 @@ export async function generateAIResponse(contactId: string, inboundMessage: stri
       if (contact.season_price) clientContext += `- Prix saison: ${contact.season_price}$\n`;
       if (contact.stage) clientContext += `- Stage: ${contact.stage}\n`;
       if (contact.notes) clientContext += `- Notes: ${contact.notes}\n`;
+      if (buyerProfile && PROFILE_LABELS[buyerProfile]) {
+        clientContext += `- PROFIL D'ACHETEUR DÉTECTÉ: ${PROFILE_LABELS[buyerProfile]} → applique la stratégie de pitch correspondante (voir RÈGLE 21). INTERNE — ne le mentionne JAMAIS au client, n'affecte JAMAIS le prix.\n`;
+      }
       if (contact.portal_temp_password) {
         clientContext += `- Mot de passe portail temporaire: ${contact.portal_temp_password}\n`;
         clientContext += `- Email portail: ${contact.email || "inconnu"}\n`;
@@ -652,8 +780,11 @@ CONTEXTE TEMPOREL:
     }
 
     const response = await callClaudeWithRetry({
-      model: "claude-sonnet-4-6",
+      model,
       max_tokens: 500,
+      // Thinking désactivé: sur Sonnet 5, il serait "adaptive" par défaut et mangerait
+      // le budget de 500 tokens (réponse SMS tronquée). On préserve le comportement actuel.
+      thinking: { type: "disabled" },
       system: (await loadSystemPrompt(franchiseId)) + clientContext + learnings,
       messages: finalMessages,
     });

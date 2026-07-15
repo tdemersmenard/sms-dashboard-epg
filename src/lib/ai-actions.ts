@@ -68,7 +68,37 @@ interface CloseDealAction extends BaseAction {
   amount: number;
 }
 
-type AIAction = GenerateInvoiceAction | GenerateContractAction | BookJobAction | ModifyJobAction | ReminderAction | NotifyThomasAction | UpdateStageAction | UpdateNotesAction | CreatePaymentAction | CloseDealAction;
+interface SetProfileAction extends BaseAction {
+  type: "SET_PROFILE";
+  profile: string;
+}
+
+// Profils d'acheteur valides — détectés par l'IA, adaptent le pitch (jamais le prix)
+export const BUYER_PROFILES = ["presse", "prix", "analytique", "indecis", "relationnel"] as const;
+
+// Planchers de prix (backstop en dur). Le bot peut donner un petit rabais de closing
+// UNIQUEMENT sur l'entretien; aucun montant ne peut jamais descendre sous ces valeurs.
+// Ouverture/fermeture/package/spa = prix fermes (le plancher = le prix de liste).
+export const PRICE_FLOORS: Record<string, number> = {
+  entretien_hebdo: 1399,
+  entretien_2sem: 997,
+  // variantes legacy (hors-terre / creusée)
+  "entretien_hebdo_hors-terre": 1399,
+  "entretien_hebdo_creusée": 1399,
+  "entretien_2sem_hors-terre": 997,
+  "entretien_2sem_creusée": 997,
+  // services fermes — aucun rabais
+  ouverture: 249,
+  "ouverture_hors-terre": 249,
+  ouverture_creusee: 249,
+  fermeture: 199,
+  "fermeture_hors-terre": 199,
+  fermeture_creusee: 199,
+  package_ouv_ferm: 450,
+  spa: 500,
+};
+
+type AIAction = GenerateInvoiceAction | GenerateContractAction | BookJobAction | ModifyJobAction | ReminderAction | NotifyThomasAction | UpdateStageAction | UpdateNotesAction | CreatePaymentAction | CloseDealAction | SetProfileAction;
 
 export function parseActions(aiResponse: string): { cleanMessage: string; actions: AIAction[] } {
   const actions: AIAction[] = [];
@@ -130,6 +160,13 @@ export function parseActions(aiResponse: string): { cleanMessage: string; action
       case "UPDATE_STAGE":
         actions.push({ type: "UPDATE_STAGE", stage: actionParams } as AIAction);
         break;
+      case "SET_PROFILE": {
+        const p = actionParams.trim().toLowerCase();
+        if ((BUYER_PROFILES as readonly string[]).includes(p)) {
+          actions.push({ type: "SET_PROFILE", profile: p } as AIAction);
+        }
+        break;
+      }
       case "REMINDER": {
         const parts = actionParams.split(":");
         if (parts.length >= 3) {
@@ -622,6 +659,15 @@ export async function executeActions(actions: AIAction[], contactId: string) {
           break;
         }
 
+        case "SET_PROFILE": {
+          // Le profil adapte le pitch, JAMAIS le prix. Scopé par la ligne contact (franchise).
+          if ((BUYER_PROFILES as readonly string[]).includes(action.profile)) {
+            await supabaseAdmin.from("contacts").update({ buyer_profile: action.profile }).eq("id", contactId);
+            console.log(`[ai-actions] Buyer profile set to ${action.profile}`);
+          }
+          break;
+        }
+
         case "UPDATE_NOTES": {
           const info = action.info;
           const updates: any = {};
@@ -877,7 +923,35 @@ export async function executeActions(actions: AIAction[], contactId: string) {
         }
 
         case "CLOSE_DEAL": {
-          const { serviceType, amount } = action;
+          const { serviceType } = action;
+          let amount = action.amount;
+
+          // Backstop plancher: jamais closer sous le minimum. Si le bot tente un montant
+          // trop bas (rabais hors politique), on remonte au plancher et on prévient Thomas.
+          const floor = PRICE_FLOORS[serviceType];
+          if (floor !== undefined && amount < floor) {
+            console.warn(`[ai-actions] CLOSE_DEAL: montant ${amount}$ sous le plancher ${floor}$ pour ${serviceType} — remonté au plancher`);
+            const belowFloor = amount;
+            amount = floor;
+            try {
+              const { data: fc } = await supabaseAdmin
+                .from("contacts").select("first_name, last_name").eq("id", contactId).single();
+              const cn = fc ? [fc.first_name, fc.last_name].filter(Boolean).join(" ") : "Client";
+              const oi = await getOwnerForContact(contactId);
+              if (oi) {
+                await fetch(`${baseUrl}/api/sms/send`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    contactId: oi.ownerId,
+                    body: `CHLORE ⚠️: le bot a tenté de closer ${cn} à ${belowFloor}$ (sous le plancher ${floor}$ pour ${serviceType}). J'ai remonté au plancher ${floor}$. Vérifie la conversation SMS au cas où il aurait quoté ${belowFloor}$ au client.`,
+                  }),
+                }).catch(() => {});
+              }
+            } catch (e) {
+              console.error("[ai-actions] CLOSE_DEAL floor notify error:", e);
+            }
+          }
 
           // Mapping des types vers leurs propriétés
           const serviceMap: Record<string, { service: string; isEntretien: boolean; poolType: string | null; biweekly: boolean }> = {
