@@ -6,8 +6,11 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY!,
 });
 
+type DispoWindow = { start: string; end: string } | null;
+type DisposMap = Record<number, DispoWindow>;
+
 // Dispos pendant le cégep (jusqu'au 13 mai 2026)
-const DISPOS_CEGEP: Record<number, { start: string; end: string } | null> = {
+const DISPOS_CEGEP: DisposMap = {
   0: { start: "08:00", end: "17:00" }, // Dimanche
   1: null,                              // Lundi — fermé
   2: { start: "08:00", end: "12:00" }, // Mardi
@@ -18,7 +21,7 @@ const DISPOS_CEGEP: Record<number, { start: string; end: string } | null> = {
 };
 
 // Dispos après le cégep (à partir du 14 mai 2026)
-const DISPOS_NORMAL: Record<number, { start: string; end: string } | null> = {
+const DISPOS_NORMAL: DisposMap = {
   0: null,                              // Dimanche — fermé
   1: { start: "08:00", end: "17:00" }, // Lundi
   2: { start: "08:00", end: "17:00" }, // Mardi
@@ -30,22 +33,96 @@ const DISPOS_NORMAL: Record<number, { start: string; end: string } | null> = {
 
 const CEGEP_END_DATE = "2026-05-13";
 
-function getDispos(dateStr: string): Record<number, { start: string; end: string } | null> {
+// ─── SAISON DES FERMETURES (automne) ─────────────────────────────────────────
+// Septembre: fins de semaine seulement. Octobre (jusqu'au jour FERMETURES_FIN_OCTOBRE): tous les jours.
+const DISPOS_FERMETURES_SEPT: DisposMap = {
+  0: { start: "08:00", end: "17:00" }, // Dimanche
+  1: null, 2: null, 3: null, 4: null, 5: null, // Semaine — fermé
+  6: { start: "08:00", end: "17:00" }, // Samedi
+};
+
+const DISPOS_FERMETURES_OCT: DisposMap = {
+  0: { start: "08:00", end: "17:00" },
+  1: { start: "08:00", end: "17:00" },
+  2: { start: "08:00", end: "17:00" },
+  3: { start: "08:00", end: "17:00" },
+  4: { start: "08:00", end: "17:00" },
+  5: { start: "08:00", end: "17:00" },
+  6: { start: "08:00", end: "17:00" },
+};
+
+const FERMETURES_FIN_OCTOBRE = 18; // dernier jour d'octobre où on planifie des fermetures
+
+// Hors saison (fin octobre → février): aucun créneau
+const DISPOS_FERME: DisposMap = { 0: null, 1: null, 2: null, 3: null, 4: null, 5: null, 6: null };
+
+// Override configurable par franchise dans settings.key='dispos_fermetures' (JSON):
+// { "sept": {"jours":[0,6],"start":"08:00","end":"17:00"},
+//   "oct":  {"jours":[0,1,2,3,4,5,6],"start":"08:00","end":"17:00"},
+//   "fin_octobre": 18 }
+interface DispoDayConfig { jours: number[]; start: string; end: string }
+export interface DisposFermeturesOverride {
+  sept?: DispoDayConfig;
+  oct?: DispoDayConfig;
+  fin_octobre?: number;
+}
+
+function buildDisposMap(cfg?: DispoDayConfig): DisposMap | null {
+  if (!cfg || !Array.isArray(cfg.jours) || !cfg.start || !cfg.end) return null;
+  const map: DisposMap = { 0: null, 1: null, 2: null, 3: null, 4: null, 5: null, 6: null };
+  for (const j of cfg.jours) {
+    if (j >= 0 && j <= 6) map[j] = { start: cfg.start, end: cfg.end };
+  }
+  return map;
+}
+
+async function loadDisposFermetures(franchiseId: string): Promise<DisposFermeturesOverride | null> {
+  try {
+    const { data } = await supabaseAdmin
+      .from("settings")
+      .select("value")
+      .eq("key", "dispos_fermetures")
+      .eq("franchise_id", franchiseId)
+      .maybeSingle();
+    if (!data?.value) return null;
+    return JSON.parse(data.value) as DisposFermeturesOverride;
+  } catch {
+    return null; // config invalide/absente → fallback hardcodé
+  }
+}
+
+// Bascule automatique par date (le mois détermine la saison, peu importe l'année)
+function getDispos(dateStr: string, override?: DisposFermeturesOverride | null): DisposMap {
+  const month = parseInt(dateStr.slice(5, 7));
+  const day = parseInt(dateStr.slice(8, 10));
+
+  if (month === 9) return buildDisposMap(override?.sept) ?? DISPOS_FERMETURES_SEPT;
+  if (month === 10) {
+    const fin = override?.fin_octobre ?? FERMETURES_FIN_OCTOBRE;
+    return day <= fin ? (buildDisposMap(override?.oct) ?? DISPOS_FERMETURES_OCT) : DISPOS_FERME;
+  }
+  if (month >= 11 || month <= 2) return DISPOS_FERME;
   return dateStr > CEGEP_END_DATE ? DISPOS_NORMAL : DISPOS_CEGEP;
+}
+
+/** True si la date tombe dans la saison des fermetures (les routes d'entretien sont terminées) */
+function isFermeturesSeason(dateStr: string): boolean {
+  const month = parseInt(dateStr.slice(5, 7));
+  return month >= 9;
 }
 
 const JOB_DURATION_MIN = 60;  // 1 heure par ouverture/fermeture
 const BUFFER_MIN = 45;        // 45 min buffer pour déplacement entre chaque RDV
+const DISPO_WINDOW_DAYS = 21; // fenêtre de créneaux proposés (élargie pour couvrir sept-oct)
 
-const _todayStr = new Date().toISOString().split("T")[0];
-const _currentDispos = getDispos(_todayStr);
-const dispoDesc = Object.entries(_currentDispos)
-  .filter(([, v]) => v !== null)
-  .map(([day, v]) => {
-    const dayNames = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
-    return `${dayNames[parseInt(day)]} ${v!.start.replace(":00", "h")}-${v!.end.replace(":00", "h")}`;
-  })
-  .join(", ");
+function describeDispos(map: DisposMap): string {
+  const dayNames = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
+  const open = Object.entries(map).filter(([, v]) => v !== null);
+  if (open.length === 0) return "aucune disponibilité";
+  return open
+    .map(([d, v]) => `${dayNames[parseInt(d)]} ${v!.start.replace(":00", "h")}-${v!.end.replace(":00", "h")}`)
+    .join(", ");
+}
 
 const SYSTEM_PROMPT = `Tu es CHLORE, l'assistant virtuel d'Entretien Piscine Granby. Tu gères les demandes clients par SMS de façon autonome et professionnelle.
 
@@ -74,7 +151,7 @@ STRATÉGIE DE VENTE:
 
 PAIEMENT: Interac à service@entretienpiscinegranby.com, carte de crédit via le portail client, ou cash.
 
-DISPONIBILITÉS: ${dispoDesc}.
+DISPONIBILITÉS: L'horaire de la saison courante est fourni dans le contexte client (HORAIRE DE LA SAISON), et les créneaux exacts dans PROCHAINES DISPONIBILITÉS.
 DURÉE: Une ouverture/fermeture = ${JOB_DURATION_MIN} minutes. Buffer de ${BUFFER_MIN} minutes entre chaque RDV.
 IMPORTANT: Utilise UNIQUEMENT les créneaux listés dans PROCHAINES DISPONIBILITÉS ci-dessous. NE PROPOSE JAMAIS un créneau non listé.
 
@@ -216,7 +293,7 @@ RÈGLES IMPORTANTES:
    - Si le job est DEMAIN → dis "votre rendez-vous est prévu pour demain [jour] à [heure]"
    - Si le job est dans 2+ jours → dis "votre rendez-vous est prévu pour le [jour date] à [heure]"
    - NE DIS JAMAIS "on est en route" ou "il arrive" si le job n'est PAS aujourd'hui
-11. SAISONNALITÉ: Les ouvertures se font au printemps (avril-mai-juin). Les fermetures se font en automne (septembre-octobre). Si un client demande une fermeture au printemps, confirme le prix mais NE PROPOSE PAS de dates maintenant. Dis: "Pour la fermeture, c'est [prix]. On vous recontactera en septembre pour planifier la date exacte. Je le note dans votre dossier!"
+11. SAISONNALITÉ: Les ouvertures se font au printemps (avril-mai-juin). Les fermetures se font de septembre à mi-octobre. Nous sommes en saison de fermetures: propose les dates normalement.
     Fais __ACTION:UPDATE_NOTES:Client veut aussi la fermeture pour automne [année]. Prix: [montant]$__
 12. ZONE DE SERVICE: Notre zone couvre Granby et 45 minutes de route autour. Les villes DANS la zone incluent: Granby, Bromont, Cowansville, Roxton Pond, Waterloo, Shefford, St-Cécile-de-Milton, Sherbrooke, Magog, Eastman. Les villes HORS zone ou limites: Saint-Hyacinthe, Drummondville, Trois-Rivières. Pour les clients hors zone, informe-les qu'un supplément de déplacement s'applique et notifie Thomas pour évaluer.
 13. DATES — RÈGLES ABSOLUES:
@@ -323,6 +400,28 @@ UPSELL CIBLÉ PAR SIGNAUX (MAX 1 upsell par conversation, jamais insistant; si l
 - Signal "vacances"/"chalet"/"jamais chez nous" → hebdo + argument tranquillité à distance.
 - Client veut juste une ouverture + montre des signaux de commodité → mentionne UNE fois l'entretien saisonnier (ou la commodité du package ouverture+fermeture 450$). Ne force pas.
 - Eau verte / problèmes récurrents → présente l'entretien régulier comme solution permanente au lieu de nettoyages ponctuels répétés.
+
+22. FERMETURE — DEUX FLOWS DISTINCTS (choisis AUTOMATIQUEMENT selon les services du contexte client):
+
+FLOW A — CLIENT EXISTANT, fermeture DÉJÀ INCLUSE:
+Si le client a un forfait entretien (hebdo ou 2 semaines) OU un package ouverture+fermeture — vérifie ses services dans le contexte client — sa fermeture est DÉJÀ PAYÉE et INCLUSE.
+- NE JAMAIS mentionner un prix pour sa fermeture. NE JAMAIS faire de CLOSE_DEAL. Ne crée aucun paiement.
+- Si le client veut planifier sa fermeture: propose UNIQUEMENT les créneaux de PROCHAINES DISPONIBILITÉS (période fermetures: maintenant jusqu'à mi-octobre). Va DIRECT au choix de créneau.
+- Une fois la date choisie: __ACTION:BOOK_JOB:fermeture:{date}:{heure_debut}:{heure_fin}__ puis confirme chaleureusement: "Parfait! Votre fermeture est planifiée le [jour date] à [heure]. Assurez-vous que l'accès à la piscine est dégagé. Merci d'avoir été avec nous cette saison! À bientôt!"
+- Si le client demande ce qui est inclus dans la fermeture: vidange partielle sous les skimmers, soufflage/vidange des tuyaux, ajout des produits d'hivernage, installation de la toile si le client l'a.
+
+FLOW B — NOUVEAU CLIENT ou client OUVERTURE SEULE (fermeture à VENDRE):
+Si le client n'a NI forfait entretien NI package ouverture+fermeture: la fermeture est 199$ — prix FERME, aucun rabais.
+- Explique ce qui est inclus (voir liste ci-dessus) AVANT ou AVEC le prix.
+- Choix de créneau (PROCHAINES DISPONIBILITÉS) → confirmation du client → __ACTION:BOOK_JOB:fermeture:{date}:{heure_debut}:{heure_fin}__
+- Puis quand tu as adresse + email: __ACTION:CLOSE_DEAL:fermeture:199__ (crée le paiement).
+- NE JAMAIS charger 199$ à quelqu'un dont la fermeture est incluse (Flow A). En cas de doute sur ses services, choisis le Flow A et notifie: __ACTION:NOTIFY_THOMAS:Doute sur les services de {nom} — fermeture incluse ou à facturer?__
+
+23. BOOKING OBLIGATOIRE — RÈGLE CRITIQUE:
+Dès qu'un client confirme un créneau (ex: "samedi 13 septembre 10h ça marche", "ok pour le 20", "le premier créneau est parfait"), tu DOIS inclure dans TA RÉPONSE l'action __ACTION:BOOK_JOB:fermeture:YYYY-MM-DD:HH:MM:HH:MM__ (ou le type de job concerné: ouverture, fermeture, visite) avec la date et l'heure EXACTES du créneau choisi (parmi PROCHAINES DISPONIBILITÉS). Sans cette action, le rendez-vous N'EXISTE PAS dans notre calendrier. Ne dis JAMAIS "c'est confirmé", "c'est réservé" ou "c'est planifié" sans avoir émis l'action dans la MÊME réponse.
+Exemple: le client choisit "samedi 12 septembre 10h-11h" → ta réponse contient __ACTION:BOOK_JOB:fermeture:2026-09-12:10:00:11:00__ ET le texte de confirmation.
+Si le client donne une date vague ("la semaine prochaine", "un samedi"), propose 2-3 créneaux précis et attends qu'il en choisisse un AVANT de booker.
+Si le client propose une date/heure qui n'est PAS dans PROCHAINES DISPONIBILITÉS, dis que ce créneau n'est pas disponible et propose les plus proches. Ne booke JAMAIS hors des dispos.
 `;
 
 // Exporter le prompt par défaut pour la page de réglages (reset)
@@ -431,6 +530,49 @@ Réponds EXACTEMENT dans ce format: {"sales_psychology": true|false, "buyer_prof
     console.error("[ai-agent] triage error:", e);
     // Défaut sûr côté coût: Sonnet (pas de sur-facturation Opus), profil inchangé.
     return { salesPsychology: false, buyerProfile: currentProfile };
+  }
+}
+
+// ─── FILET DE SÉCURITÉ BOOKING ────────────────────────────────────────────────
+// Si la réponse du bot affirme qu'un RDV est confirmé/réservé mais qu'aucune action
+// BOOK_JOB n'a été émise, on vérifie avec Haiku et on tente de recréer le booking.
+// Le client ne doit JAMAIS croire qu'il a un rendez-vous alors que rien n'existe.
+const BOOKING_CLAIM_REGEX = /(est\s+(réserv|confirm|planifi|not)é|c'est\s+(réserv|confirm|not)é|votre\s+(fermeture|ouverture|rendez-vous|rdv)\s+est|je\s+vous\s+confirme\s+(votre|le\s+rendez))/i;
+
+async function detectMissedBooking(
+  recentMessages: { role: "user" | "assistant"; content: string }[],
+  botReply: string,
+): Promise<{ bookedClaimed: boolean; jobType?: string; date?: string; start?: string; end?: string }> {
+  try {
+    const convo = recentMessages
+      .slice(-8)
+      .map(m => `${m.role === "user" ? "CLIENT" : "BOT"}: ${typeof m.content === "string" ? m.content : "[photo]"}`)
+      .join("\n");
+
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Montreal" });
+    const response = await callClaudeWithRetry({
+      model: "claude-haiku-4-5",
+      max_tokens: 150,
+      thinking: { type: "disabled" },
+      system: `Tu analyses une conversation SMS d'un service de piscines. Date du jour: ${today}. Réponds UNIQUEMENT avec un JSON: {"booked_claimed": bool, "job_type": "fermeture"|"ouverture"|"visite"|null, "date": "YYYY-MM-DD"|null, "start": "HH:MM"|null, "end": "HH:MM"|null}.
+"booked_claimed" = true SEULEMENT si la DERNIÈRE réponse du bot affirme que le rendez-vous EST réservé/confirmé/planifié (pas s'il demande encore une confirmation du genre "c'est bien ça?"). Si true, extrais la date et l'heure exactes du créneau convenu dans la conversation (date future la plus plausible). Si l'heure de fin est absente, mets start + 1h.`,
+      messages: [{ role: "user", content: `${convo}\nBOT: ${botReply}` }],
+    });
+
+    const text = response.content[0]?.type === "text" ? response.content[0].text : "";
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return { bookedClaimed: false };
+    const parsed = JSON.parse(jsonMatch[0]);
+    return {
+      bookedClaimed: !!parsed.booked_claimed,
+      jobType: parsed.job_type || undefined,
+      date: parsed.date || undefined,
+      start: parsed.start || undefined,
+      end: parsed.end || undefined,
+    };
+  } catch (e) {
+    console.error("[ai-agent] detectMissedBooking error:", e);
+    return { bookedClaimed: false };
   }
 }
 
@@ -620,12 +762,18 @@ CONTEXTE TEMPOREL:
 \n`;
 
     // Calculer les prochaines dates de dispo en vérifiant le calendrier
+    // Tout est scopé par franchise: chaque franchise a ses propres dispos et son propre calendrier.
+    const effectiveFranchiseId = franchiseId || contact?.franchise_id || "00000000-0000-0000-0000-000000000001";
+    const disposOverride = await loadDisposFermetures(effectiveFranchiseId);
+
     const upcoming: string[] = [];
     const { data: existingJobs } = await supabaseAdmin
       .from("jobs")
       .select("scheduled_date, scheduled_time_start, scheduled_time_end")
-      .gte("scheduled_date", now.toISOString().split("T")[0])
-      .lte("scheduled_date", new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString().split("T")[0])
+      .eq("franchise_id", effectiveFranchiseId)
+      .neq("status", "annulé")
+      .gte("scheduled_date", todayForJobs)
+      .lte("scheduled_date", new Date(now.getTime() + DISPO_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString().split("T")[0])
       .order("scheduled_date")
       .order("scheduled_time_start");
 
@@ -639,14 +787,21 @@ CONTEXTE TEMPOREL:
       });
     }
 
-    // Aussi charger les stops d'entretien depuis le route_state
-    const { data: routeState } = await supabaseAdmin.from("route_state").select("data").eq("id", 1).single();
+    // Aussi charger les stops d'entretien depuis le route_state (scopé franchise).
+    // En saison de fermetures (sept+), les routes d'entretien sont terminées — on ne bloque plus ces plages.
+    const { data: routeStateRows } = await supabaseAdmin
+      .from("route_state")
+      .select("data")
+      .eq("franchise_id", effectiveFranchiseId)
+      .limit(1);
+    const routeState = routeStateRows?.[0];
     if (routeState?.data?.routes) {
       const dayToWeekday: Record<string, number> = { "Lundi": 1, "Mardi": 2, "Mercredi": 3, "Jeudi": 4, "Vendredi": 5 };
 
-      for (let i = 1; i <= 14; i++) {
+      for (let i = 1; i <= DISPO_WINDOW_DAYS; i++) {
         const d = new Date(now.getTime() + i * 24 * 60 * 60 * 1000);
         const dateStr = d.toLocaleDateString("en-CA", { timeZone: "America/Montreal" });
+        if (isFermeturesSeason(dateStr)) continue; // routes d'entretien finies à l'automne
         const jsDay = new Date(d.toLocaleString("en-US", { timeZone: "America/Montreal" })).getDay();
 
         // Trouver le jour de route correspondant
@@ -677,7 +832,7 @@ CONTEXTE TEMPOREL:
       }
     }
 
-    for (let i = 1; i <= 14; i++) {
+    for (let i = 1; i <= DISPO_WINDOW_DAYS; i++) {
       const d = new Date(now.getTime() + i * 24 * 60 * 60 * 1000);
       const dayName = d.toLocaleDateString("fr-CA", { timeZone: "America/Montreal", weekday: "long" });
       const dayNum = d.toLocaleDateString("fr-CA", { timeZone: "America/Montreal", day: "numeric" });
@@ -685,7 +840,7 @@ CONTEXTE TEMPOREL:
       const dateStr = d.toLocaleDateString("en-CA", { timeZone: "America/Montreal" }); // YYYY-MM-DD
       const dayOfWeek = new Date(d.toLocaleString("en-US", { timeZone: "America/Montreal" })).getDay();
 
-      const dispoConfig = getDispos(dateStr)[dayOfWeek];
+      const dispoConfig = getDispos(dateStr, disposOverride)[dayOfWeek];
       if (!dispoConfig) continue; // jour fermé
 
       const dispoStart = dispoConfig.start;
@@ -723,10 +878,21 @@ CONTEXTE TEMPOREL:
       }
     }
 
+    // Décrire l'horaire de la saison courante (dynamique selon la date + config franchise)
+    const todayDispos = getDispos(todayForJobs, disposOverride);
+    const currentMonth = parseInt(todayForJobs.slice(5, 7));
+    let horaireSaison = `HORAIRE DE LA SAISON: ${describeDispos(todayDispos)}.`;
+    if (currentMonth === 9) {
+      const octDispos = buildDisposMap(disposOverride?.oct) ?? DISPOS_FERMETURES_OCT;
+      const finOct = disposOverride?.fin_octobre ?? FERMETURES_FIN_OCTOBRE;
+      horaireSaison = `HORAIRE DE LA SAISON (fermetures): en septembre, fermetures les FINS DE SEMAINE seulement (${describeDispos(todayDispos)}). Du 1er au ${finOct} octobre: ${describeDispos(octDispos)}.`;
+    }
+    clientContext += `\n${horaireSaison}\n`;
+
     if (upcoming.length > 0) {
       clientContext += `\nPROCHAINES DISPONIBILITÉS (utilise ces créneaux EXACTES, NE PROPOSE PAS de créneau non listé):\n${upcoming.join("\n")}\n`;
     } else {
-      clientContext += `\nPROCHAINES DISPONIBILITÉS: Aucun créneau libre dans les 14 prochains jours. Dis au client de te rappeler la semaine prochaine ou notifie Thomas.\n`;
+      clientContext += `\nPROCHAINES DISPONIBILITÉS: Aucun créneau libre dans les ${DISPO_WINDOW_DAYS} prochains jours. Dis au client de te rappeler la semaine prochaine ou notifie Thomas.\n`;
     }
 
     // Charger les leçons apprises
@@ -799,10 +965,51 @@ CONTEXTE TEMPOREL:
     // Parse actions from response
     const { cleanMessage, actions } = parseActions(aiText);
 
+    // FILET DE SÉCURITÉ: le bot affirme qu'un RDV est booké mais n'a émis aucun BOOK_JOB?
+    // → on tente de reconstruire le booking depuis la conversation, sinon on alerte le proprio.
+    const hasBookJob = actions.some(a => a.type === "BOOK_JOB");
+    if (!hasBookJob && cleanMessage && BOOKING_CLAIM_REGEX.test(cleanMessage)) {
+      const textHistory = conversationHistory.filter(m => typeof m.content === "string") as { role: "user" | "assistant"; content: string }[];
+      const missed = await detectMissedBooking(textHistory, cleanMessage);
+      if (missed.bookedClaimed) {
+        if (missed.date && /^\d{4}-\d{2}-\d{2}$/.test(missed.date) && missed.start) {
+          console.warn(`[ai-agent] SAFETY NET: booking affirmé sans BOOK_JOB — reconstruction ${missed.jobType} ${missed.date} ${missed.start}`);
+          actions.push({
+            type: "BOOK_JOB",
+            jobType: missed.jobType || "fermeture",
+            date: missed.date,
+            startTime: missed.start,
+            endTime: missed.end || `${String((parseInt(missed.start.slice(0, 2)) + 1) % 24).padStart(2, "0")}${missed.start.slice(2)}`,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          } as any);
+          await supabaseAdmin.from("automation_logs").insert({
+            action: "book_job_safety_net",
+            contact_id: contactId,
+            status: "success",
+            details: { reason: "booking affirmé sans action BOOK_JOB", ...missed },
+            franchise_id: effectiveFranchiseId,
+          });
+        } else {
+          const { data: c } = await supabaseAdmin.from("contacts").select("first_name, last_name").eq("id", contactId).single();
+          const nom = c ? [c.first_name, c.last_name].filter(Boolean).join(" ") : "client inconnu";
+          actions.push({
+            type: "NOTIFY_THOMAS",
+            message: `⚠️ Booking non créé pour ${nom} — date mentionnée mais action manquante. Vérifier.`,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          } as any);
+        }
+      }
+    }
+
+    // IMPORTANT: on ATTEND l'exécution des actions. En fire-and-forget, Vercel gèle la
+    // fonction dès que le webhook répond et l'insert du job pouvait être tué en plein vol
+    // (cause principale des bookings "confirmés" au client mais absents du calendrier).
     if (actions.length > 0) {
-      executeActions(actions, contactId).catch(err =>
-        console.error("[ai-agent] Action error:", err)
-      );
+      try {
+        await executeActions(actions, contactId);
+      } catch (err) {
+        console.error("[ai-agent] Action error:", err);
+      }
     }
 
     // Extraire et sauvegarder les infos du client en background

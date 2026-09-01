@@ -122,12 +122,41 @@ export function parseActions(aiResponse: string): { cleanMessage: string; action
         actions.push({ type: "NOTIFY_THOMAS", message: actionParams } as AIAction);
         break;
       case "BOOK_JOB": {
-        const parts = actionParams.split(":");
-        if (parts.length >= 4) {
-          const jobType = parts[0];
+        // Format attendu: {type}:{YYYY-MM-DD}:{HH:MM}:{HH:MM}
+        // Parsing tolérant: espaces, "10h"/"10h30", heure de fin manquante (→ début + 60 min).
+        const parts = actionParams.split(":").map(p => p.trim());
+        if (parts.length >= 2) {
+          const jobType = parts[0].toLowerCase();
           const date = parts[1];
-          const startTime = `${parts[2]}:${parts[3]}`;
-          const endTime = `${parts[4]}:${parts[5]}`;
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+            console.error(`[parseActions] BOOK_JOB: date invalide "${date}" — action ignorée`);
+            break;
+          }
+          // Extraire toutes les heures du reste des params ("10:00:11:00", "10h30", "10h à 11h"...)
+          const rest = parts.slice(2).join(":");
+          const timeTokens: { h: number; m: number }[] = [];
+          const timeRegex = /(\d{1,2})\s*[h:]\s*(\d{2})?/g;
+          let tm;
+          while ((tm = timeRegex.exec(rest)) !== null) {
+            const h = parseInt(tm[1]);
+            const m = tm[2] !== undefined ? parseInt(tm[2]) : 0;
+            if (h >= 0 && h <= 23 && m >= 0 && m <= 59) timeTokens.push({ h, m });
+          }
+          if (timeTokens.length === 0) {
+            console.error(`[parseActions] BOOK_JOB: aucune heure valide dans "${rest}" — action ignorée`);
+            break;
+          }
+          const fmt = (t: { h: number; m: number }) => `${String(t.h).padStart(2, "0")}:${String(t.m).padStart(2, "0")}`;
+          const startTime = fmt(timeTokens[0]);
+          // Heure de fin: 2e token si présent et après le début, sinon début + 60 min
+          let endTime: string;
+          const startMin = timeTokens[0].h * 60 + timeTokens[0].m;
+          if (timeTokens.length >= 2 && timeTokens[1].h * 60 + timeTokens[1].m > startMin) {
+            endTime = fmt(timeTokens[1]);
+          } else {
+            const endMin = startMin + 60;
+            endTime = `${String(Math.floor(endMin / 60) % 24).padStart(2, "0")}:${String(endMin % 60).padStart(2, "0")}`;
+          }
           actions.push({ type: "BOOK_JOB", jobType, date, startTime, endTime } as AIAction);
         }
         break;
@@ -319,39 +348,113 @@ export async function executeActions(actions: AIAction[], contactId: string) {
         }
 
         case "BOOK_JOB": {
-          // Anti-doublon: skip si un job du même type à la même date existe déjà
+          // Chaque tentative est loggée dans automation_logs (succès/échec + raison) pour debug.
+          const { data: contactForJob } = await supabaseAdmin
+            .from("contacts")
+            .select("franchise_id, assigned_employee_id, first_name, last_name")
+            .eq("id", contactId)
+            .single();
+          const jobFranchiseId = contactForJob?.franchise_id ?? null;
+
+          const logBook = async (status: string, reason: string, extra: Record<string, unknown> = {}) => {
+            await supabaseAdmin.from("automation_logs").insert({
+              action: "book_job",
+              contact_id: contactId,
+              status,
+              details: { jobType: action.jobType, date: action.date, start: action.startTime, end: action.endTime, reason, ...extra },
+              ...(jobFranchiseId ? { franchise_id: jobFranchiseId } : {}),
+            }).then(({ error }) => { if (error) console.error("[ai-actions] BOOK_JOB log error:", error.message); });
+          };
+
+          // Validation: pas de booking dans le passé
+          const todayMtl = new Date().toLocaleDateString("en-CA", { timeZone: "America/Montreal" });
+          if (action.date < todayMtl) {
+            console.error(`[ai-actions] BOOK_JOB: date passée ${action.date}, refusé`);
+            await logBook("failed", "date_passee");
+            break;
+          }
+
+          // Anti-doublon: skip si un job actif du même type à la même date existe déjà
           const { data: existingBook } = await supabaseAdmin
             .from("jobs")
             .select("id")
             .eq("contact_id", contactId)
             .eq("job_type", action.jobType)
             .eq("scheduled_date", action.date)
+            .neq("status", "annulé")
             .limit(1);
 
           if (existingBook && existingBook.length > 0) {
             console.log(`[ai-actions] BOOK_JOB: job ${action.jobType} on ${action.date} already exists, skipping`);
+            await logBook("skipped", "doublon_meme_type_meme_date", { existingJobId: existingBook[0].id });
             break;
           }
 
-          const { data: contactForJob } = await supabaseAdmin
-            .from("contacts").select("assigned_employee_id").eq("id", contactId).single();
+          // Anti-conflit: le créneau doit être libre dans la franchise (chevauchement horaire)
+          const overlapQuery = () => supabaseAdmin
+            .from("jobs")
+            .select("id, contact_id, created_at")
+            .eq("scheduled_date", action.date)
+            .neq("status", "annulé")
+            .lt("scheduled_time_start", action.endTime)
+            .gt("scheduled_time_end", action.startTime)
+            .eq("franchise_id", jobFranchiseId ?? "00000000-0000-0000-0000-000000000001");
 
-          await supabaseAdmin.from("jobs").insert({
+          const notifySlotTaken = async () => {
+            await fetch(`${baseUrl}/api/sms/send`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                contactId,
+                body: `Oh! Ce créneau vient tout juste d'être réservé par un autre client. Dites-moi quelles autres disponibilités vous conviendraient et je vous propose de nouveaux créneaux!`,
+              }),
+            }).catch(e => console.error("[ai-actions] BOOK_JOB conflict SMS error:", e));
+          };
+
+          const { data: conflicts } = await overlapQuery();
+          if (conflicts && conflicts.length > 0) {
+            console.warn(`[ai-actions] BOOK_JOB: créneau ${action.date} ${action.startTime} déjà pris (${conflicts.length} conflit(s))`);
+            await logBook("failed", "creneau_deja_pris", { conflictJobIds: conflicts.map(c => c.id) });
+            await notifySlotTaken();
+            break;
+          }
+
+          const { data: insertedJob, error: insertErr } = await supabaseAdmin.from("jobs").insert({
             contact_id: contactId,
             job_type: action.jobType,
             scheduled_date: action.date,
             scheduled_time_start: action.startTime,
             scheduled_time_end: action.endTime,
             status: "confirmé",
+            ...(jobFranchiseId ? { franchise_id: jobFranchiseId } : {}),
             ...(contactForJob?.assigned_employee_id ? { assigned_employee_id: contactForJob.assigned_employee_id } : {}),
-          });
+          }).select("id, created_at").single();
+
+          if (insertErr || !insertedJob) {
+            console.error("[ai-actions] BOOK_JOB: insert failed:", insertErr?.message);
+            await logBook("failed", "insert_error", { error: insertErr?.message });
+            break;
+          }
+
+          // Vérification post-insert (course entre 2 clients qui répondent en même temps):
+          // si un autre job chevauchant a été créé AVANT le nôtre, on cède le créneau.
+          const { data: postConflicts } = await overlapQuery().neq("id", insertedJob.id);
+          const lostRace = (postConflicts || []).some(c => c.created_at <= insertedJob.created_at);
+          if (lostRace) {
+            await supabaseAdmin.from("jobs").delete().eq("id", insertedJob.id);
+            console.warn(`[ai-actions] BOOK_JOB: course perdue sur ${action.date} ${action.startTime}, job retiré`);
+            await logBook("failed", "course_perdue_creneau", { conflictJobIds: (postConflicts || []).map(c => c.id) });
+            await notifySlotTaken();
+            break;
+          }
 
           // Mettre à jour ouverture_date si c'est une ouverture
           if (action.jobType === "ouverture" || action.jobType.includes("ouverture")) {
             await supabaseAdmin.from("contacts").update({ ouverture_date: action.date }).eq("id", contactId);
           }
 
-          console.log(`[ai-actions] BOOK_JOB: ${action.jobType} on ${action.date} ${action.startTime}-${action.endTime}`);
+          await logBook("success", "job_cree", { jobId: insertedJob.id });
+          console.log(`[ai-actions] BOOK_JOB: ${action.jobType} on ${action.date} ${action.startTime}-${action.endTime} (job ${insertedJob.id})`);
           break;
         }
 
@@ -981,17 +1084,26 @@ export async function executeActions(actions: AIAction[], contactId: string) {
           // 1. Récupérer le contact
           const { data: contact } = await supabaseAdmin
             .from("contacts")
-            .select("first_name, last_name, email, phone, services, address, portal_password, assigned_employee_id")
+            .select("first_name, last_name, email, phone, services, address, portal_password, assigned_employee_id, franchise_id")
             .eq("id", contactId)
             .single();
 
           if (!contact) break;
 
           // 2. Update les services + season_price + stage + pool_type
+          const alreadyHasService = (contact.services || []).includes(config.service);
           const newServices = Array.from(new Set([...(contact.services || []), config.service]));
+          // Client existant qui AJOUTE un service (ex: fermeture 199$ après une ouverture):
+          // on additionne au prix de saison au lieu d'écraser.
+          const hadServices = (contact.services || []).length > 0;
+          const { data: priceRow } = await supabaseAdmin
+            .from("contacts").select("season_price").eq("id", contactId).single();
+          const newSeasonPrice = hadServices && !alreadyHasService && priceRow?.season_price
+            ? Number(priceRow.season_price) + amount
+            : amount;
           const updates: any = {
             services: newServices,
-            season_price: amount,
+            season_price: newSeasonPrice,
             stage: "closé",
           };
           if (config.poolType) updates.pool_type = config.poolType;
@@ -1051,6 +1163,7 @@ export async function executeActions(actions: AIAction[], contactId: string) {
                   status: "en_attente",
                   due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
                   notes: `Versement 1/2 — ${config.service}`,
+                  ...(contact.franchise_id ? { franchise_id: contact.franchise_id } : {}),
                 },
                 {
                   contact_id: contactId,
@@ -1059,6 +1172,7 @@ export async function executeActions(actions: AIAction[], contactId: string) {
                   status: "en_attente",
                   due_date: "2026-07-15",
                   notes: `Versement 2/2 — ${config.service} (mi-juillet)`,
+                  ...(contact.franchise_id ? { franchise_id: contact.franchise_id } : {}),
                 },
               ]);
               console.log("[ai-actions] CLOSE_DEAL: 2 payments created for entretien");
@@ -1068,10 +1182,14 @@ export async function executeActions(actions: AIAction[], contactId: string) {
           }
 
           if (!config.isEntretien) {
+            // Anti-doublon PAR SERVICE (pas "n'importe quel paiement"): un client ouverture-seule
+            // qui achète sa fermeture a déjà un paiement d'ouverture — il faut quand même créer
+            // celui de la fermeture, mais jamais deux fois le même service.
             const { data: existingPayments } = await supabaseAdmin
               .from("payments")
               .select("id")
               .eq("contact_id", contactId)
+              .ilike("notes", `%${config.service}%`)
               .limit(1);
 
             if (!existingPayments || existingPayments.length === 0) {
@@ -1082,10 +1200,11 @@ export async function executeActions(actions: AIAction[], contactId: string) {
                 status: "en_attente",
                 due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
                 notes: config.service,
+                ...(contact.franchise_id ? { franchise_id: contact.franchise_id } : {}),
               });
               console.log("[ai-actions] CLOSE_DEAL: payment created for", config.service);
             } else {
-              console.log("[ai-actions] CLOSE_DEAL: payment already exists, skipping");
+              console.log("[ai-actions] CLOSE_DEAL: payment already exists for this service, skipping");
             }
           }
 
@@ -1149,10 +1268,13 @@ export async function executeActions(actions: AIAction[], contactId: string) {
                     scheduled_time_start: jobTimeStart,
                     scheduled_time_end: jobTimeEnd,
                     status: "planifié",
+                    ...(contact.franchise_id ? { franchise_id: contact.franchise_id } : {}),
                     ...(contact?.assigned_employee_id ? { assigned_employee_id: contact.assigned_employee_id } : {}),
                   });
 
-                  await supabaseAdmin.from("contacts").update({ ouverture_date: jobDate }).eq("id", contactId);
+                  if (jobType === "ouverture") {
+                    await supabaseAdmin.from("contacts").update({ ouverture_date: jobDate }).eq("id", contactId);
+                  }
                   console.log(`[ai-actions] CLOSE_DEAL: job ${jobType} created for ${jobDate} ${jobTimeStart}-${jobTimeEnd}`);
                 } else {
                   console.log(`[ai-actions] CLOSE_DEAL: job already exists for ${jobDate}`);
@@ -1178,29 +1300,9 @@ export async function executeActions(actions: AIAction[], contactId: string) {
             }
           }
 
-          // 6. Créer le contrat/facture
-          try {
-            const contractResp = await fetch(`${baseUrl}/api/documents/generate`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                contactId,
-                type: "contrat",
-                service: config.service,
-                amount,
-              }),
-            });
-            const contractText = await contractResp.text();
-            let contractData: unknown = {};
-            try {
-              contractData = contractText ? JSON.parse(contractText) : {};
-            } catch {
-              console.error("[ai-actions] CLOSE_DEAL: contract response not JSON:", contractText.slice(0, 200));
-            }
-            console.log("[ai-actions] CLOSE_DEAL: contract created", contractData);
-          } catch (e) {
-            console.error("[ai-actions] CLOSE_DEAL: contract error", e);
-          }
+          // 6. (Retiré) L'ancien appel à /api/documents/generate pointait vers une route
+          // inexistante (404 systématique) — le contrat n'a jamais été généré par ce chemin.
+          // La facture/contrat se crée manuellement depuis le dashboard pour l'instant.
 
           // 7. Notifier le propriétaire (une seule fois)
           const ownerInfo = await getOwnerForContact(contactId);
@@ -1212,7 +1314,7 @@ export async function executeActions(actions: AIAction[], contactId: string) {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 contactId: ownerInfo.ownerId,
-                body: `CHLORE: ${clientName} a été closé pour ${amount}$ (${config.service}). Contrat + paiements + portail envoyés.`,
+                body: `CHLORE: ${clientName} a été closé pour ${amount}$ (${config.service}). Paiement(s) + portail créés. Pense à générer la facture depuis le dashboard.`,
               }),
             });
           }
