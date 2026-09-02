@@ -34,7 +34,7 @@ const DISPOS_NORMAL: DisposMap = {
 const CEGEP_END_DATE = "2026-05-13";
 
 // ─── SAISON DES FERMETURES (automne) ─────────────────────────────────────────
-// Septembre: fins de semaine seulement. Octobre (jusqu'au jour FERMETURES_FIN_OCTOBRE): tous les jours.
+// Septembre: fins de semaine seulement. Octobre → FERMETURES_FIN_SAISON: tous les jours.
 const DISPOS_FERMETURES_SEPT: DisposMap = {
   0: { start: "08:00", end: "17:00" }, // Dimanche
   1: null, 2: null, 3: null, 4: null, 5: null, // Semaine — fermé
@@ -51,20 +51,28 @@ const DISPOS_FERMETURES_OCT: DisposMap = {
   6: { start: "08:00", end: "17:00" },
 };
 
-const FERMETURES_FIN_OCTOBRE = 18; // dernier jour d'octobre où on planifie des fermetures
+// Dernier jour de la saison des fermetures, format "MM-DD" (fin de la 1re semaine de novembre)
+const FERMETURES_FIN_SAISON = "11-07";
 
-// Hors saison (fin octobre → février): aucun créneau
+// Hors saison (après la fin des fermetures → février): aucun créneau
 const DISPOS_FERME: DisposMap = { 0: null, 1: null, 2: null, 3: null, 4: null, 5: null, 6: null };
 
 // Override configurable par franchise dans settings.key='dispos_fermetures' (JSON):
 // { "sept": {"jours":[0,6],"start":"08:00","end":"17:00"},
 //   "oct":  {"jours":[0,1,2,3,4,5,6],"start":"08:00","end":"17:00"},
-//   "fin_octobre": 18 }
+//   "fin_saison": "11-07" }
 interface DispoDayConfig { jours: number[]; start: string; end: string }
 export interface DisposFermeturesOverride {
   sept?: DispoDayConfig;
   oct?: DispoDayConfig;
-  fin_octobre?: number;
+  fin_saison?: string;   // "MM-DD"
+  fin_octobre?: number;  // legacy — converti en fin_saison "10-XX" si présent
+}
+
+function getFinSaison(override?: DisposFermeturesOverride | null): string {
+  if (override?.fin_saison && /^\d{2}-\d{2}$/.test(override.fin_saison)) return override.fin_saison;
+  if (override?.fin_octobre) return `10-${String(override.fin_octobre).padStart(2, "0")}`;
+  return FERMETURES_FIN_SAISON;
 }
 
 function buildDisposMap(cfg?: DispoDayConfig): DisposMap | null {
@@ -94,14 +102,15 @@ async function loadDisposFermetures(franchiseId: string): Promise<DisposFermetur
 // Bascule automatique par date (le mois détermine la saison, peu importe l'année)
 function getDispos(dateStr: string, override?: DisposFermeturesOverride | null): DisposMap {
   const month = parseInt(dateStr.slice(5, 7));
-  const day = parseInt(dateStr.slice(8, 10));
+  const monthDay = dateStr.slice(5); // "MM-DD"
 
   if (month === 9) return buildDisposMap(override?.sept) ?? DISPOS_FERMETURES_SEPT;
-  if (month === 10) {
-    const fin = override?.fin_octobre ?? FERMETURES_FIN_OCTOBRE;
-    return day <= fin ? (buildDisposMap(override?.oct) ?? DISPOS_FERMETURES_OCT) : DISPOS_FERME;
+  if (month === 10 || month === 11) {
+    return monthDay <= getFinSaison(override)
+      ? (buildDisposMap(override?.oct) ?? DISPOS_FERMETURES_OCT)
+      : DISPOS_FERME;
   }
-  if (month >= 11 || month <= 2) return DISPOS_FERME;
+  if (month === 12 || month <= 2) return DISPOS_FERME;
   return dateStr > CEGEP_END_DATE ? DISPOS_NORMAL : DISPOS_CEGEP;
 }
 
@@ -293,7 +302,7 @@ RÈGLES IMPORTANTES:
    - Si le job est DEMAIN → dis "votre rendez-vous est prévu pour demain [jour] à [heure]"
    - Si le job est dans 2+ jours → dis "votre rendez-vous est prévu pour le [jour date] à [heure]"
    - NE DIS JAMAIS "on est en route" ou "il arrive" si le job n'est PAS aujourd'hui
-11. SAISONNALITÉ: Les ouvertures se font au printemps (avril-mai-juin). Les fermetures se font de septembre à mi-octobre. Nous sommes en saison de fermetures: propose les dates normalement.
+11. SAISONNALITÉ: Les ouvertures se font au printemps (avril-mai-juin). Les fermetures se font de septembre au début novembre. Nous sommes en saison de fermetures: propose les dates normalement.
     Fais __ACTION:UPDATE_NOTES:Client veut aussi la fermeture pour automne [année]. Prix: [montant]$__
 12. ZONE DE SERVICE: Notre zone couvre Granby et 45 minutes de route autour. Les villes DANS la zone incluent: Granby, Bromont, Cowansville, Roxton Pond, Waterloo, Shefford, St-Cécile-de-Milton, Sherbrooke, Magog, Eastman. Les villes HORS zone ou limites: Saint-Hyacinthe, Drummondville, Trois-Rivières. Pour les clients hors zone, informe-les qu'un supplément de déplacement s'applique et notifie Thomas pour évaluer.
 13. DATES — RÈGLES ABSOLUES:
@@ -406,7 +415,7 @@ UPSELL CIBLÉ PAR SIGNAUX (MAX 1 upsell par conversation, jamais insistant; si l
 FLOW A — CLIENT EXISTANT, fermeture DÉJÀ INCLUSE:
 Si le client a un forfait entretien (hebdo ou 2 semaines) OU un package ouverture+fermeture — vérifie ses services dans le contexte client — sa fermeture est DÉJÀ PAYÉE et INCLUSE.
 - NE JAMAIS mentionner un prix pour sa fermeture. NE JAMAIS faire de CLOSE_DEAL. Ne crée aucun paiement.
-- Si le client veut planifier sa fermeture: propose UNIQUEMENT les créneaux de PROCHAINES DISPONIBILITÉS (période fermetures: maintenant jusqu'à mi-octobre). Va DIRECT au choix de créneau.
+- Si le client veut planifier sa fermeture: propose UNIQUEMENT les créneaux de PROCHAINES DISPONIBILITÉS (période fermetures: maintenant jusqu'au début novembre). Va DIRECT au choix de créneau.
 - Une fois la date choisie: __ACTION:BOOK_JOB:fermeture:{date}:{heure_debut}:{heure_fin}__ puis confirme chaleureusement: "Parfait! Votre fermeture est planifiée le [jour date] à [heure]. Assurez-vous que l'accès à la piscine est dégagé. Merci d'avoir été avec nous cette saison! À bientôt!"
 - Si le client demande ce qui est inclus dans la fermeture: vidange partielle sous les skimmers, soufflage/vidange des tuyaux, ajout des produits d'hivernage, installation de la toile si le client l'a.
 
@@ -766,15 +775,14 @@ CONTEXTE TEMPOREL:
     const effectiveFranchiseId = franchiseId || contact?.franchise_id || "00000000-0000-0000-0000-000000000001";
     const disposOverride = await loadDisposFermetures(effectiveFranchiseId);
 
-    // En saison des fermetures, la fenêtre s'étend jusqu'à la fin de la saison (mi-octobre)
-    // pour que les créneaux d'octobre soient proposés dès septembre.
+    // En saison des fermetures, la fenêtre s'étend jusqu'à la fin de la saison
+    // pour que tous les créneaux (octobre + début novembre) soient proposés dès septembre.
     let windowDays = DISPO_WINDOW_DAYS;
     const todayMonth = parseInt(todayForJobs.slice(5, 7));
-    if (todayMonth === 9 || todayMonth === 10) {
-      const finOct = disposOverride?.fin_octobre ?? FERMETURES_FIN_OCTOBRE;
-      const seasonEnd = new Date(`${todayForJobs.slice(0, 4)}-10-${String(finOct).padStart(2, "0")}T12:00:00`);
+    if (todayMonth >= 9 && todayMonth <= 11) {
+      const seasonEnd = new Date(`${todayForJobs.slice(0, 4)}-${getFinSaison(disposOverride)}T12:00:00`);
       const daysToEnd = Math.ceil((seasonEnd.getTime() - new Date(todayForJobs + "T12:00:00").getTime()) / 86400000);
-      windowDays = Math.min(Math.max(DISPO_WINDOW_DAYS, daysToEnd), 60);
+      windowDays = Math.min(Math.max(DISPO_WINDOW_DAYS, daysToEnd), 75);
     }
 
     const upcoming: string[] = [];
@@ -895,8 +903,9 @@ CONTEXTE TEMPOREL:
     let horaireSaison = `HORAIRE DE LA SAISON: ${describeDispos(todayDispos)}.`;
     if (currentMonth === 9) {
       const octDispos = buildDisposMap(disposOverride?.oct) ?? DISPOS_FERMETURES_OCT;
-      const finOct = disposOverride?.fin_octobre ?? FERMETURES_FIN_OCTOBRE;
-      horaireSaison = `HORAIRE DE LA SAISON (fermetures): en septembre, fermetures les FINS DE SEMAINE seulement (${describeDispos(todayDispos)}). Du 1er au ${finOct} octobre: ${describeDispos(octDispos)}.`;
+      const [finMois, finJour] = getFinSaison(disposOverride).split("-").map(Number);
+      const finLabel = finMois === 11 ? `${finJour} novembre` : `${finJour} octobre`;
+      horaireSaison = `HORAIRE DE LA SAISON (fermetures): en septembre, fermetures les FINS DE SEMAINE seulement (${describeDispos(todayDispos)}). Du 1er octobre au ${finLabel}: ${describeDispos(octDispos)}.`;
     }
     clientContext += `\n${horaireSaison}\n`;
 
