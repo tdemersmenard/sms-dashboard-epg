@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Calendar, Sparkles, Phone, MessageSquare, Mail } from "lucide-react";
 import DashboardStats from "@/components/DashboardStats";
+import FermeturesTracker from "@/components/FermeturesTracker";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { supabaseBrowser } from "@/lib/supabase-browser";
@@ -293,6 +294,9 @@ export default function DashboardPage() {
       <div className="mb-6">
         <DashboardStats />
       </div>
+
+      {/* Suivi des fermetures (visible en saison seulement) */}
+      <FermeturesTracker />
 
       {/* AI Audit */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mt-6">
