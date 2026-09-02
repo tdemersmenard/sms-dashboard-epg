@@ -766,6 +766,17 @@ CONTEXTE TEMPOREL:
     const effectiveFranchiseId = franchiseId || contact?.franchise_id || "00000000-0000-0000-0000-000000000001";
     const disposOverride = await loadDisposFermetures(effectiveFranchiseId);
 
+    // En saison des fermetures, la fenêtre s'étend jusqu'à la fin de la saison (mi-octobre)
+    // pour que les créneaux d'octobre soient proposés dès septembre.
+    let windowDays = DISPO_WINDOW_DAYS;
+    const todayMonth = parseInt(todayForJobs.slice(5, 7));
+    if (todayMonth === 9 || todayMonth === 10) {
+      const finOct = disposOverride?.fin_octobre ?? FERMETURES_FIN_OCTOBRE;
+      const seasonEnd = new Date(`${todayForJobs.slice(0, 4)}-10-${String(finOct).padStart(2, "0")}T12:00:00`);
+      const daysToEnd = Math.ceil((seasonEnd.getTime() - new Date(todayForJobs + "T12:00:00").getTime()) / 86400000);
+      windowDays = Math.min(Math.max(DISPO_WINDOW_DAYS, daysToEnd), 60);
+    }
+
     const upcoming: string[] = [];
     const { data: existingJobs } = await supabaseAdmin
       .from("jobs")
@@ -773,7 +784,7 @@ CONTEXTE TEMPOREL:
       .eq("franchise_id", effectiveFranchiseId)
       .neq("status", "annulé")
       .gte("scheduled_date", todayForJobs)
-      .lte("scheduled_date", new Date(now.getTime() + DISPO_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString().split("T")[0])
+      .lte("scheduled_date", new Date(now.getTime() + windowDays * 24 * 60 * 60 * 1000).toISOString().split("T")[0])
       .order("scheduled_date")
       .order("scheduled_time_start");
 
@@ -798,7 +809,7 @@ CONTEXTE TEMPOREL:
     if (routeState?.data?.routes) {
       const dayToWeekday: Record<string, number> = { "Lundi": 1, "Mardi": 2, "Mercredi": 3, "Jeudi": 4, "Vendredi": 5 };
 
-      for (let i = 1; i <= DISPO_WINDOW_DAYS; i++) {
+      for (let i = 1; i <= windowDays; i++) {
         const d = new Date(now.getTime() + i * 24 * 60 * 60 * 1000);
         const dateStr = d.toLocaleDateString("en-CA", { timeZone: "America/Montreal" });
         if (isFermeturesSeason(dateStr)) continue; // routes d'entretien finies à l'automne
@@ -832,7 +843,7 @@ CONTEXTE TEMPOREL:
       }
     }
 
-    for (let i = 1; i <= DISPO_WINDOW_DAYS; i++) {
+    for (let i = 1; i <= windowDays; i++) {
       const d = new Date(now.getTime() + i * 24 * 60 * 60 * 1000);
       const dayName = d.toLocaleDateString("fr-CA", { timeZone: "America/Montreal", weekday: "long" });
       const dayNum = d.toLocaleDateString("fr-CA", { timeZone: "America/Montreal", day: "numeric" });
@@ -892,7 +903,7 @@ CONTEXTE TEMPOREL:
     if (upcoming.length > 0) {
       clientContext += `\nPROCHAINES DISPONIBILITÉS (utilise ces créneaux EXACTES, NE PROPOSE PAS de créneau non listé):\n${upcoming.join("\n")}\n`;
     } else {
-      clientContext += `\nPROCHAINES DISPONIBILITÉS: Aucun créneau libre dans les ${DISPO_WINDOW_DAYS} prochains jours. Dis au client de te rappeler la semaine prochaine ou notifie Thomas.\n`;
+      clientContext += `\nPROCHAINES DISPONIBILITÉS: Aucun créneau libre dans les ${windowDays} prochains jours. Dis au client de te rappeler la semaine prochaine ou notifie Thomas.\n`;
     }
 
     // Charger les leçons apprises
