@@ -300,12 +300,15 @@ export async function executeActions(actions: AIAction[], contactId: string) {
       switch (action.type) {
 
         case "NOTIFY_THOMAS": {
-          // Anti-spam: check si on a déjà notifié le propriétaire pour ce client récemment
+          // Anti-spam: check si on a déjà notifié le propriétaire pour ce client récemment.
+          // On ne compte que les notifications réellement ENVOYÉES (status success) —
+          // un échec (ex: owner_phone manquant) ne doit pas supprimer les tentatives suivantes.
           const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
           const { data: recentNotif } = await supabaseAdmin
             .from("automation_logs")
             .select("id")
             .eq("action", "notify_thomas")
+            .eq("status", "success")
             .eq("contact_id", contactId)
             .gte("created_at", twoHoursAgo)
             .limit(1);
@@ -325,25 +328,39 @@ export async function executeActions(actions: AIAction[], contactId: string) {
 
           const ownerInfo = await getOwnerForContact(contactId);
 
+          // Le log reflète la RÉALITÉ de l'envoi: "success" seulement si le SMS est parti.
+          // Avant, on loggait "success" même sans owner_phone — les notifications mouraient
+          // en silence et les logs cachaient le problème.
+          let notifSent = false;
+          let notifFailReason = "owner_phone manquant sur la franchise";
           if (ownerInfo) {
             const notification = `CHLORE: ${clientName} (${clientPhone}) — ${action.message}`;
-            await fetch(`${baseUrl}/api/sms/send`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ contactId: ownerInfo.ownerId, body: notification }),
-            });
+            try {
+              const resp = await fetch(`${baseUrl}/api/sms/send`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ contactId: ownerInfo.ownerId, body: notification }),
+              });
+              notifSent = resp.ok;
+              if (!resp.ok) notifFailReason = `sms/send HTTP ${resp.status}`;
+            } catch (e) {
+              notifFailReason = `sms/send error: ${e instanceof Error ? e.message : "unknown"}`;
+            }
           }
 
-          // Log pour éviter les doublons
           await supabaseAdmin.from("automation_logs").insert({
             action: "notify_thomas",
             contact_id: contactId,
-            status: "success",
-            details: { message: action.message },
+            status: notifSent ? "success" : "failed",
+            details: notifSent ? { message: action.message } : { message: action.message, reason: notifFailReason },
             ...(ownerInfo ? { franchise_id: ownerInfo.franchiseId } : {}),
           });
 
-          console.log(`[ai-actions] Notified owner: ${action.message}`);
+          if (notifSent) {
+            console.log(`[ai-actions] Notified owner: ${action.message}`);
+          } else {
+            console.error(`[ai-actions] NOTIFY_THOMAS FAILED (${notifFailReason}): ${action.message}`);
+          }
           break;
         }
 
@@ -1304,18 +1321,27 @@ export async function executeActions(actions: AIAction[], contactId: string) {
           // inexistante (404 systématique) — le contrat n'a jamais été généré par ce chemin.
           // La facture/contrat se crée manuellement depuis le dashboard pour l'instant.
 
-          // 7. Notifier le propriétaire (une seule fois)
+          // 7. Notifier le propriétaire (une seule fois). Un échec est loggé "failed"
+          // pour rester visible — jamais d'échec silencieux sur une notif de closing.
           const ownerInfo = await getOwnerForContact(contactId);
+          const closeClientName = [contact.first_name, contact.last_name].filter(Boolean).join(" ") || "Client";
 
           if (ownerInfo) {
-            const clientName = [contact.first_name, contact.last_name].filter(Boolean).join(" ") || "Client";
             await fetch(`${baseUrl}/api/sms/send`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 contactId: ownerInfo.ownerId,
-                body: `CHLORE: ${clientName} a été closé pour ${amount}$ (${config.service}). Paiement(s) + portail créés. Pense à générer la facture depuis le dashboard.`,
+                body: `CHLORE: ${closeClientName} a été closé pour ${amount}$ (${config.service}). Paiement(s) + portail créés. Pense à générer la facture depuis le dashboard.`,
               }),
+            });
+          } else {
+            console.error(`[ai-actions] CLOSE_DEAL: notification owner impossible (owner_phone manquant) pour ${closeClientName}`);
+            await supabaseAdmin.from("automation_logs").insert({
+              action: "close_deal_notify",
+              contact_id: contactId,
+              status: "failed",
+              details: { reason: "owner_phone manquant sur la franchise", client: closeClientName, amount, service: config.service },
             });
           }
 
