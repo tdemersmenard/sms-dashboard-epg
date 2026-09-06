@@ -16,6 +16,14 @@ export async function GET(req: NextRequest) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const results: any = { ran_at: new Date().toISOString() };
 
+  // Heartbeat: trace chaque exécution du cron dans automation_logs pour détecter
+  // les pannes du scheduler Vercel (le cron a déjà cessé de tourner sans alerte).
+  await supabaseAdmin.from("automation_logs").insert({
+    action: "cron_heartbeat",
+    status: "success",
+    details: { ua: req.headers.get("user-agent") ?? "?" },
+  }).then(({ error }) => { if (error) console.error("[cron] heartbeat log error:", error.message); });
+
   // Fetch all active franchises once
   const { data: activeFranchises } = await supabaseAdmin
     .from("franchises")
