@@ -69,6 +69,19 @@ export async function GET(req: NextRequest) {
     results.follow_ups_error = String(e);
   }
 
+  // 4b. Réconciliation fermetures — aucune fermeture Flow B bookée sans paiement
+  try {
+    const { reconcileFermetures } = await import("@/lib/automations/fermetures-reconcile");
+    const allResults: string[] = [];
+    for (const f of activeFranchises || []) {
+      const r = await reconcileFermetures(f.id);
+      allResults.push(...r);
+    }
+    results.fermetures_reconcile = allResults;
+  } catch (e) {
+    results.fermetures_reconcile_error = String(e);
+  }
+
   // 5. Portails manquants
   try {
     const { createMissingPortals } = await import("@/lib/automations/portal-check");
