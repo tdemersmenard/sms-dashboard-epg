@@ -91,9 +91,9 @@ export const PRICE_FLOORS: Record<string, number> = {
   ouverture: 249,
   "ouverture_hors-terre": 249,
   ouverture_creusee: 249,
-  fermeture: 199,
-  "fermeture_hors-terre": 199,
-  fermeture_creusee: 199,
+  fermeture: 200, // type de piscine inconnu → plancher = prix hors-terre
+  "fermeture_hors-terre": 200,
+  fermeture_creusee: 250,
   package_ouv_ferm: 450,
   spa: 500,
 };
@@ -1093,7 +1093,7 @@ export async function executeActions(actions: AIAction[], contactId: string) {
           // 2. Update les services + season_price + stage + pool_type
           const alreadyHasService = (contact.services || []).includes(config.service);
           const newServices = Array.from(new Set([...(contact.services || []), config.service]));
-          // Client existant qui AJOUTE un service (ex: fermeture 199$ après une ouverture):
+          // Client existant qui AJOUTE un service (ex: fermeture 200$ après une ouverture):
           // on additionne au prix de saison au lieu d'écraser.
           const hadServices = (contact.services || []).length > 0;
           const { data: priceRow } = await supabaseAdmin
