@@ -13,6 +13,15 @@ interface TrackedClient {
   job?: { date: string; start: string | null; status: string };
 }
 
+interface SoldFermeture {
+  id: string;
+  name: string;
+  date: string;
+  start: string | null;
+  amount: number | null;      // null = paiement pas encore créé (type de piscine inconnu)
+  paid: boolean;
+}
+
 function displayName(c: { first_name?: string | null; last_name?: string | null; phone?: string | null }): string {
   const n = [c.first_name, c.last_name].filter(Boolean).join(" ").trim();
   return n || c.phone || "(sans nom)";
@@ -34,6 +43,8 @@ export default function FermeturesTracker() {
   const [planned, setPlanned] = useState<TrackedClient[]>([]);
   const [remaining, setRemaining] = useState<TrackedClient[]>([]);
   const [showPlanned, setShowPlanned] = useState(false);
+  const [sold, setSold] = useState<SoldFermeture[]>([]);
+  const [showSold, setShowSold] = useState(false);
 
   const month = new Date().getMonth() + 1; // 1-12
   const inSeason = month >= 9 && month <= 11;
@@ -45,7 +56,7 @@ export default function FermeturesTracker() {
       try {
         const seasonStart = `${new Date().getFullYear()}-09-01`;
 
-        const [{ data: contacts }, { data: jobs }, { data: inbound }] = await Promise.all([
+        const [{ data: contacts }, { data: jobs }, { data: inbound }, { data: fermeturePayments }] = await Promise.all([
           supabaseBrowser
             .from("contacts")
             .select("id, first_name, last_name, phone, services, stage")
@@ -64,6 +75,11 @@ export default function FermeturesTracker() {
             .eq("franchise_id", franchiseId)
             .eq("direction", "inbound")
             .gte("created_at", seasonStart),
+          supabaseBrowser
+            .from("payments")
+            .select("contact_id, amount, status")
+            .eq("franchise_id", franchiseId)
+            .ilike("notes", "%fermeture%"),
         ]);
 
         const jobByContact = new Map<string, { date: string; start: string | null; status: string }>();
@@ -97,6 +113,37 @@ export default function FermeturesTracker() {
 
         setPlanned(plannedList);
         setRemaining(remainingList);
+
+        // ── Fermetures VENDUES (hors forfait — Flow B): comptage + revenu ──────
+        const payByContact = new Map<string, { amount: number; paid: boolean }>();
+        for (const p of fermeturePayments || []) {
+          if (!payByContact.has(p.contact_id)) {
+            payByContact.set(p.contact_id, { amount: Number(p.amount), paid: p.status === "reçu" });
+          }
+        }
+        const contactById = new Map((contacts || []).map((c) => [c.id, c]));
+        const soldList: SoldFermeture[] = [];
+        const seenSold = new Set<string>();
+        for (const j of jobs || []) {
+          if (seenSold.has(j.contact_id)) continue;
+          const c = contactById.get(j.contact_id);
+          if (!c) continue;
+          const services = (c.services || []).join(" ");
+          // On exclut seulement entretien/package (inclus); "fermeture" seule = vendue
+          if (/entretien|package/i.test(services)) continue;
+          seenSold.add(j.contact_id);
+          const pay = payByContact.get(j.contact_id);
+          soldList.push({
+            id: c.id,
+            name: displayName(c),
+            date: j.scheduled_date,
+            start: j.scheduled_time_start,
+            amount: pay ? pay.amount : null,
+            paid: pay?.paid ?? false,
+          });
+        }
+        soldList.sort((a, b) => (a.date < b.date ? -1 : 1));
+        setSold(soldList);
       } catch (e) {
         console.error("[FermeturesTracker] load error:", e);
       } finally {
@@ -112,6 +159,10 @@ export default function FermeturesTracker() {
   const pct = total > 0 ? Math.round((planned.length / total) * 100) : 0;
   const repliedNotBooked = remaining.filter((r) => r.hasReplied).length;
 
+  const soldRevenue = sold.reduce((s, f) => s + (f.amount ?? 0), 0);
+  const soldPaid = sold.filter((f) => f.paid).reduce((s, f) => s + (f.amount ?? 0), 0);
+  const soldPendingPrice = sold.filter((f) => f.amount === null).length;
+
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mt-6">
       <div className="flex items-center justify-between mb-3">
@@ -121,17 +172,63 @@ export default function FermeturesTracker() {
         </div>
         {!loading && total > 0 && (
           <span className="text-sm font-bold text-gray-800">
-            {planned.length}/{total} <span className="font-medium text-gray-500">planifiées ({pct}%)</span>
+            {planned.length}/{total} <span className="font-medium text-gray-500">incluses au forfait planifiées ({pct}%)</span>
           </span>
         )}
       </div>
 
       {loading ? (
         <p className="text-xs text-gray-400">Chargement…</p>
-      ) : total === 0 ? (
-        <p className="text-xs text-gray-400">Aucun client avec fermeture incluse.</p>
+      ) : total === 0 && sold.length === 0 ? (
+        <p className="text-xs text-gray-400">Aucune fermeture à suivre pour l'instant.</p>
       ) : (
         <>
+          {/* Fermetures vendues (hors forfait) */}
+          <div className="mb-4 p-3 bg-emerald-50/60 border border-emerald-100 rounded-lg">
+            <button
+              onClick={() => setShowSold(!showSold)}
+              className="w-full flex items-center justify-between text-left"
+            >
+              <span className="text-xs font-semibold text-emerald-800">
+                💰 Fermetures vendues (hors forfait): {sold.length}
+              </span>
+              <span className="flex items-center gap-2 text-xs font-bold text-emerald-800">
+                {soldRevenue > 0 && (
+                  <>
+                    {soldRevenue}$
+                    <span className="font-medium text-emerald-600">({soldPaid}$ reçu)</span>
+                  </>
+                )}
+                {showSold ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+              </span>
+            </button>
+            {soldPendingPrice > 0 && (
+              <p className="text-[11px] text-amber-700 mt-1">
+                {soldPendingPrice} en attente de prix (type de piscine à confirmer)
+              </p>
+            )}
+            {showSold && sold.length > 0 && (
+              <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                {sold.map((f) => (
+                  <a
+                    key={f.id}
+                    href={`/${franchiseSlug}/messages?contact=${f.id}`}
+                    className="flex items-center gap-1.5 text-xs text-gray-700 hover:text-gray-900 transition"
+                  >
+                    <CheckCircle2 size={12} className={f.paid ? "text-emerald-500" : "text-amber-400"} />
+                    <span className="truncate">{f.name}</span>
+                    <span className="text-gray-400 shrink-0">
+                      {fmtDate(f.date)}{f.start ? ` ${f.start.slice(0, 5)}` : ""}
+                    </span>
+                    <span className={`shrink-0 font-medium ${f.amount === null ? "text-amber-600" : f.paid ? "text-emerald-600" : "text-gray-500"}`}>
+                      {f.amount === null ? "prix?" : `${f.amount}$${f.paid ? " ✓" : ""}`}
+                    </span>
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* Barre de progression */}
           <div className="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden mb-4">
             <div
