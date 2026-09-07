@@ -143,7 +143,7 @@ function InlineField({
 export default function ClientDetailPage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const { id } = params;
-  const { franchiseId } = useFranchise();
+  const { franchiseId, franchiseSlug } = useFranchise();
 
   const [contact, setContact] = useState<Contact | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -615,7 +615,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <button
-            onClick={() => router.push(`/messages?contact=${id}`)}
+            onClick={() => router.push(`/${franchiseSlug}/messages?contact=${id}`)}
             className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition"
           >
             <MessageSquare size={15} />
@@ -862,7 +862,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
               </div>
             )}
             <button
-              onClick={() => router.push("/messages")}
+              onClick={() => router.push(`/${franchiseSlug}/messages?contact=${id}`)}
               className="mt-3 text-xs text-blue-600 hover:text-blue-800 font-medium"
             >
               Voir la conversation →

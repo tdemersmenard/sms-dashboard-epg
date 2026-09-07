@@ -86,7 +86,7 @@ function OAuthToastHandler({
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { franchiseId } = useFranchise();
+  const { franchiseId, franchiseSlug } = useFranchise();
   const [clients, setClients] = useState<ClientRow[]>([]);
   const [clientsLoading, setClientsLoading] = useState(true);
   const [upcomingJobs, setUpcomingJobs] = useState<JobWithContact[]>([]);
@@ -367,7 +367,7 @@ export default function DashboardPage() {
                   <p className="text-xs text-gray-500 mb-3">{a.details}</p>
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => router.push("/messages")}
+                      onClick={() => router.push(`/${franchiseSlug}/messages${a.contactId ? `?contact=${a.contactId}` : ""}`)}
                       className="flex items-center gap-1.5 px-3 py-1.5 bg-[#0a1f3f] text-white text-xs font-medium rounded-lg hover:bg-[#0f2855] transition"
                     >
                       <MessageSquare size={12} />
@@ -493,7 +493,7 @@ export default function DashboardPage() {
             {recentMessages.map((m) => (
               <div
                 key={m.id}
-                onClick={() => router.push("/messages")}
+                onClick={() => router.push(`/${franchiseSlug}/messages${m.contact_id ? `?contact=${m.contact_id}` : ""}`)}
                 className="flex items-center gap-3 py-2 cursor-pointer hover:bg-gray-50 rounded-lg px-2 -mx-2 transition"
               >
                 <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">

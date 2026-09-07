@@ -58,8 +58,9 @@ export function middleware(req: NextRequest) {
   // Redirect old CRM routes to /granby/... (backward compatibility)
   for (const old of OLD_CRM_ROUTES) {
     if (pathname === old || pathname.startsWith(old + "/")) {
-      const newPath = `/granby${pathname}`;
-      return NextResponse.redirect(new URL(newPath, req.url));
+      const newUrl = new URL(`/granby${pathname}`, req.url);
+      newUrl.search = req.nextUrl.search; // préserver ?contact=... etc.
+      return NextResponse.redirect(newUrl);
     }
   }
 
