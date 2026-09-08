@@ -13,13 +13,13 @@ const STAGES = [
 ] as const;
 
 const STAGE_COLORS: Record<string, { bg: string; text: string }> = {
-  "nouveau":            { bg: "bg-blue-100",   text: "text-blue-700" },
-  "contacté":           { bg: "bg-yellow-100", text: "text-yellow-700" },
-  "soumission envoyée": { bg: "bg-orange-100", text: "text-orange-700" },
-  "closé":              { bg: "bg-green-100",  text: "text-green-700" },
-  "planifié":           { bg: "bg-purple-100", text: "text-purple-700" },
-  "complété":           { bg: "bg-gray-200",   text: "text-gray-700" },
-  "perdu":              { bg: "bg-red-100",    text: "text-red-700" },
+  "nouveau":            { bg: "bg-acc/10",        text: "text-acc" },
+  "contacté":           { bg: "bg-yellow-500/15", text: "text-yellow-600" },
+  "soumission envoyée": { bg: "bg-orange-500/15", text: "text-orange-600" },
+  "closé":              { bg: "bg-pos/10",        text: "text-pos" },
+  "planifié":           { bg: "bg-purple-500/15", text: "text-purple-600" },
+  "complété":           { bg: "bg-chip",          text: "text-ink" },
+  "perdu":              { bg: "bg-neg/10",        text: "text-neg" },
 };
 
 function displayName(c: Contact): string {
@@ -125,7 +125,7 @@ export default function ClientsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="w-6 h-6 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin" />
+        <div className="w-6 h-6 border-2 border-line border-t-acc rounded-full animate-spin" />
       </div>
     );
   }
@@ -134,20 +134,20 @@ export default function ClientsPage() {
     <div className="p-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex items-center gap-4 mb-6">
-        <h1 className="text-xl font-bold text-gray-900 flex-shrink-0">Clients</h1>
+        <h1 className="text-xl font-bold font-display text-ink flex-shrink-0">Clients</h1>
         <div className="flex-1 relative">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-mut" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Rechercher par nom, téléphone, adresse..."
-            className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+            className="w-full pl-9 pr-3 py-2 border border-line rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-acc/30"
           />
         </div>
         <button
           onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-[#0a1f3f] text-white text-sm font-medium rounded-lg hover:bg-[#0f2855] transition flex-shrink-0"
+          className="flex items-center gap-2 px-4 py-2 btn-glow text-sm font-medium rounded-lg hover:opacity-90 transition flex-shrink-0"
         >
           <Plus size={16} />
           Nouveau client
@@ -159,7 +159,7 @@ export default function ClientsPage() {
         <select
           value={stageFilter}
           onChange={(e) => setStageFilter(e.target.value)}
-          className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+          className="border border-line rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-acc/30"
         >
           <option value="">Tous les stages</option>
           {STAGES.map((s) => (
@@ -169,20 +169,20 @@ export default function ClientsPage() {
         <select
           value={poolFilter}
           onChange={(e) => setPoolFilter(e.target.value)}
-          className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+          className="border border-line rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-acc/30"
         >
           <option value="">Tous les types</option>
           <option value="hors-terre">Hors-terre</option>
           <option value="creusée">Creusée</option>
         </select>
-        <span className="text-sm text-gray-400">
+        <span className="text-sm text-mut">
           {filtered.length} client{filtered.length !== 1 ? "s" : ""}
         </span>
       </div>
 
       {/* Grid */}
       {filtered.length === 0 ? (
-        <div className="text-center py-16 text-gray-400 text-sm">Aucun client trouvé</div>
+        <div className="text-center py-16 text-mut text-sm">Aucun client trouvé</div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map((c) => {
@@ -192,32 +192,32 @@ export default function ClientsPage() {
               <div
                 key={c.id}
                 onClick={() => router.push(`/clients/${c.id}`)}
-                className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 cursor-pointer hover:shadow-md transition-shadow"
+                className="bg-sur rounded-xl border border-line p-4 cursor-pointer hover:border-acc/50 transition-colors"
               >
                 <div className="flex items-start justify-between gap-2 mb-1">
-                  <p className="font-semibold text-gray-900 leading-tight">{displayName(c)}</p>
-                  <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full flex-shrink-0 ${sc?.bg ?? "bg-gray-100"} ${sc?.text ?? "text-gray-600"}`}>
+                  <p className="font-semibold text-ink leading-tight">{displayName(c)}</p>
+                  <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full flex-shrink-0 ${sc?.bg ?? "bg-chip"} ${sc?.text ?? "text-mut"}`}>
                     {stage}
                   </span>
                 </div>
-                <p className="text-sm text-gray-500 mb-1">{c.phone}</p>
+                <p className="text-sm text-mut mb-1">{c.phone}</p>
                 {c.address && (
-                  <p className="text-xs text-gray-400 mb-2 truncate">{c.address}</p>
+                  <p className="text-xs text-mut mb-2 truncate">{c.address}</p>
                 )}
                 <div className="flex items-center justify-between mt-2">
                   <div className="flex gap-1 flex-wrap">
                     {c.pool_type && (
                       <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
                         c.pool_type === "hors-terre"
-                          ? "bg-blue-50 text-blue-600"
-                          : "bg-green-50 text-green-600"
+                          ? "bg-chip text-acc"
+                          : "bg-chip text-pos"
                       }`}>
                         {c.pool_type === "hors-terre" ? "Hors-terre" : "Creusée"}
                       </span>
                     )}
                   </div>
                   {c.season_price != null && (
-                    <p className="text-sm font-bold text-gray-800">
+                    <p className="text-sm font-bold text-ink num">
                       {c.season_price.toLocaleString("fr-CA", {
                         style: "currency", currency: "CAD", maximumFractionDigits: 0,
                       })}
@@ -233,62 +233,62 @@ export default function ClientsPage() {
       {/* Create modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-              <h2 className="text-base font-bold text-gray-900">Nouveau client</h2>
-              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+          <div className="bg-sur rounded-xl border border-line w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-line">
+              <h2 className="text-base font-bold font-display text-ink">Nouveau client</h2>
+              <button onClick={() => setShowModal(false)} className="text-mut hover:text-ink text-xl leading-none">×</button>
             </div>
             <form onSubmit={handleCreate} className="px-5 py-4 space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-medium text-gray-600 mb-1 block">Prénom</label>
+                  <label className="text-xs font-medium text-mut mb-1 block">Prénom</label>
                   <input
                     type="text" value={form.first_name}
                     onChange={(e) => setForm((p) => ({ ...p, first_name: e.target.value }))}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                    className="w-full border border-line rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-acc/30"
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-gray-600 mb-1 block">Nom</label>
+                  <label className="text-xs font-medium text-mut mb-1 block">Nom</label>
                   <input
                     type="text" value={form.last_name}
                     onChange={(e) => setForm((p) => ({ ...p, last_name: e.target.value }))}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                    className="w-full border border-line rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-acc/30"
                   />
                 </div>
               </div>
               <div>
-                <label className="text-xs font-medium text-gray-600 mb-1 block">Téléphone *</label>
+                <label className="text-xs font-medium text-mut mb-1 block">Téléphone *</label>
                 <input
                   type="tel" value={form.phone} required
                   onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))}
                   placeholder="+14501234567"
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                  className="w-full border border-line rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-acc/30"
                 />
               </div>
               <div>
-                <label className="text-xs font-medium text-gray-600 mb-1 block">Email</label>
+                <label className="text-xs font-medium text-mut mb-1 block">Email</label>
                 <input
                   type="email" value={form.email}
                   onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                  className="w-full border border-line rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-acc/30"
                 />
               </div>
               <div>
-                <label className="text-xs font-medium text-gray-600 mb-1 block">Adresse</label>
+                <label className="text-xs font-medium text-mut mb-1 block">Adresse</label>
                 <input
                   type="text" value={form.address}
                   onChange={(e) => setForm((p) => ({ ...p, address: e.target.value }))}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                  className="w-full border border-line rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-acc/30"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-medium text-gray-600 mb-1 block">Type de piscine</label>
+                  <label className="text-xs font-medium text-mut mb-1 block">Type de piscine</label>
                   <select
                     value={form.pool_type}
                     onChange={(e) => setForm((p) => ({ ...p, pool_type: e.target.value as typeof p.pool_type }))}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                    className="w-full border border-line rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-acc/30"
                   >
                     <option value="">—</option>
                     <option value="hors-terre">Hors-terre</option>
@@ -296,11 +296,11 @@ export default function ClientsPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-gray-600 mb-1 block">Source</label>
+                  <label className="text-xs font-medium text-mut mb-1 block">Source</label>
                   <select
                     value={form.lead_source}
                     onChange={(e) => setForm((p) => ({ ...p, lead_source: e.target.value }))}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                    className="w-full border border-line rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-acc/30"
                   >
                     <option value="">—</option>
                     {SOURCE_OPTIONS.map((s) => (
@@ -310,7 +310,7 @@ export default function ClientsPage() {
                 </div>
               </div>
               <div>
-                <label className="text-xs font-medium text-gray-600 mb-1.5 block">Services</label>
+                <label className="text-xs font-medium text-mut mb-1.5 block">Services</label>
                 <div className="flex gap-3">
                   {SERVICES_OPTIONS.map((s) => (
                     <label key={s} className="flex items-center gap-1.5 cursor-pointer">
@@ -320,24 +320,24 @@ export default function ClientsPage() {
                         onChange={() => toggleService(s)}
                         className="rounded"
                       />
-                      <span className="text-sm text-gray-700">{s}</span>
+                      <span className="text-sm text-ink">{s}</span>
                     </label>
                   ))}
                 </div>
               </div>
               <div>
-                <label className="text-xs font-medium text-gray-600 mb-1 block">Prix saison ($)</label>
+                <label className="text-xs font-medium text-mut mb-1 block">Prix saison ($)</label>
                 <input
                   type="number" min="0" step="0.01" value={form.season_price}
                   onChange={(e) => setForm((p) => ({ ...p, season_price: e.target.value }))}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                  className="w-full border border-line rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-acc/30"
                 />
               </div>
               <div className="flex justify-end gap-2 pt-2">
-                <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition">
+                <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 text-sm text-mut hover:text-ink transition">
                   Annuler
                 </button>
-                <button type="submit" disabled={saving} className="px-5 py-2 bg-[#0a1f3f] text-white text-sm font-medium rounded-lg hover:bg-[#0f2855] disabled:opacity-50 transition">
+                <button type="submit" disabled={saving} className="px-5 py-2 btn-glow text-sm font-medium rounded-lg hover:opacity-90 disabled:opacity-50 transition">
                   {saving ? "Création..." : "Créer"}
                 </button>
               </div>

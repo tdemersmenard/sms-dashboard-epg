@@ -83,23 +83,23 @@ export default function PipelinePage() {
   }, [byStage, search]);
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
+    <div className="flex flex-col h-screen bg-page">
       {/* Header */}
-      <div className="flex-shrink-0 flex items-center gap-3 px-6 py-4 bg-white border-b border-gray-200">
-        <h1 className="text-xl font-bold text-gray-900 flex-shrink-0">Pipeline</h1>
+      <div className="flex-shrink-0 flex items-center gap-3 px-6 py-4 bg-sur border-b border-line">
+        <h1 className="text-xl font-bold font-display text-ink flex-shrink-0">Pipeline</h1>
         <div className="flex-1 max-w-xs relative">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-mut" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Rechercher un lead..."
-            className="w-full pl-8 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+            className="w-full pl-8 pr-3 py-2 border border-line rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-acc/30"
           />
         </div>
         <button
           onClick={() => setShowModal(true)}
-          className="ml-auto flex items-center gap-2 px-4 py-2 bg-[#0a1f3f] text-white text-sm font-medium rounded-lg hover:bg-[#0f2855] transition"
+          className="ml-auto flex items-center gap-2 px-4 py-2 btn-glow text-sm font-medium rounded-lg hover:opacity-90 transition"
         >
           <Plus size={16} />
           Nouveau lead
@@ -110,7 +110,7 @@ export default function PipelinePage() {
       <div className="flex-1 overflow-x-auto pt-4">
         {loading ? (
           <div className="flex items-center justify-center h-full">
-            <div className="w-6 h-6 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin" />
+            <div className="w-6 h-6 border-2 border-line border-t-acc rounded-full animate-spin" />
           </div>
         ) : (
           <PipelineBoard byStage={filteredByStage} onDragEnd={updateStage} />
@@ -120,10 +120,10 @@ export default function PipelinePage() {
       {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-              <h2 className="text-base font-bold text-gray-900">Nouveau lead</h2>
-              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600">
+          <div className="bg-sur rounded-xl border border-line w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-line">
+              <h2 className="text-base font-bold font-display text-ink">Nouveau lead</h2>
+              <button onClick={() => setShowModal(false)} className="text-mut hover:text-ink">
                 <X size={20} />
               </button>
             </div>
@@ -131,58 +131,58 @@ export default function PipelinePage() {
             <form onSubmit={handleSubmit} className="px-5 py-4 space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-medium text-gray-600 mb-1 block">Prénom</label>
+                  <label className="text-xs font-medium text-mut mb-1 block">Prénom</label>
                   <input
                     type="text" value={form.first_name}
                     onChange={(e) => set("first_name", e.target.value)}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                    className="w-full border border-line rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-acc/30"
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-gray-600 mb-1 block">Nom</label>
+                  <label className="text-xs font-medium text-mut mb-1 block">Nom</label>
                   <input
                     type="text" value={form.last_name}
                     onChange={(e) => set("last_name", e.target.value)}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                    className="w-full border border-line rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-acc/30"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="text-xs font-medium text-gray-600 mb-1 block">Téléphone *</label>
+                <label className="text-xs font-medium text-mut mb-1 block">Téléphone *</label>
                 <input
                   type="tel" value={form.phone} required
                   onChange={(e) => set("phone", e.target.value)}
                   placeholder="+14501234567"
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                  className="w-full border border-line rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-acc/30"
                 />
               </div>
 
               <div>
-                <label className="text-xs font-medium text-gray-600 mb-1 block">Email</label>
+                <label className="text-xs font-medium text-mut mb-1 block">Email</label>
                 <input
                   type="email" value={form.email}
                   onChange={(e) => set("email", e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                  className="w-full border border-line rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-acc/30"
                 />
               </div>
 
               <div>
-                <label className="text-xs font-medium text-gray-600 mb-1 block">Adresse</label>
+                <label className="text-xs font-medium text-mut mb-1 block">Adresse</label>
                 <input
                   type="text" value={form.address}
                   onChange={(e) => set("address", e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                  className="w-full border border-line rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-acc/30"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-medium text-gray-600 mb-1 block">Type de piscine</label>
+                  <label className="text-xs font-medium text-mut mb-1 block">Type de piscine</label>
                   <select
                     value={form.pool_type}
                     onChange={(e) => set("pool_type", e.target.value)}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                    className="w-full border border-line rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-acc/30"
                   >
                     <option value="">—</option>
                     <option value="hors-terre">Hors-terre</option>
@@ -190,11 +190,11 @@ export default function PipelinePage() {
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-gray-600 mb-1 block">Source</label>
+                  <label className="text-xs font-medium text-mut mb-1 block">Source</label>
                   <select
                     value={form.lead_source}
                     onChange={(e) => set("lead_source", e.target.value)}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                    className="w-full border border-line rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-acc/30"
                   >
                     <option value="">—</option>
                     {SOURCE_OPTIONS.map((s) => (
@@ -205,7 +205,7 @@ export default function PipelinePage() {
               </div>
 
               <div>
-                <label className="text-xs font-medium text-gray-600 mb-1.5 block">Services</label>
+                <label className="text-xs font-medium text-mut mb-1.5 block">Services</label>
                 <div className="flex gap-3">
                   {SERVICES_OPTIONS.map((s) => (
                     <label key={s} className="flex items-center gap-1.5 cursor-pointer">
@@ -215,31 +215,31 @@ export default function PipelinePage() {
                         onChange={() => toggleService(s)}
                         className="rounded"
                       />
-                      <span className="text-sm text-gray-700">{s}</span>
+                      <span className="text-sm text-ink">{s}</span>
                     </label>
                   ))}
                 </div>
               </div>
 
               <div>
-                <label className="text-xs font-medium text-gray-600 mb-1 block">Prix saison ($)</label>
+                <label className="text-xs font-medium text-mut mb-1 block">Prix saison ($)</label>
                 <input
                   type="number" min="0" step="0.01" value={form.season_price}
                   onChange={(e) => set("season_price", e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                  className="w-full border border-line rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-acc/30"
                 />
               </div>
 
               <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button" onClick={() => setShowModal(false)}
-                  className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition"
+                  className="px-4 py-2 text-sm text-mut hover:text-ink transition"
                 >
                   Annuler
                 </button>
                 <button
                   type="submit" disabled={saving}
-                  className="px-5 py-2 bg-[#0a1f3f] text-white text-sm font-medium rounded-lg hover:bg-[#0f2855] disabled:opacity-50 transition"
+                  className="px-5 py-2 btn-glow text-sm font-medium rounded-lg hover:opacity-90 disabled:opacity-50 transition"
                 >
                   {saving ? "Création..." : "Créer le lead"}
                 </button>

@@ -142,7 +142,7 @@ export default function MessagesPage() {
   const activeMessages = activeContactId ? (messages[activeContactId] ?? []) : [];
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] md:h-screen bg-white">
+    <div className="flex h-[calc(100vh-4rem)] md:h-screen bg-sur">
       <Suspense fallback={null}>
         <ContactParamHandler
           conversations={allConversations}
@@ -153,7 +153,7 @@ export default function MessagesPage() {
       </Suspense>
 
       {/* Conversation list — cachée sur mobile si une conv est sélectionnée */}
-      <div className={`w-full md:w-80 flex-shrink-0 border-r border-gray-200 flex-col ${activeContactId ? "hidden md:flex" : "flex"}`}>
+      <div className={`w-full md:w-80 flex-shrink-0 border-r border-line flex-col ${activeContactId ? "hidden md:flex" : "flex"}`}>
         <ConversationList
           conversations={allConversations}
           activeContactId={activeContactId}
@@ -163,18 +163,18 @@ export default function MessagesPage() {
       </div>
 
       {/* Chat area — caché sur mobile si aucune conv sélectionnée */}
-      <div className={`flex-1 flex-col min-w-0 bg-white ${activeContactId ? "flex" : "hidden md:flex"}`}>
+      <div className={`flex-1 flex-col min-w-0 bg-sur ${activeContactId ? "flex" : "hidden md:flex"}`}>
         {activeContactId ? (
           <>
             {/* Bouton retour mobile */}
-            <div className="md:hidden px-4 py-3 border-b flex items-center gap-3 bg-white">
+            <div className="md:hidden px-4 py-3 border-b border-line flex items-center gap-3 bg-sur">
               <button
                 onClick={() => setActiveContactId(null)}
-                className="p-1.5 hover:bg-gray-100 rounded-lg"
+                className="p-1.5 hover:bg-chip rounded-lg"
               >
                 <ArrowLeft size={20} />
               </button>
-              <p className="font-semibold text-gray-900 truncate">
+              <p className="font-semibold text-ink truncate">
                 {activeConversation?.first_name || "Chat"}
               </p>
             </div>
@@ -194,18 +194,18 @@ export default function MessagesPage() {
                 />
               </>
             ) : (
-              <div className="flex-1 flex items-center justify-center bg-gray-50">
-                <div className="w-6 h-6 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin" />
+              <div className="flex-1 flex items-center justify-center bg-page">
+                <div className="w-6 h-6 border-2 border-line border-t-acc rounded-full animate-spin" />
               </div>
             )}
           </>
         ) : (
-          <div className="hidden md:flex flex-1 items-center justify-center bg-gray-50">
+          <div className="hidden md:flex flex-1 items-center justify-center bg-page">
             <div className="text-center">
-              <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-3">
-                <MessageSquare size={24} className="text-gray-300" />
+              <div className="w-14 h-14 rounded-2xl bg-chip flex items-center justify-center mx-auto mb-3">
+                <MessageSquare size={24} className="text-mut" />
               </div>
-              <p className="text-gray-400 text-sm">Sélectionne une conversation</p>
+              <p className="text-mut text-sm">Sélectionne une conversation</p>
             </div>
           </div>
         )}

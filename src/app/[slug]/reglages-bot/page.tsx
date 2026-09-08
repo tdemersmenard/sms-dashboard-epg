@@ -123,7 +123,7 @@ export default function ReglagesBotPage() {
   if (loading) {
     return (
       <div className="p-6 flex items-center justify-center min-h-[60vh]">
-        <Loader2 size={24} className="animate-spin text-gray-400" />
+        <Loader2 size={24} className="animate-spin text-mut" />
       </div>
     );
   }
@@ -133,10 +133,10 @@ export default function ReglagesBotPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Bot size={22} className="text-[#0a1f3f]" strokeWidth={1.75} />
+          <Bot size={22} className="text-acc" strokeWidth={1.75} />
           <div>
-            <h1 className="text-xl font-bold text-gray-900">Réglages du bot</h1>
-            <p className="text-sm text-gray-500">
+            <h1 className="text-xl font-bold font-display text-ink">Réglages du bot</h1>
+            <p className="text-sm text-mut">
               {isDefault
                 ? "Prompt par défaut (non modifié)"
                 : updatedAt
@@ -149,7 +149,7 @@ export default function ReglagesBotPage() {
           <button
             onClick={handleReset}
             disabled={saving || isDefault}
-            className="inline-flex items-center gap-2 px-4 py-2 border border-gray-200 text-sm rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-2 px-4 py-2 border border-line text-sm rounded-lg hover:bg-chip disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <RotateCcw size={14} />
             Réinitialiser
@@ -157,7 +157,7 @@ export default function ReglagesBotPage() {
           <button
             onClick={handleSave}
             disabled={saving || !isDirty || prompt.trim().length < 100}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-[#0a1f3f] text-white text-sm font-medium rounded-lg hover:bg-[#0d2a55] disabled:opacity-40 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-2 px-4 py-2 btn-glow text-sm font-medium rounded-lg hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
             {saving ? "Sauvegarde..." : "Sauvegarder"}
@@ -167,37 +167,37 @@ export default function ReglagesBotPage() {
 
       {/* Status banners */}
       {saveStatus === "success" && (
-        <div className="flex items-center gap-2 px-4 py-3 bg-green-50 border border-green-200 rounded-xl text-sm text-green-700">
+        <div className="flex items-center gap-2 px-4 py-3 bg-chip border border-line rounded-xl text-sm text-pos">
           <CheckCircle size={16} />
           {isDefault ? "Prompt réinitialisé au défaut." : "Prompt sauvegardé — le bot utilise le nouveau texte dès maintenant."}
         </div>
       )}
       {saveStatus === "error" && (
-        <div className="flex items-center gap-2 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+        <div className="flex items-center gap-2 px-4 py-3 bg-chip border border-line rounded-xl text-sm text-neg">
           <AlertTriangle size={16} />
           Erreur: {saveError}
         </div>
       )}
       {isDirty && saveStatus === "idle" && (
-        <div className="flex items-center gap-2 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-700">
+        <div className="flex items-center gap-2 px-4 py-3 bg-chip border border-line rounded-xl text-sm text-warn">
           <AlertTriangle size={16} />
           Modifications non sauvegardées — le bot utilise encore l&apos;ancienne version.
         </div>
       )}
 
       {/* Info box — contexte dynamique */}
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+      <div className="bg-chip border border-line rounded-xl p-4">
         <div className="flex items-start gap-2">
-          <Info size={16} className="text-blue-600 mt-0.5 flex-shrink-0" />
+          <Info size={16} className="text-acc mt-0.5 flex-shrink-0" />
           <div>
-            <p className="text-sm font-semibold text-blue-800 mb-1">Contexte ajouté automatiquement (ne pas inclure dans le prompt)</p>
-            <p className="text-xs text-blue-700 mb-2">
+            <p className="text-sm font-semibold text-acc mb-1">Contexte ajouté automatiquement (ne pas inclure dans le prompt)</p>
+            <p className="text-xs text-mut mb-2">
               À chaque message client, ces informations sont <strong>automatiquement injectées</strong> après le prompt — tu n&apos;as pas à les écrire ici:
             </p>
-            <ul className="text-xs text-blue-700 space-y-0.5">
+            <ul className="text-xs text-mut space-y-0.5">
               {DYNAMIC_CONTEXT_ITEMS.map(item => (
                 <li key={item} className="flex items-center gap-1.5">
-                  <span className="w-1 h-1 rounded-full bg-blue-400 flex-shrink-0" />
+                  <span className="w-1 h-1 rounded-full bg-acc flex-shrink-0" />
                   {item}
                 </li>
               ))}
@@ -207,10 +207,10 @@ export default function ReglagesBotPage() {
       </div>
 
       {/* Textarea */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-2 border-b border-gray-100 bg-gray-50">
-          <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">System prompt — partie statique</span>
-          <span className={`text-xs ${tokenEstimate > 4000 ? "text-red-500 font-semibold" : tokenEstimate > 2000 ? "text-amber-500" : "text-gray-400"}`}>
+      <div className="bg-sur rounded-xl border border-line overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-2 border-b border-line bg-page">
+          <span className="lbl">System prompt — partie statique</span>
+          <span className={`text-xs num ${tokenEstimate > 4000 ? "text-neg font-semibold" : tokenEstimate > 2000 ? "text-warn" : "text-mut"}`}>
             {charCount.toLocaleString()} caractères · ~{tokenEstimate.toLocaleString()} tokens
             {tokenEstimate > 4000 && " — très long, coût élevé!"}
             {tokenEstimate > 2000 && tokenEstimate <= 4000 && " — attention au coût"}
@@ -220,16 +220,16 @@ export default function ReglagesBotPage() {
           ref={textareaRef}
           value={prompt}
           onChange={e => setPrompt(e.target.value)}
-          className="w-full min-h-[60vh] p-4 font-mono text-xs text-gray-800 leading-relaxed resize-y focus:outline-none"
+          className="w-full min-h-[60vh] p-4 font-mono text-xs text-ink bg-sur leading-relaxed resize-y focus:outline-none"
           spellCheck={false}
         />
       </div>
 
       {/* Test zone */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
-          <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Tester le bot (aperçu)</p>
-          <p className="text-xs text-gray-500 mt-0.5">
+      <div className="bg-sur rounded-xl border border-line overflow-hidden">
+        <div className="px-4 py-3 border-b border-line bg-page">
+          <p className="lbl">Tester le bot (aperçu)</p>
+          <p className="text-xs text-mut mt-0.5">
             Teste le prompt <em>en cours d&apos;édition</em> (pas encore sauvegardé) avec un message simulé.
             Le contexte client réel n&apos;est pas injecté dans ce mode test.
           </p>
@@ -242,24 +242,24 @@ export default function ReglagesBotPage() {
               onChange={e => setTestMessage(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleTest(); } }}
               placeholder="Ex: Bonjour, c'est quoi le prix pour une ouverture?"
-              className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#0a1f3f]"
+              className="flex-1 px-3 py-2 border border-line rounded-lg text-sm focus:outline-none focus:border-acc"
             />
             <button
               onClick={handleTest}
               disabled={testing || !testMessage.trim()}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-[#0a1f3f] text-white text-sm rounded-lg hover:bg-[#0d2a55] disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
+              className="inline-flex items-center gap-2 px-4 py-2 btn-glow text-sm rounded-lg hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
             >
               {testing ? <Loader2 size={14} className="animate-spin" /> : <SendHorizonal size={14} />}
               {testing ? "..." : "Envoyer"}
             </button>
           </div>
           {testError && (
-            <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{testError}</p>
+            <p className="text-sm text-neg bg-chip border border-line px-3 py-2 rounded-lg">{testError}</p>
           )}
           {testResponse && (
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Réponse du bot (CHLORE)</p>
-              <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{testResponse}</p>
+            <div className="bg-page border border-line rounded-lg p-3">
+              <p className="lbl mb-1">Réponse du bot (CHLORE)</p>
+              <p className="text-sm text-ink whitespace-pre-wrap leading-relaxed">{testResponse}</p>
             </div>
           )}
         </div>

@@ -75,45 +75,45 @@ function LoginForm() {
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
+    <div className="bg-sur border border-line rounded-2xl p-8 w-full max-w-md">
       <div className="text-center mb-8">
-        <p className="text-3xl font-bold text-[#0a1f3f]">CHLORE</p>
-        <p className="text-sm text-gray-500 mt-1">Entretien Piscine Granby</p>
+        <p className="text-3xl font-bold font-display text-ink">CHLORE<span className="text-acc">.</span></p>
+        <p className="text-sm text-mut mt-1">Entretien Piscine Granby</p>
       </div>
 
       {step === "credentials" ? (
         <form onSubmit={handleCredentials} className="space-y-4">
           <div>
-            <label className="text-xs font-medium text-gray-700">Email</label>
+            <label className="text-xs font-medium text-ink">Email</label>
             <div className="relative mt-1">
-              <Mail size={16} className="absolute left-3 top-3 text-gray-400" />
+              <Mail size={16} className="absolute left-3 top-3 text-mut" />
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="w-full pl-10 pr-4 py-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-200 focus:outline-none"
+                className="w-full pl-10 pr-4 py-2.5 border border-line rounded-lg text-sm focus:ring-2 focus:ring-acc focus:outline-none"
               />
             </div>
           </div>
           <div>
-            <label className="text-xs font-medium text-gray-700">Mot de passe</label>
+            <label className="text-xs font-medium text-ink">Mot de passe</label>
             <div className="relative mt-1">
-              <Lock size={16} className="absolute left-3 top-3 text-gray-400" />
+              <Lock size={16} className="absolute left-3 top-3 text-mut" />
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="w-full pl-10 pr-4 py-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-200 focus:outline-none"
+                className="w-full pl-10 pr-4 py-2.5 border border-line rounded-lg text-sm focus:ring-2 focus:ring-acc focus:outline-none"
               />
             </div>
           </div>
-          {error && <p className="text-xs text-red-600 text-center">{error}</p>}
+          {error && <p className="text-xs text-neg text-center">{error}</p>}
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-[#0a1f3f] text-white rounded-lg py-3 font-medium disabled:opacity-50 hover:bg-[#0f2855] transition"
+            className="w-full btn-glow rounded-lg py-3 font-medium disabled:opacity-50 hover:opacity-90 transition"
           >
             {loading ? <Loader2 size={18} className="animate-spin inline" /> : "Se connecter"}
           </button>
@@ -121,8 +121,8 @@ function LoginForm() {
       ) : (
         <form onSubmit={handleTotp} className="space-y-4">
           <div className="text-center">
-            <p className="text-sm text-gray-700 font-medium">Code de vérification</p>
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-sm text-ink font-medium">Code de vérification</p>
+            <p className="text-xs text-mut mt-1">
               Entrez le code à 6 chiffres de votre app authenticator
             </p>
           </div>
@@ -134,21 +134,21 @@ function LoginForm() {
             maxLength={6}
             required
             autoFocus
-            className="w-full text-center text-2xl tracking-widest py-3 border rounded-lg focus:ring-2 focus:ring-blue-200 focus:outline-none"
+            className="w-full text-center text-2xl num tracking-widest py-3 border border-line rounded-lg focus:ring-2 focus:ring-acc focus:outline-none"
             placeholder="000000"
           />
-          {error && <p className="text-xs text-red-600 text-center">{error}</p>}
+          {error && <p className="text-xs text-neg text-center">{error}</p>}
           <button
             type="submit"
             disabled={loading || totp.length !== 6}
-            className="w-full bg-[#0a1f3f] text-white rounded-lg py-3 font-medium disabled:opacity-50 hover:bg-[#0f2855] transition"
+            className="w-full btn-glow rounded-lg py-3 font-medium disabled:opacity-50 hover:opacity-90 transition"
           >
             {loading ? <Loader2 size={18} className="animate-spin inline" /> : "Vérifier"}
           </button>
           <button
             type="button"
             onClick={() => { setStep("credentials"); setTotp(""); setError(""); }}
-            className="w-full text-sm text-gray-500 hover:text-gray-700 transition"
+            className="w-full text-sm text-mut hover:text-ink transition"
           >
             ← Retour
           </button>
@@ -160,11 +160,11 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="min-h-screen bg-[#0a1f3f] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-page flex items-center justify-center p-4">
       <Suspense
         fallback={
-          <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md flex justify-center">
-            <Loader2 size={24} className="animate-spin text-gray-400" />
+          <div className="bg-sur border border-line rounded-2xl p-8 w-full max-w-md flex justify-center">
+            <Loader2 size={24} className="animate-spin text-mut" />
           </div>
         }
       >

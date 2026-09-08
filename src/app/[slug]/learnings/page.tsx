@@ -15,19 +15,19 @@ interface Learning {
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
-  politesse:   "bg-blue-100 text-blue-700",
-  prix:        "bg-green-100 text-green-700",
-  paiement:    "bg-orange-100 text-orange-700",
-  refus:       "bg-red-100 text-red-700",
-  date:        "bg-purple-100 text-purple-700",
-  identite:    "bg-gray-100 text-gray-700",
-  upsell:      "bg-teal-100 text-teal-700",
-  technique:   "bg-cyan-100 text-cyan-700",
-  timing:      "bg-yellow-100 text-yellow-700",
-  ton:         "bg-pink-100 text-pink-700",
-  info_client: "bg-indigo-100 text-indigo-700",
-  erreur:      "bg-red-100 text-red-700",
-  general:     "bg-gray-100 text-gray-600",
+  politesse:   "bg-chip text-acc",
+  prix:        "bg-chip text-pos",
+  paiement:    "bg-chip text-warn",
+  refus:       "bg-chip text-neg",
+  date:        "bg-chip text-acc",
+  identite:    "bg-chip text-ink",
+  upsell:      "bg-chip text-pos",
+  technique:   "bg-chip text-acc",
+  timing:      "bg-chip text-warn",
+  ton:         "bg-chip text-acc",
+  info_client: "bg-chip text-acc",
+  erreur:      "bg-chip text-neg",
+  general:     "bg-chip text-mut",
 };
 
 const CATEGORIES = ["politesse", "prix", "paiement", "refus", "date", "identite", "upsell", "technique", "timing", "ton", "info_client", "erreur", "general"];
@@ -110,16 +110,16 @@ export default function LearningsPage() {
     <div className="p-6 max-w-3xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <Brain size={22} className="text-[#0a1f3f]" />
+          <Brain size={22} className="text-acc" />
           <div>
-            <h1 className="text-xl font-bold text-gray-900">Apprentissages CHLORE</h1>
-            <p className="text-sm text-gray-500">{active.length} leçon{active.length !== 1 ? "s" : ""} active{active.length !== 1 ? "s" : ""}</p>
+            <h1 className="text-xl font-bold font-display text-ink">Apprentissages CHLORE</h1>
+            <p className="text-sm text-mut">{active.length} leçon{active.length !== 1 ? "s" : ""} active{active.length !== 1 ? "s" : ""}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowAddForm((v) => !v)}
-            className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition"
+            className="flex items-center gap-1.5 px-3 py-2 border border-line text-ink text-sm font-medium rounded-lg hover:bg-chip transition"
           >
             <Plus size={15} />
             Ajouter
@@ -127,7 +127,7 @@ export default function LearningsPage() {
           <button
             onClick={runAnalysis}
             disabled={analyzing}
-            className="flex items-center gap-1.5 px-3 py-2 bg-[#0a1f3f] text-white text-sm font-medium rounded-lg hover:bg-[#0f2855] disabled:opacity-50 transition"
+            className="flex items-center gap-1.5 px-3 py-2 btn-glow text-white text-sm font-medium rounded-lg hover:opacity-90 disabled:opacity-50 transition"
           >
             <RefreshCw size={15} className={analyzing ? "animate-spin" : ""} />
             {analyzing ? "Analyse..." : "Analyser maintenant"}
@@ -136,19 +136,19 @@ export default function LearningsPage() {
       </div>
 
       {analyzeResult && (
-        <div className="mb-4 px-4 py-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800 font-medium">
+        <div className="mb-4 px-4 py-3 bg-chip border border-line rounded-lg text-sm text-pos font-medium">
           {analyzeResult}
         </div>
       )}
 
       {showAddForm && (
-        <div className="mb-6 bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-          <p className="text-sm font-medium text-gray-700 mb-3">Nouvelle leçon</p>
+        <div className="mb-6 bg-sur rounded-xl  border border-line p-4">
+          <p className="text-sm font-medium text-ink mb-3">Nouvelle leçon</p>
           <div className="flex gap-2 mb-2">
             <select
               value={newCategory}
               onChange={(e) => setNewCategory(e.target.value)}
-              className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0a1f3f]/20"
+              className="bg-page border border-line rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-acc"
             >
               {CATEGORIES.map((c) => (
                 <option key={c} value={c}>{c}</option>
@@ -160,19 +160,19 @@ export default function LearningsPage() {
             onChange={(e) => setNewLesson(e.target.value)}
             placeholder="Décris la leçon comme une instruction claire et actionable..."
             rows={3}
-            className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0a1f3f]/20 resize-none"
+            className="w-full bg-page border border-line rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-acc resize-none"
           />
           <div className="flex justify-end gap-2 mt-2">
             <button
               onClick={() => { setShowAddForm(false); setNewLesson(""); }}
-              className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition"
+              className="px-3 py-1.5 text-sm text-mut hover:bg-chip rounded-lg transition"
             >
               Annuler
             </button>
             <button
               onClick={addLearning}
               disabled={saving || !newLesson.trim()}
-              className="px-3 py-1.5 bg-[#0a1f3f] text-white text-sm font-medium rounded-lg hover:bg-[#0f2855] disabled:opacity-50 transition"
+              className="px-3 py-1.5 btn-glow text-white text-sm font-medium rounded-lg hover:opacity-90 disabled:opacity-50 transition"
             >
               {saving ? "Sauvegarde..." : "Sauvegarder"}
             </button>
@@ -182,15 +182,15 @@ export default function LearningsPage() {
 
       {loading ? (
         <div className="flex justify-center py-12">
-          <div className="w-6 h-6 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin" />
+          <div className="w-6 h-6 border-2 border-line border-t-acc rounded-full animate-spin" />
         </div>
       ) : learnings.length === 0 ? (
-        <p className="text-sm text-gray-400 py-8 text-center">Aucune leçon. Exécutez le SQL dans Supabase pour initialiser.</p>
+        <p className="text-sm text-mut py-8 text-center">Aucune leçon. Exécutez le SQL dans Supabase pour initialiser.</p>
       ) : (
         <div className="space-y-3">
           {active.length > 0 && (
             <>
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Actives</p>
+              <p className="lbl">Actives</p>
               {active.map((l) => (
                 <LearningCard key={l.id} learning={l} onToggle={toggleActive} onDelete={deleteLearning} />
               ))}
@@ -198,7 +198,7 @@ export default function LearningsPage() {
           )}
           {inactive.length > 0 && (
             <>
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mt-6">Désactivées</p>
+              <p className="lbl mt-6">Désactivées</p>
               {inactive.map((l) => (
                 <LearningCard key={l.id} learning={l} onToggle={toggleActive} onDelete={deleteLearning} />
               ))}
@@ -223,7 +223,7 @@ function LearningCard({
   const date = new Date(learning.created_at).toLocaleDateString("fr-CA", { day: "numeric", month: "short", year: "numeric" });
 
   return (
-    <div className={`bg-white rounded-xl shadow-sm border border-gray-100 p-4 transition ${!learning.active ? "opacity-50" : ""}`}>
+    <div className={`bg-sur rounded-xl  border border-line p-4 transition ${!learning.active ? "opacity-50" : ""}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-2">
@@ -231,8 +231,8 @@ function LearningCard({
               {learning.category}
             </span>
           </div>
-          <p className="text-sm text-gray-800">{learning.lesson}</p>
-          <p className="text-xs text-gray-400 mt-2">
+          <p className="text-sm text-ink">{learning.lesson}</p>
+          <p className="text-xs text-mut mt-2">
             {learning.source ?? "auto-analyse"} · {date}
           </p>
         </div>
@@ -240,18 +240,18 @@ function LearningCard({
           <button
             onClick={() => onToggle(learning.id, learning.active)}
             className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
-              learning.active ? "bg-[#0a1f3f]" : "bg-gray-200"
+              learning.active ? "bg-acc-grad" : "bg-chip"
             }`}
           >
             <span
-              className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200 ease-in-out ${
+              className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-sur transition duration-200 ease-in-out ${
                 learning.active ? "translate-x-4" : "translate-x-0"
               }`}
             />
           </button>
           <button
             onClick={() => onDelete(learning.id)}
-            className="p-1 text-gray-300 hover:text-red-500 transition rounded"
+            className="p-1 text-mut hover:text-neg transition rounded"
           >
             <Trash2 size={14} />
           </button>

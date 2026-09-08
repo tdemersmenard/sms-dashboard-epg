@@ -131,10 +131,10 @@ export default function NouvelleFacturePage() {
     <div className="p-6 max-w-4xl mx-auto">
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
-        <FileText size={22} className="text-[#0a1f3f]" strokeWidth={1.75} />
+        <FileText size={22} className="text-acc" strokeWidth={1.75} />
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Nouvelle facture</h1>
-          <p className="text-sm text-gray-500">Générer et envoyer une facture à un client</p>
+          <h1 className="font-display text-xl font-bold text-ink">Nouvelle facture</h1>
+          <p className="text-sm text-mut">Générer et envoyer une facture à un client</p>
         </div>
       </div>
 
@@ -149,16 +149,16 @@ export default function NouvelleFacturePage() {
               <div className="flex gap-3 mt-4">
                 {result.pdfUrl && (
                   <a href={result.pdfUrl} target="_blank" rel="noreferrer"
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-[#0a1f3f] text-white text-sm rounded-lg hover:bg-[#0d2a55]">
+                    className="inline-flex items-center gap-2 px-4 py-2 btn-glow text-sm rounded-lg hover:opacity-90">
                     <Download size={14} /> Voir le PDF
                   </a>
                 )}
                 <button onClick={() => router.push("/clients")}
-                  className="px-4 py-2 border border-gray-300 text-sm rounded-lg hover:bg-gray-50">
+                  className="px-4 py-2 border border-line text-sm rounded-lg hover:bg-chip">
                   Retour aux clients
                 </button>
                 <button onClick={() => { setResult(null); setLineItems([]); setNotes(""); setSelectedContact(null); setSearch(""); }}
-                  className="px-4 py-2 border border-gray-300 text-sm rounded-lg hover:bg-gray-50">
+                  className="px-4 py-2 border border-line text-sm rounded-lg hover:bg-chip">
                   Nouvelle facture
                 </button>
               </div>
@@ -171,55 +171,55 @@ export default function NouvelleFacturePage() {
 
       <div className="space-y-6">
         {/* Client selector */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <h2 className="font-semibold text-gray-900 mb-3">Client</h2>
+        <div className="bg-sur rounded-xl border border-line p-5">
+          <h2 className="font-display font-semibold text-ink mb-3">Client</h2>
           <div className="relative">
             <div className="relative">
-              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-mut" />
               <input
                 type="text"
                 placeholder="Rechercher par nom ou téléphone..."
                 value={search}
                 onChange={e => { setSearch(e.target.value); setShowDropdown(true); setSelectedContact(null); }}
                 onFocus={() => setShowDropdown(true)}
-                className="w-full pl-9 pr-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0a1f3f]/20 focus:border-[#0a1f3f]"
+                className="w-full pl-9 pr-3 py-2.5 border border-line rounded-lg text-sm bg-sur text-ink focus:outline-none focus:ring-2 focus:ring-acc focus:border-acc"
               />
             </div>
             {showDropdown && search.length >= 1 && filteredContacts.length > 0 && (
-              <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+              <div className="absolute z-10 mt-1 w-full bg-sur border border-line rounded-lg max-h-48 overflow-y-auto">
                 {filteredContacts.slice(0, 10).map(c => (
                   <button key={c.id} onClick={() => selectContact(c)}
-                    className="w-full text-left px-4 py-2.5 hover:bg-gray-50 text-sm border-b border-gray-100 last:border-0">
+                    className="w-full text-left px-4 py-2.5 hover:bg-chip text-sm border-b border-line last:border-0">
                     <span className="font-medium">{[c.first_name, c.last_name].filter(Boolean).join(" ") || "Sans nom"}</span>
-                    <span className="text-gray-400 ml-2">{c.phone}</span>
-                    {c.email && <span className="text-gray-400 ml-2">— {c.email}</span>}
+                    <span className="text-mut ml-2">{c.phone}</span>
+                    {c.email && <span className="text-mut ml-2">— {c.email}</span>}
                   </button>
                 ))}
               </div>
             )}
           </div>
           {selectedContact && (
-            <div className="mt-3 p-3 bg-blue-50 rounded-lg text-sm text-blue-800">
+            <div className="mt-3 p-3 bg-chip rounded-lg text-sm text-acc">
               <span className="font-medium">{[selectedContact.first_name, selectedContact.last_name].filter(Boolean).join(" ")}</span>
-              {selectedContact.address && <span className="ml-2 text-blue-600">{selectedContact.address}</span>}
+              {selectedContact.address && <span className="ml-2 text-acc">{selectedContact.address}</span>}
               {!selectedContact.email && (
-                <span className="ml-2 text-yellow-600 font-medium">Pas d&apos;email — envoi impossible</span>
+                <span className="ml-2 text-warn font-medium">Pas d&apos;email — envoi impossible</span>
               )}
             </div>
           )}
         </div>
 
         {/* Line items */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <div className="bg-sur rounded-xl border border-line p-5">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="font-semibold text-gray-900">Lignes de facturation</h2>
+            <h2 className="font-display font-semibold text-ink">Lignes de facturation</h2>
             <div className="flex gap-2">
               <button onClick={() => setShowCatalog(v => !v)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm border border-line rounded-lg hover:bg-chip">
                 Catalogue {showCatalog ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
               </button>
               <button onClick={addBlankLine}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm border border-line rounded-lg hover:bg-chip">
                 <Plus size={13} /> Ligne vide
               </button>
             </div>
@@ -227,11 +227,11 @@ export default function NouvelleFacturePage() {
 
           {/* Catalog picker */}
           {showCatalog && (
-            <div className="mb-4 border border-gray-200 rounded-lg overflow-hidden">
-              <div className="flex border-b border-gray-200 bg-gray-50 overflow-x-auto">
+            <div className="mb-4 border border-line rounded-lg overflow-hidden">
+              <div className="flex border-b border-line bg-page overflow-x-auto">
                 {catalogCategories.map(cat => (
                   <button key={cat} onClick={() => setActiveCategory(cat)}
-                    className={`px-4 py-2 text-xs font-medium whitespace-nowrap transition ${activeCategory === cat ? "bg-white text-[#0a1f3f] border-b-2 border-[#0a1f3f]" : "text-gray-500 hover:text-gray-700"}`}>
+                    className={`px-4 py-2 text-xs font-medium whitespace-nowrap transition ${activeCategory === cat ? "bg-sur text-acc border-b-2 border-acc" : "text-mut hover:text-ink"}`}>
                     {cat}
                   </button>
                 ))}
@@ -239,12 +239,12 @@ export default function NouvelleFacturePage() {
               <div className="p-2 grid grid-cols-1 sm:grid-cols-2 gap-1">
                 {catalogItems.filter(i => (i.category || "Autre") === activeCategory).map(item => (
                   <button key={item.id} onClick={() => addCatalogItem(item)}
-                    className="text-left px-3 py-2 rounded hover:bg-gray-50 border border-transparent hover:border-gray-200 transition">
+                    className="text-left px-3 py-2 rounded hover:bg-chip border border-transparent hover:border-line transition">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-gray-800">{item.name}</span>
-                      <span className="text-sm font-semibold text-[#0a1f3f]">{item.default_price}$</span>
+                      <span className="text-sm font-medium text-ink">{item.name}</span>
+                      <span className="text-sm font-semibold num text-acc">{item.default_price}$</span>
                     </div>
-                    {item.description && <p className="text-xs text-gray-400 mt-0.5">{item.description}</p>}
+                    {item.description && <p className="text-xs text-mut mt-0.5">{item.description}</p>}
                   </button>
                 ))}
               </div>
@@ -256,23 +256,23 @@ export default function NouvelleFacturePage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-200">
-                    <th className="text-left py-2 pr-2 font-medium text-gray-600 w-full">Description</th>
-                    <th className="text-right py-2 px-2 font-medium text-gray-600 whitespace-nowrap">Qté</th>
-                    <th className="text-right py-2 px-2 font-medium text-gray-600 whitespace-nowrap">Prix unit.</th>
-                    <th className="text-right py-2 px-2 font-medium text-gray-600 whitespace-nowrap">Total</th>
+                  <tr className="border-b border-line">
+                    <th className="text-left py-2 pr-2 font-medium text-mut w-full">Description</th>
+                    <th className="text-right py-2 px-2 font-medium text-mut whitespace-nowrap">Qté</th>
+                    <th className="text-right py-2 px-2 font-medium text-mut whitespace-nowrap">Prix unit.</th>
+                    <th className="text-right py-2 px-2 font-medium text-mut whitespace-nowrap">Total</th>
                     <th className="w-8"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {lineItems.map((item, idx) => (
-                    <tr key={idx} className="border-b border-gray-100">
+                    <tr key={idx} className="border-b border-line">
                       <td className="py-1.5 pr-2">
                         <input
                           type="text"
                           value={item.description}
                           onChange={e => updateLine(idx, "description", e.target.value)}
-                          className="w-full px-2 py-1 border border-gray-200 rounded text-sm focus:outline-none focus:border-[#0a1f3f]"
+                          className="w-full px-2 py-1 border border-line rounded text-sm bg-sur text-ink focus:outline-none focus:border-acc"
                           placeholder="Description..."
                         />
                       </td>
@@ -281,7 +281,7 @@ export default function NouvelleFacturePage() {
                           type="number"
                           value={item.qty}
                           onChange={e => updateLine(idx, "qty", Number(e.target.value))}
-                          className="w-14 px-2 py-1 border border-gray-200 rounded text-sm text-right focus:outline-none focus:border-[#0a1f3f]"
+                          className="w-14 px-2 py-1 border border-line rounded text-sm bg-sur text-ink text-right focus:outline-none focus:border-acc"
                           min={1}
                         />
                       </td>
@@ -290,13 +290,13 @@ export default function NouvelleFacturePage() {
                           type="number"
                           value={item.unitPrice}
                           onChange={e => updateLine(idx, "unitPrice", Number(e.target.value))}
-                          className="w-24 px-2 py-1 border border-gray-200 rounded text-sm text-right focus:outline-none focus:border-[#0a1f3f]"
+                          className="w-24 px-2 py-1 border border-line rounded text-sm bg-sur text-ink text-right focus:outline-none focus:border-acc"
                           min={0}
                         />
                       </td>
-                      <td className="py-1.5 px-2 text-right font-medium whitespace-nowrap">{item.total}$</td>
+                      <td className="py-1.5 px-2 text-right font-medium num whitespace-nowrap">{item.total}$</td>
                       <td className="py-1.5 pl-1">
-                        <button onClick={() => removeLine(idx)} className="text-gray-300 hover:text-red-500 transition">
+                        <button onClick={() => removeLine(idx)} className="text-mut hover:text-neg transition">
                           <Trash2 size={14} />
                         </button>
                       </td>
@@ -306,30 +306,30 @@ export default function NouvelleFacturePage() {
               </table>
             </div>
           ) : (
-            <div className="text-center py-8 text-gray-400 text-sm border border-dashed border-gray-200 rounded-lg">
+            <div className="text-center py-8 text-mut text-sm border border-dashed border-line rounded-lg">
               Aucune ligne — utilisez le catalogue ou ajoutez une ligne vide
             </div>
           )}
 
           {lineItems.length > 0 && (
             <div className="flex justify-end mt-4">
-              <div className="bg-[#0a1f3f] text-white rounded-lg px-5 py-3 text-right">
-                <p className="text-xs text-blue-300 uppercase tracking-wide">Total</p>
-                <p className="text-2xl font-bold">{total}$</p>
+              <div className="bg-acc-grad text-accink rounded-lg px-5 py-3 text-right">
+                <p className="text-xs uppercase tracking-wide opacity-80">Total</p>
+                <p className="font-display num text-2xl font-bold">{total}$</p>
               </div>
             </div>
           )}
         </div>
 
         {/* Notes */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <h2 className="font-semibold text-gray-900 mb-2">Notes (optionnel)</h2>
+        <div className="bg-sur rounded-xl border border-line p-5">
+          <h2 className="font-display font-semibold text-ink mb-2">Notes (optionnel)</h2>
           <textarea
             value={notes}
             onChange={e => setNotes(e.target.value)}
             placeholder="Notes visibles sur la facture..."
             rows={3}
-            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0a1f3f]/20 focus:border-[#0a1f3f] resize-none"
+            className="w-full px-3 py-2 border border-line rounded-lg text-sm bg-sur text-ink focus:outline-none focus:ring-2 focus:ring-acc focus:border-acc resize-none"
           />
         </div>
 
@@ -338,14 +338,14 @@ export default function NouvelleFacturePage() {
           <button
             onClick={() => handleSubmit(false)}
             disabled={!selectedContact || lineItems.length === 0 || loading}
-            className="inline-flex items-center gap-2 px-5 py-2.5 border border-gray-300 text-sm font-medium rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-2 px-5 py-2.5 border border-line text-sm font-medium rounded-lg hover:bg-chip disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <Download size={15} /> Générer sans envoyer
           </button>
           <button
             onClick={() => handleSubmit(true)}
             disabled={!selectedContact || lineItems.length === 0 || loading}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#0a1f3f] text-white text-sm font-medium rounded-lg hover:bg-[#0d2a55] disabled:opacity-40 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-2 px-5 py-2.5 btn-glow text-sm font-medium rounded-lg hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <Send size={15} /> {loading ? "Génération..." : "Générer et envoyer"}
           </button>

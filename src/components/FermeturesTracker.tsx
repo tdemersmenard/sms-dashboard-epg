@@ -164,23 +164,23 @@ export default function FermeturesTracker() {
   const soldPendingPrice = sold.filter((f) => f.amount === null).length;
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mt-6">
+    <div className="bg-sur rounded-xl  border border-line p-5 mt-6">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <Snowflake size={16} className="text-sky-600" />
-          <h2 className="text-sm font-bold text-gray-800">Fermetures — saison {new Date().getFullYear()}</h2>
+          <Snowflake size={16} className="text-acc" />
+          <h2 className="text-sm font-bold text-ink">Fermetures — saison {new Date().getFullYear()}</h2>
         </div>
         {!loading && total > 0 && (
-          <span className="text-sm font-bold text-gray-800">
-            {planned.length}/{total} <span className="font-medium text-gray-500">incluses au forfait planifiées ({pct}%)</span>
+          <span className="text-sm font-bold text-ink">
+            {planned.length}/{total} <span className="font-medium text-mut">incluses au forfait planifiées ({pct}%)</span>
           </span>
         )}
       </div>
 
       {loading ? (
-        <p className="text-xs text-gray-400">Chargement…</p>
+        <p className="text-xs text-mut">Chargement…</p>
       ) : total === 0 && sold.length === 0 ? (
-        <p className="text-xs text-gray-400">Aucune fermeture à suivre pour l'instant.</p>
+        <p className="text-xs text-mut">Aucune fermeture à suivre pour l'instant.</p>
       ) : (
         <>
           {/* Fermetures vendues (hors forfait) */}
@@ -213,14 +213,14 @@ export default function FermeturesTracker() {
                   <a
                     key={f.id}
                     href={`/${franchiseSlug}/messages?contact=${f.id}`}
-                    className="flex items-center gap-1.5 text-xs text-gray-700 hover:text-gray-900 transition"
+                    className="flex items-center gap-1.5 text-xs text-ink hover:text-ink transition"
                   >
                     <CheckCircle2 size={12} className={f.paid ? "text-emerald-500" : "text-amber-400"} />
                     <span className="truncate">{f.name}</span>
-                    <span className="text-gray-400 shrink-0">
+                    <span className="text-mut shrink-0">
                       {fmtDate(f.date)}{f.start ? ` ${f.start.slice(0, 5)}` : ""}
                     </span>
-                    <span className={`shrink-0 font-medium ${f.amount === null ? "text-amber-600" : f.paid ? "text-emerald-600" : "text-gray-500"}`}>
+                    <span className={`shrink-0 font-medium ${f.amount === null ? "text-amber-600" : f.paid ? "text-emerald-600" : "text-mut"}`}>
                       {f.amount === null ? "prix?" : `${f.amount}$${f.paid ? " ✓" : ""}`}
                     </span>
                   </a>
@@ -230,9 +230,9 @@ export default function FermeturesTracker() {
           </div>
 
           {/* Barre de progression */}
-          <div className="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden mb-4">
+          <div className="w-full h-2.5 bg-chip rounded-full overflow-hidden mb-4">
             <div
-              className="h-full bg-sky-500 rounded-full transition-all"
+              className="h-full bg-acc-grad rounded-full transition-all"
               style={{ width: `${pct}%` }}
             />
           </div>
@@ -240,7 +240,7 @@ export default function FermeturesTracker() {
           {/* À planifier */}
           {remaining.length > 0 && (
             <div className="mb-2">
-              <p className="text-xs font-semibold text-gray-600 mb-2">
+              <p className="text-xs font-semibold text-mut mb-2">
                 À planifier ({remaining.length})
                 {repliedNotBooked > 0 && (
                   <span className="ml-2 text-emerald-600 font-medium">
@@ -253,10 +253,10 @@ export default function FermeturesTracker() {
                   <a
                     key={c.id}
                     href={`/${franchiseSlug}/messages?contact=${c.id}`}
-                    className={`inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border transition hover:shadow-sm ${
+                    className={`inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border transition hover: ${
                       c.hasReplied
                         ? "bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100"
-                        : "bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100"
+                        : "bg-page border-line text-ink hover:bg-chip"
                     }`}
                     title={c.hasReplied ? "A répondu cette saison — pas encore booké" : "Aucune réponse depuis le début de la saison"}
                   >
@@ -270,10 +270,10 @@ export default function FermeturesTracker() {
 
           {/* Planifiées (repliable) */}
           {planned.length > 0 && (
-            <div className="mt-3 pt-3 border-t border-gray-100">
+            <div className="mt-3 pt-3 border-t border-line">
               <button
                 onClick={() => setShowPlanned(!showPlanned)}
-                className="flex items-center gap-1 text-xs font-semibold text-gray-600 hover:text-gray-800 transition"
+                className="flex items-center gap-1 text-xs font-semibold text-mut hover:text-ink transition"
               >
                 {showPlanned ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
                 Planifiées ({planned.length})
@@ -284,11 +284,11 @@ export default function FermeturesTracker() {
                     <a
                       key={c.id}
                       href={`/${franchiseSlug}/messages?contact=${c.id}`}
-                      className="flex items-center gap-1.5 text-xs text-gray-700 hover:text-gray-900 transition"
+                      className="flex items-center gap-1.5 text-xs text-ink hover:text-ink transition"
                     >
                       <CheckCircle2 size={12} className="text-emerald-500 shrink-0" />
                       <span className="truncate">{c.name}</span>
-                      <span className="text-gray-400 shrink-0">
+                      <span className="text-mut shrink-0">
                         {fmtDate(c.job!.date)}{c.job!.start ? ` ${c.job!.start.slice(0, 5)}` : ""}
                       </span>
                     </a>

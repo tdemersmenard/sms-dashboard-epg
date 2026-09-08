@@ -11,7 +11,7 @@ const CATEGORIES = [
   { value: "investissement",        label: "Investissement business",   color: "bg-purple-100 text-purple-700"},
   { value: "retrait_profit",        label: "Retrait de profit",         color: "bg-amber-100 text-amber-700"  },
   { value: "avance",                label: "Avance temporaire",         color: "bg-orange-100 text-orange-700"},
-  { value: "autre",                 label: "Autre",                     color: "bg-gray-100 text-gray-700"    },
+  { value: "autre",                 label: "Autre",                     color: "bg-chip text-ink"    },
 ];
 
 export default function TransfertsTab() {
@@ -112,18 +112,18 @@ export default function TransfertsTab() {
             <TrendingUp size={16} />
             <p className="text-xs font-medium">Reçu en perso</p>
           </div>
-          <p className="text-2xl font-bold text-green-900 mt-1">{fmtMontant(totalPersoRecu)}</p>
+          <p className="font-display num text-2xl font-bold text-green-900 mt-1">{fmtMontant(totalPersoRecu)}</p>
         </div>
         <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
           <div className="flex items-center gap-2 text-orange-700">
             <TrendingDown size={16} />
             <p className="text-xs font-medium">Injecté dans business</p>
           </div>
-          <p className="text-2xl font-bold text-orange-900 mt-1">{fmtMontant(totalPersoDonne)}</p>
+          <p className="font-display num text-2xl font-bold text-orange-900 mt-1">{fmtMontant(totalPersoDonne)}</p>
         </div>
-        <div className="bg-[#0a1f3f] rounded-xl p-4 text-white">
-          <p className="text-xs font-medium text-blue-200">Net personnel</p>
-          <p className="text-2xl font-bold mt-1">{fmtMontant(netPerso)}</p>
+        <div className="bg-acc-grad rounded-xl p-4 text-accink">
+          <p className="text-xs font-medium opacity-80">Net personnel</p>
+          <p className="font-display num text-2xl font-bold mt-1">{fmtMontant(netPerso)}</p>
         </div>
       </div>
 
@@ -132,7 +132,7 @@ export default function TransfertsTab() {
         <select
           value={yearFilter}
           onChange={(e) => setYearFilter(parseInt(e.target.value))}
-          className="border rounded-lg px-3 py-2 text-sm"
+          className="border border-line rounded-lg px-3 py-2 text-sm bg-sur text-ink"
         >
           <option value={2026}>2026</option>
           <option value={2025}>2025</option>
@@ -140,7 +140,7 @@ export default function TransfertsTab() {
         </select>
         <button
           onClick={() => setShowForm(!showForm)}
-          className="bg-[#0a1f3f] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#0d2a52]"
+          className="btn-glow px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90"
         >
           {showForm ? "Annuler" : "+ Nouveau transfert"}
         </button>
@@ -148,42 +148,42 @@ export default function TransfertsTab() {
 
       {/* Formulaire */}
       {showForm && (
-        <div className="bg-white rounded-xl border p-4 space-y-3">
+        <div className="bg-sur rounded-xl border border-line p-4 space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-medium text-gray-700">Date</label>
+              <label className="text-xs font-medium text-ink">Date</label>
               <input
                 type="date"
                 value={form.date}
                 onChange={(e) => setForm({ ...form, date: e.target.value })}
-                className="w-full mt-1 border rounded-lg px-3 py-2 text-sm"
+                className="w-full mt-1 border border-line rounded-lg px-3 py-2 text-sm bg-sur text-ink"
               />
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-700">Montant ($)</label>
+              <label className="text-xs font-medium text-ink">Montant ($)</label>
               <input
                 type="number"
                 step="0.01"
                 value={form.montant}
                 onChange={(e) => setForm({ ...form, montant: e.target.value })}
                 placeholder="1000"
-                className="w-full mt-1 border rounded-lg px-3 py-2 text-sm"
+                className="w-full mt-1 border border-line rounded-lg px-3 py-2 text-sm bg-sur text-ink"
               />
             </div>
           </div>
 
           <div>
-            <label className="text-xs font-medium text-gray-700">Direction</label>
+            <label className="text-xs font-medium text-ink">Direction</label>
             <div className="grid grid-cols-2 gap-2 mt-1">
               <button
                 onClick={() => setForm({ ...form, direction: "business_to_perso" })}
-                className={`p-3 rounded-lg border text-xs font-medium ${form.direction === "business_to_perso" ? "bg-green-50 border-green-400 text-green-700" : "bg-white border-gray-200 text-gray-600"}`}
+                className={`p-3 rounded-lg border text-xs font-medium ${form.direction === "business_to_perso" ? "bg-green-50 border-green-400 text-green-700" : "bg-sur border-line text-mut"}`}
               >
                 Business → Perso
               </button>
               <button
                 onClick={() => setForm({ ...form, direction: "perso_to_business" })}
-                className={`p-3 rounded-lg border text-xs font-medium ${form.direction === "perso_to_business" ? "bg-orange-50 border-orange-400 text-orange-700" : "bg-white border-gray-200 text-gray-600"}`}
+                className={`p-3 rounded-lg border text-xs font-medium ${form.direction === "perso_to_business" ? "bg-orange-50 border-orange-400 text-orange-700" : "bg-sur border-line text-mut"}`}
               >
                 Perso → Business
               </button>
@@ -191,11 +191,11 @@ export default function TransfertsTab() {
           </div>
 
           <div>
-            <label className="text-xs font-medium text-gray-700">Catégorie</label>
+            <label className="text-xs font-medium text-ink">Catégorie</label>
             <select
               value={form.categorie}
               onChange={(e) => setForm({ ...form, categorie: e.target.value })}
-              className="w-full mt-1 border rounded-lg px-3 py-2 text-sm"
+              className="w-full mt-1 border border-line rounded-lg px-3 py-2 text-sm bg-sur text-ink"
             >
               {CATEGORIES.map(c => (
                 <option key={c.value} value={c.value}>{c.label}</option>
@@ -205,51 +205,51 @@ export default function TransfertsTab() {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-medium text-gray-700">Compte source</label>
+              <label className="text-xs font-medium text-ink">Compte source</label>
               <input
                 type="text"
                 value={form.compte_source}
                 onChange={(e) => setForm({ ...form, compte_source: e.target.value })}
                 placeholder="Desjardins business"
-                className="w-full mt-1 border rounded-lg px-3 py-2 text-sm"
+                className="w-full mt-1 border border-line rounded-lg px-3 py-2 text-sm bg-sur text-ink"
               />
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-700">Compte destination</label>
+              <label className="text-xs font-medium text-ink">Compte destination</label>
               <input
                 type="text"
                 value={form.compte_destination}
                 onChange={(e) => setForm({ ...form, compte_destination: e.target.value })}
                 placeholder="BNC chèques"
-                className="w-full mt-1 border rounded-lg px-3 py-2 text-sm"
+                className="w-full mt-1 border border-line rounded-lg px-3 py-2 text-sm bg-sur text-ink"
               />
             </div>
           </div>
 
           <div>
-            <label className="text-xs font-medium text-gray-700">Description</label>
+            <label className="text-xs font-medium text-ink">Description</label>
             <input
               type="text"
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
               placeholder="Ex: Salaire avril 2026"
-              className="w-full mt-1 border rounded-lg px-3 py-2 text-sm"
+              className="w-full mt-1 border border-line rounded-lg px-3 py-2 text-sm bg-sur text-ink"
             />
           </div>
 
           <div>
-            <label className="text-xs font-medium text-gray-700">Note (optionnel)</label>
+            <label className="text-xs font-medium text-ink">Note (optionnel)</label>
             <textarea
               value={form.note}
               onChange={(e) => setForm({ ...form, note: e.target.value })}
               rows={2}
-              className="w-full mt-1 border rounded-lg px-3 py-2 text-sm"
+              className="w-full mt-1 border border-line rounded-lg px-3 py-2 text-sm bg-sur text-ink"
             />
           </div>
 
           <button
             onClick={handleSubmit}
-            className="w-full bg-[#0a1f3f] text-white rounded-lg py-2.5 font-medium"
+            className="w-full btn-glow rounded-lg py-2.5 font-medium"
           >
             Enregistrer le transfert
           </button>
@@ -257,19 +257,19 @@ export default function TransfertsTab() {
       )}
 
       {/* Graph par mois simple */}
-      <div className="bg-white rounded-xl border p-4">
-        <p className="text-sm font-semibold text-gray-900 mb-3">Net personnel par mois</p>
+      <div className="bg-sur rounded-xl border border-line p-4">
+        <p className="font-display text-sm font-semibold text-ink mb-3">Net personnel par mois</p>
         <div className="space-y-1.5">
           {Object.entries(parMois).map(([m, val]) => (
             <div key={m} className="flex items-center gap-2 text-xs">
-              <span className="w-10 text-gray-500">{monthNames[parseInt(m) - 1]}</span>
-              <div className="flex-1 bg-gray-100 rounded-full h-5 relative overflow-hidden">
+              <span className="w-10 text-mut">{monthNames[parseInt(m) - 1]}</span>
+              <div className="flex-1 bg-chip rounded-full h-5 relative overflow-hidden">
                 <div
-                  className={`h-full ${val >= 0 ? "bg-green-500" : "bg-orange-500"}`}
+                  className={`h-full ${val >= 0 ? "bg-pos" : "bg-warn"}`}
                   style={{ width: `${Math.min(Math.abs(val) / 5000 * 100, 100)}%` }}
                 />
               </div>
-              <span className={`w-16 text-right font-medium ${val >= 0 ? "text-green-700" : "text-orange-700"}`}>
+              <span className={`w-16 text-right font-medium num ${val >= 0 ? "text-pos" : "text-warn"}`}>
                 {val.toFixed(0)}$
               </span>
             </div>
@@ -278,15 +278,15 @@ export default function TransfertsTab() {
       </div>
 
       {/* Liste */}
-      <div className="bg-white rounded-xl border overflow-hidden">
-        <div className="px-4 py-3 border-b">
-          <p className="font-semibold text-gray-900">Historique ({transferts.length})</p>
+      <div className="bg-sur rounded-xl border border-line overflow-hidden">
+        <div className="px-4 py-3 border-b border-line">
+          <p className="font-display font-semibold text-ink">Historique ({transferts.length})</p>
         </div>
-        <div className="divide-y">
+        <div className="divide-y divide-line">
           {loading ? (
-            <p className="p-6 text-center text-sm text-gray-500">Chargement...</p>
+            <p className="p-6 text-center text-sm text-mut">Chargement...</p>
           ) : transferts.length === 0 ? (
-            <p className="p-6 text-center text-sm text-gray-500">Aucun transfert cette année</p>
+            <p className="p-6 text-center text-sm text-mut">Aucun transfert cette année</p>
           ) : (
             transferts.map((t) => {
               const cat = CATEGORIES.find(c => c.value === t.categorie);
@@ -294,26 +294,26 @@ export default function TransfertsTab() {
                 <div key={t.id} className="p-4 flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-semibold text-gray-900">{parseFloat(t.montant).toFixed(2)}$</p>
-                      <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${cat?.color || "bg-gray-100 text-gray-700"}`}>
+                      <p className="font-semibold num text-ink">{parseFloat(t.montant).toFixed(2)}$</p>
+                      <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${cat?.color || "bg-chip text-ink"}`}>
                         {cat?.label || t.categorie}
                       </span>
                     </div>
-                    <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
+                    <div className="flex items-center gap-1 text-xs text-mut mt-1">
                       <span>{t.compte_source || "Business"}</span>
                       <ArrowRight size={10} />
                       <span>{t.compte_destination || "Perso"}</span>
                     </div>
-                    {t.description && <p className="text-xs text-gray-600 mt-1">{t.description}</p>}
-                    <p className="text-[10px] text-gray-400 mt-1">{t.date}</p>
+                    {t.description && <p className="text-xs text-mut mt-1">{t.description}</p>}
+                    <p className="text-[10px] text-mut mt-1">{t.date}</p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className={`text-xs font-bold ${t.direction === "business_to_perso" ? "text-green-600" : "text-orange-600"}`}>
+                    <span className={`text-xs font-bold ${t.direction === "business_to_perso" ? "text-pos" : "text-warn"}`}>
                       {t.direction === "business_to_perso" ? "→ Perso" : "← Business"}
                     </span>
                     <button
                       onClick={() => handleDelete(t.id)}
-                      className="text-gray-400 hover:text-red-600"
+                      className="text-mut hover:text-neg"
                     >
                       <Trash2 size={14} />
                     </button>

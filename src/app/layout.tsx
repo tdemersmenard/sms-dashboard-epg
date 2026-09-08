@@ -10,13 +10,19 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="fr">
+    <html lang="fr" suppressHydrationWarning>
       <head>
-        <meta name="theme-color" content="#0a1f3f" />
+        <meta name="theme-color" content="#050f18" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="CHLORE" />
         <link rel="apple-touch-icon" href="/icon-192.png" />
+        {/* Thème appliqué avant le premier paint (pas de flash) */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{var t=localStorage.getItem("chlore-theme");if(t==="dark"||(!t&&window.matchMedia("(prefers-color-scheme: dark)").matches))document.documentElement.classList.add("dark")}catch(e){}`,
+          }}
+        />
       </head>
       <body className="antialiased">
         <LayoutWrapper>{children}</LayoutWrapper>

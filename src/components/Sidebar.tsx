@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { useFranchise } from "./FranchiseProvider";
+import ThemeToggle from "./ThemeToggle";
 
 const NAV_ITEMS_MAIN = [
   { label: "Dashboard",      href: "",            icon: LayoutDashboard, masterOnly: false },
@@ -114,10 +115,10 @@ export default function Sidebar() {
   return (
     <>
       {/* SIDEBAR DESKTOP (>= md) */}
-      <aside className="hidden md:flex fixed inset-y-0 left-0 flex-col bg-[#0a1f3f] z-40 w-[260px]">
-        <div className="px-5 pt-6 pb-5 border-b border-white/10">
-          <p className="text-white font-bold text-2xl tracking-tight">CHLORE</p>
-          <p className="text-[#94a3b8] text-sm mt-0.5 truncate">{displayName}</p>
+      <aside className="hidden md:flex fixed inset-y-0 left-0 flex-col bg-sur border-r border-line z-40 w-[260px]">
+        <div className="px-5 pt-6 pb-5 border-b border-line">
+          <p className="font-display font-semibold text-2xl tracking-tight text-ink">CHLORE<span className="text-acc">.</span></p>
+          <p className="lbl mt-1 truncate">{displayName}</p>
         </div>
         <nav className="flex-1 px-3 py-4 overflow-y-auto flex flex-col">
           <div className="space-y-1 flex-1">
@@ -129,10 +130,10 @@ export default function Sidebar() {
                 <Link
                   key={item.href}
                   href={fullHref}
-                  className={`flex items-center gap-3 px-5 py-3 rounded-lg text-sm transition-all ${
+                  className={`flex items-center gap-3 px-5 py-2.5 rounded-lg text-sm transition-all ${
                     active
-                      ? "bg-white/10 text-white font-medium"
-                      : "text-gray-400 hover:bg-white/5 hover:text-gray-200"
+                      ? "bg-chip text-acc font-semibold shadow-[inset_2px_0_0_var(--le-acc)]"
+                      : "text-mut hover:bg-chip/60 hover:text-ink"
                   }`}
                 >
                   <div className="relative">
@@ -153,20 +154,20 @@ export default function Sidebar() {
               );
             })}
           </div>
-          <div className="mt-4 pt-4 border-t border-white/10 space-y-1">
-            <p className="px-5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white/30">Système</p>
+          <div className="mt-4 pt-4 border-t border-line space-y-1">
+            <p className="px-5 py-1 lbl">Système</p>
             {isMaster && (
               <Link
                 href="/master"
-                className={`flex items-center gap-3 px-5 py-3 rounded-lg text-sm transition-all ${
+                className={`flex items-center gap-3 px-5 py-2.5 rounded-lg text-sm transition-all ${
                   pathname === "/master" || pathname?.startsWith("/master/")
-                    ? "bg-white/10 text-white font-medium"
-                    : "text-gray-400 hover:bg-white/5 hover:text-gray-200"
+                    ? "bg-chip text-acc font-semibold shadow-[inset_2px_0_0_var(--le-acc)]"
+                    : "text-mut hover:bg-chip/60 hover:text-ink"
                 }`}
               >
                 <Building2 size={18} strokeWidth={1.75} />
                 <span className="flex-1">Master</span>
-                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-orange-500 text-white uppercase">SaaS</span>
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded btn-glow uppercase">SaaS</span>
               </Link>
             )}
             {NAV_ITEMS_ADMIN.filter(item => !item.masterOnly || isMaster).map(item => {
@@ -177,10 +178,10 @@ export default function Sidebar() {
                 <Link
                   key={item.href}
                   href={fullHref}
-                  className={`flex items-center gap-3 px-5 py-3 rounded-lg text-sm transition-all ${
+                  className={`flex items-center gap-3 px-5 py-2.5 rounded-lg text-sm transition-all ${
                     active
-                      ? "bg-white/10 text-white font-medium"
-                      : "text-gray-400 hover:bg-white/5 hover:text-gray-200"
+                      ? "bg-chip text-acc font-semibold shadow-[inset_2px_0_0_var(--le-acc)]"
+                      : "text-mut hover:bg-chip/60 hover:text-ink"
                   }`}
                 >
                   <Icon size={18} strokeWidth={1.75} />
@@ -190,17 +191,18 @@ export default function Sidebar() {
             })}
           </div>
         </nav>
-        <div className="px-5 py-4 border-t border-white/10 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center">
-            <span className="text-white text-[11px] font-semibold">TDM</span>
+        <div className="px-5 py-4 border-t border-line flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full bg-acc-grad flex items-center justify-center">
+            <span className="text-accink text-[11px] font-bold">TDM</span>
           </div>
-          <span className="text-gray-400 text-sm truncate">Thomas Demers-Ménard</span>
+          <span className="text-mut text-sm truncate flex-1">Thomas Demers-Ménard</span>
+          <ThemeToggle />
         </div>
       </aside>
 
       {/* BOTTOM NAV MOBILE (< md) — 4 items fixes + menu "Plus" plein écran.
           (L'ancienne barre défilante cachait 10+ pages sans aucun indice visuel.) */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 bg-white border-t border-gray-200 z-50 pb-[env(safe-area-inset-bottom)]">
+      <nav className="md:hidden fixed bottom-0 inset-x-0 bg-sur border-t border-line z-50 pb-[env(safe-area-inset-bottom)]">
         <div className="grid grid-cols-5 h-16">
           {NAV_ITEMS_MAIN.slice(0, 4).map(item => {
             const Icon = item.icon;
@@ -211,7 +213,7 @@ export default function Sidebar() {
                 href={`${base}${item.href}`}
                 onClick={() => setMobileMenuOpen(false)}
                 className={`flex flex-col items-center justify-center gap-0.5 transition-colors ${
-                  active && !mobileMenuOpen ? "text-[#0a1f3f]" : "text-gray-400"
+                  active && !mobileMenuOpen ? "text-acc shadow-[inset_0_2px_0_var(--le-acc)]" : "text-mut"
                 }`}
               >
                 <div className="relative">
@@ -227,25 +229,25 @@ export default function Sidebar() {
                     </span>
                   )}
                 </div>
-                <span className="text-[9px] font-medium whitespace-nowrap">{item.label}</span>
+                <span className="text-[9px] font-display font-semibold uppercase tracking-[.08em] whitespace-nowrap">{item.label}</span>
               </Link>
             );
           })}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className={`flex flex-col items-center justify-center gap-0.5 transition-colors ${mobileMenuOpen ? "text-[#0a1f3f]" : "text-gray-400"}`}
+            className={`flex flex-col items-center justify-center gap-0.5 transition-colors ${mobileMenuOpen ? "text-acc shadow-[inset_0_2px_0_var(--le-acc)]" : "text-mut"}`}
           >
             {mobileMenuOpen ? <X size={20} strokeWidth={2.25} /> : <Menu size={20} strokeWidth={1.75} />}
-            <span className="text-[9px] font-medium">Plus</span>
+            <span className="text-[9px] font-display font-semibold uppercase tracking-[.08em]">Plus</span>
           </button>
         </div>
       </nav>
 
       {/* MENU "PLUS" PLEIN ÉCRAN (mobile) */}
       {mobileMenuOpen && (
-        <div className="md:hidden fixed inset-0 bottom-16 bg-white z-40 overflow-y-auto">
+        <div className="md:hidden fixed inset-0 bottom-16 bg-page z-40 overflow-y-auto">
           <div className="px-5 pt-6 pb-8">
-            <p className="text-xl font-bold text-gray-900 mb-4">Toutes les pages</p>
+            <div className="flex items-center justify-between mb-4"><p className="text-xl font-display font-semibold text-ink">Toutes les pages</p><ThemeToggle /></div>
             <div className="grid grid-cols-3 gap-3">
               {[...NAV_ITEMS_MAIN, ...NAV_ITEMS_ADMIN]
                 .filter(item => !item.masterOnly || isMaster)
@@ -262,8 +264,8 @@ export default function Sidebar() {
                       onClick={() => setMobileMenuOpen(false)}
                       className={`flex flex-col items-center justify-center gap-2 rounded-xl border py-4 px-2 transition ${
                         active
-                          ? "border-[#0a1f3f] bg-[#0a1f3f]/5 text-[#0a1f3f]"
-                          : "border-gray-200 text-gray-600 active:bg-gray-50"
+                          ? "border-acc bg-chip text-acc"
+                          : "border-line bg-sur text-mut active:bg-chip"
                       }`}
                     >
                       <div className="relative">
@@ -279,7 +281,7 @@ export default function Sidebar() {
                           </span>
                         )}
                       </div>
-                      <span className="text-[11px] font-medium text-center leading-tight">{item.label}</span>
+                      <span className="text-[11px] font-display font-semibold text-center leading-tight">{item.label}</span>
                     </Link>
                   );
                 })}

@@ -19,25 +19,25 @@ export default function RecuModal({ url, nom, onClose }: Props) {
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col"
+        className="bg-sur rounded-xl border border-line w-full max-w-2xl max-h-[90vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 flex-shrink-0">
-          <p className="font-medium text-gray-900 text-sm truncate pr-4">{nom}</p>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-line flex-shrink-0">
+          <p className="font-medium text-ink text-sm truncate pr-4">{nom}</p>
           <div className="flex items-center gap-3">
             <a
               href={url}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-gray-400 hover:text-gray-600 transition-colors"
+              className="text-mut hover:text-ink transition-colors"
               title="Télécharger"
             >
               <Download size={18} />
             </a>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
+              className="text-mut hover:text-ink transition-colors"
             >
               <X size={20} />
             </button>
@@ -49,7 +49,7 @@ export default function RecuModal({ url, nom, onClose }: Props) {
           {isPdf ? (
             <iframe
               src={url}
-              className="w-full rounded border border-gray-100"
+              className="w-full rounded border border-line"
               style={{ height: "70vh" }}
               title={nom}
             />

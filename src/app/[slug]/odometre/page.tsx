@@ -89,30 +89,30 @@ export default function OdometrePage() {
   return (
     <div className="p-4 md:p-6 max-w-2xl mx-auto space-y-4">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Odomètre</h1>
-        <p className="text-sm text-gray-500 mt-1">Tracker quotidien des km pour conformité fiscale</p>
+        <h1 className="text-2xl font-bold font-display text-ink">Odomètre</h1>
+        <p className="text-sm text-mut mt-1">Tracker quotidien des km pour conformité fiscale</p>
       </div>
 
-      <div className="bg-white rounded-xl border p-5 space-y-4">
+      <div className="bg-sur rounded-xl border border-line p-5 space-y-4">
         <div>
-          <label className="text-xs font-medium text-gray-700">Date</label>
+          <label className="text-xs font-medium text-ink">Date</label>
           <input
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            className="w-full mt-1 border rounded-lg px-3 py-2 text-sm"
+            className="w-full mt-1 border border-line bg-sur text-ink rounded-lg px-3 py-2 text-sm"
           />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-xs font-medium text-gray-700">KM début</label>
+            <label className="text-xs font-medium text-ink">KM début</label>
             <input
               type="number"
               value={kmStart}
               onChange={(e) => setKmStart(e.target.value)}
               placeholder="Ex: 125000"
-              className="w-full mt-1 border rounded-lg px-3 py-2 text-sm"
+              className="w-full mt-1 border border-line bg-sur text-ink rounded-lg px-3 py-2 text-sm"
             />
             <label className="block mt-2">
               <input
@@ -122,7 +122,7 @@ export default function OdometrePage() {
                 onChange={(e) => e.target.files?.[0] && handleScan("start", e.target.files[0])}
                 className="hidden"
               />
-              <div className="cursor-pointer bg-blue-50 border border-blue-200 rounded-lg p-2 text-center hover:bg-blue-100">
+              <div className="cursor-pointer bg-chip border border-line text-acc rounded-lg p-2 text-center hover:opacity-80">
                 {scanning === "start" ? (
                   <Loader2 size={14} className="animate-spin inline" />
                 ) : (
@@ -132,13 +132,13 @@ export default function OdometrePage() {
             </label>
           </div>
           <div>
-            <label className="text-xs font-medium text-gray-700">KM fin</label>
+            <label className="text-xs font-medium text-ink">KM fin</label>
             <input
               type="number"
               value={kmEnd}
               onChange={(e) => setKmEnd(e.target.value)}
               placeholder="Ex: 125150"
-              className="w-full mt-1 border rounded-lg px-3 py-2 text-sm"
+              className="w-full mt-1 border border-line bg-sur text-ink rounded-lg px-3 py-2 text-sm"
             />
             <label className="block mt-2">
               <input
@@ -148,7 +148,7 @@ export default function OdometrePage() {
                 onChange={(e) => e.target.files?.[0] && handleScan("end", e.target.files[0])}
                 className="hidden"
               />
-              <div className="cursor-pointer bg-blue-50 border border-blue-200 rounded-lg p-2 text-center hover:bg-blue-100">
+              <div className="cursor-pointer bg-chip border border-line text-acc rounded-lg p-2 text-center hover:opacity-80">
                 {scanning === "end" ? (
                   <Loader2 size={14} className="animate-spin inline" />
                 ) : (
@@ -160,50 +160,50 @@ export default function OdometrePage() {
         </div>
 
         {kmStart && kmEnd && parseInt(kmEnd) > parseInt(kmStart) && (
-          <div className="bg-gray-50 rounded-lg p-3 text-sm">
-            <p className="text-gray-700">Total: <strong>{parseInt(kmEnd) - parseInt(kmStart)} km</strong></p>
+          <div className="bg-page rounded-lg p-3 text-sm">
+            <p className="text-ink">Total: <strong className="num">{parseInt(kmEnd) - parseInt(kmStart)} km</strong></p>
           </div>
         )}
 
         <div>
-          <label className="text-xs font-medium text-gray-700">Notes (optionnel)</label>
+          <label className="text-xs font-medium text-ink">Notes (optionnel)</label>
           <input
             type="text"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder="Ex: Route Mardi + Costco"
-            className="w-full mt-1 border rounded-lg px-3 py-2 text-sm"
+            className="w-full mt-1 border border-line bg-sur text-ink rounded-lg px-3 py-2 text-sm"
           />
         </div>
 
         <button
           onClick={handleSave}
           disabled={saving || !kmStart || !kmEnd}
-          className="w-full bg-[#0a1f3f] text-white rounded-lg py-3 font-medium disabled:opacity-50"
+          className="w-full btn-glow rounded-lg py-3 font-medium hover:opacity-90 disabled:opacity-50"
         >
           {saving ? <Loader2 size={18} className="animate-spin inline" /> : "Enregistrer la journée"}
         </button>
       </div>
 
-      <div className="bg-white rounded-xl border overflow-hidden">
-        <div className="px-4 py-3 border-b">
-          <p className="font-semibold text-gray-900">Historique récent</p>
+      <div className="bg-sur rounded-xl border border-line overflow-hidden">
+        <div className="px-4 py-3 border-b border-line">
+          <p className="font-semibold font-display text-ink">Historique récent</p>
         </div>
-        <div className="divide-y">
+        <div className="divide-y divide-line">
           {logs.length === 0 ? (
-            <p className="p-6 text-center text-sm text-gray-500">Aucun enregistrement</p>
+            <p className="p-6 text-center text-sm text-mut">Aucun enregistrement</p>
           ) : (
             logs.map((log) => (
               <div key={log.id} className="p-4 flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-900">{log.date}</p>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-sm font-medium num text-ink">{log.date}</p>
+                  <p className="text-xs text-mut num">
                     {log.km_total} km total • {log.km_business} km business • {log.km_personnel} km perso
                   </p>
                 </div>
                 <div className="text-right">
-                  <p className="text-lg font-bold text-blue-600">{log.business_pct}%</p>
-                  <p className="text-[10px] text-gray-500">business</p>
+                  <p className="text-lg font-bold font-display num text-acc">{log.business_pct}%</p>
+                  <p className="lbl">business</p>
                 </div>
               </div>
             ))

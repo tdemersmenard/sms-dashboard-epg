@@ -12,7 +12,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
   return (
     <>
       <Sidebar />
-      <main className={`min-h-screen overflow-y-auto bg-white ${
+      <main className={`min-h-screen overflow-y-auto bg-sur ${
         isAuthPage ? "" : "md:ml-[260px] pb-20 md:pb-0"
       }`}>
         {children}

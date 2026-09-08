@@ -58,25 +58,25 @@ export default function DepensesPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
         <div className="flex items-center gap-3">
-          <Receipt size={22} className="text-[#0a1f3f]" strokeWidth={1.75} />
+          <Receipt size={22} className="text-acc" strokeWidth={1.75} />
           <div>
-            <h1 className="text-xl font-bold text-gray-900">Dépenses Business</h1>
-            <p className="text-sm text-gray-500">Suivi des dépenses déductibles — Québec</p>
+            <h1 className="font-display text-xl font-bold text-ink">Dépenses Business</h1>
+            <p className="text-sm text-mut">Suivi des dépenses déductibles — Québec</p>
           </div>
         </div>
       </div>
 
       {/* Top-level tabs: Dépenses / Transferts */}
-      <div className="flex gap-2 border-b border-gray-200 mb-4">
+      <div className="flex gap-2 border-b border-line mb-4">
         <button
           onClick={() => setActiveTab("depenses")}
-          className={`px-4 py-2 text-sm font-medium transition ${activeTab === "depenses" ? "text-[#0a1f3f] border-b-2 border-[#0a1f3f]" : "text-gray-500 hover:text-gray-700"}`}
+          className={`px-4 py-2 text-sm font-medium transition ${activeTab === "depenses" ? "text-acc border-b-2 border-acc" : "text-mut hover:text-ink"}`}
         >
           Dépenses
         </button>
         <button
           onClick={() => setActiveTab("transferts")}
-          className={`px-4 py-2 text-sm font-medium transition ${activeTab === "transferts" ? "text-[#0a1f3f] border-b-2 border-[#0a1f3f]" : "text-gray-500 hover:text-gray-700"}`}
+          className={`px-4 py-2 text-sm font-medium transition ${activeTab === "transferts" ? "text-acc border-b-2 border-acc" : "text-mut hover:text-ink"}`}
         >
           Transferts $
         </button>
@@ -89,7 +89,7 @@ export default function DepensesPage() {
             <select
               value={annee}
               onChange={(e) => setAnnee(Number(e.target.value))}
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 bg-white"
+              className="border border-line rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-acc bg-sur text-ink"
             >
               {ANNEES.map((y) => (
                 <option key={y} value={y}>{y}</option>
@@ -97,7 +97,7 @@ export default function DepensesPage() {
             </select>
             <button
               onClick={() => setShowForm((v) => !v)}
-              className="flex items-center gap-2 px-4 py-2 bg-[#0a1f3f] text-white text-sm font-medium rounded-lg hover:bg-[#0f2855] transition"
+              className="flex items-center gap-2 px-4 py-2 btn-glow text-sm font-medium rounded-lg hover:opacity-90 transition"
             >
               <Plus size={16} />
               Ajouter
@@ -106,23 +106,23 @@ export default function DepensesPage() {
 
           {/* Quick stat cards */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-              <p className="text-xs text-gray-500 mb-1">Total dépenses</p>
-              <p className="text-2xl font-bold text-gray-900">{fmt(totalMontant)}</p>
+            <div className="bg-sur rounded-xl border border-line p-4">
+              <p className="lbl mb-1">Total dépenses</p>
+              <p className="font-display num text-2xl font-bold text-ink">{fmt(totalMontant)}</p>
             </div>
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-              <p className="text-xs text-gray-500 mb-1">Total déductible</p>
-              <p className="text-2xl font-bold text-green-600">{fmt(totalDeductible)}</p>
+            <div className="bg-sur rounded-xl border border-line p-4">
+              <p className="lbl mb-1">Total déductible</p>
+              <p className="font-display num text-2xl font-bold text-pos">{fmt(totalDeductible)}</p>
             </div>
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-              <p className="text-xs text-gray-500 mb-1">Entrées</p>
-              <p className="text-2xl font-bold text-gray-900">{depenses.length}</p>
+            <div className="bg-sur rounded-xl border border-line p-4">
+              <p className="lbl mb-1">Entrées</p>
+              <p className="font-display num text-2xl font-bold text-ink">{depenses.length}</p>
             </div>
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-              <p className="text-xs text-gray-500 mb-1">Reçus attachés</p>
-              <p className="text-2xl font-bold text-gray-900">
+            <div className="bg-sur rounded-xl border border-line p-4">
+              <p className="lbl mb-1">Reçus attachés</p>
+              <p className="font-display num text-2xl font-bold text-ink">
                 {nbRecus}
-                <span className="text-base font-normal text-gray-400"> / {depenses.length}</span>
+                <span className="text-base font-normal text-mut"> / {depenses.length}</span>
               </p>
             </div>
           </div>
@@ -139,15 +139,15 @@ export default function DepensesPage() {
           )}
 
           {/* Sub-tabs */}
-          <div className="flex gap-0.5 mb-5 border-b border-gray-200">
+          <div className="flex gap-0.5 mb-5 border-b border-line">
             {TABS.map((t) => (
               <button
                 key={t.id}
                 onClick={() => setTab(t.id)}
                 className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
                   tab === t.id
-                    ? "border-[#0a1f3f] text-[#0a1f3f]"
-                    : "border-transparent text-gray-500 hover:text-gray-700"
+                    ? "border-acc text-acc"
+                    : "border-transparent text-mut hover:text-ink"
                 }`}
               >
                 {t.label}
@@ -158,7 +158,7 @@ export default function DepensesPage() {
           {/* Tab content */}
           {loading ? (
             <div className="flex items-center justify-center py-16">
-              <div className="w-6 h-6 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin" />
+              <div className="w-6 h-6 border-2 border-chip border-t-acc rounded-full animate-spin" />
             </div>
           ) : (
             <>

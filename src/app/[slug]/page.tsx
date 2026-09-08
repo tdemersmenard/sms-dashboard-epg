@@ -29,10 +29,10 @@ type MsgWithContact = Message & { contactName: string };
 // ── Helpers ─────────────────────────────────────────────────
 const JOB_TYPE_COLORS: Record<string, { bg: string; text: string }> = {
   ouverture: { bg: "bg-green-100",  text: "text-green-700" },
-  entretien: { bg: "bg-blue-100",   text: "text-blue-700" },
+  entretien: { bg: "bg-chip",   text: "text-blue-700" },
   fermeture: { bg: "bg-orange-100", text: "text-orange-700" },
   visite:    { bg: "bg-purple-100", text: "text-purple-700" },
-  autre:     { bg: "bg-gray-100",   text: "text-gray-700" },
+  autre:     { bg: "bg-chip",   text: "text-ink" },
 };
 
 function displayName(c: { first_name?: string | null; last_name?: string | null; name?: string | null; phone?: string | null }): string {
@@ -244,7 +244,7 @@ export default function DashboardPage() {
 
       {/* Gmail OAuth toast */}
       {gmailToast && (
-        <div className={`fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg text-sm font-medium ${
+        <div className={`fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-xl  text-sm font-medium ${
           gmailToast === "connected" ? "bg-green-500 text-white" : "bg-red-500 text-white"
         }`}>
           <Mail size={16} />
@@ -254,7 +254,7 @@ export default function DashboardPage() {
 
       {/* DocuSign OAuth toast */}
       {docuSignToast && (
-        <div className={`fixed top-16 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg text-sm font-medium ${
+        <div className={`fixed top-16 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-xl  text-sm font-medium ${
           docuSignToast === "connected" ? "bg-green-500 text-white" : "bg-red-500 text-white"
         }`}>
           {docuSignToast === "connected" ? "DocuSign connecté avec succès!" : "Erreur de connexion DocuSign"}
@@ -262,7 +262,7 @@ export default function DashboardPage() {
       )}
 
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-bold text-gray-900">Dashboard</h1>
+        <h1 className="text-xl font-bold text-ink">Dashboard</h1>
         <div className="flex items-center gap-2">
           {/* Gmail connection button */}
           {gmailStatus !== "loading" && (gmailStatus === "connected" ? (
@@ -273,7 +273,7 @@ export default function DashboardPage() {
           ) : (
             <a
               href="/api/auth/google"
-              className="flex items-center gap-1.5 text-xs font-medium text-white bg-[#0a1f3f] hover:bg-[#0f2855] px-3 py-1.5 rounded-lg transition"
+              className="flex items-center gap-1.5 text-xs font-medium text-white btn-glow hover:opacity-90 px-3 py-1.5 rounded-lg transition"
             >
               <Mail size={13} />
               Connecter Gmail
@@ -304,12 +304,12 @@ export default function DashboardPage() {
       <FermeturesTracker />
 
       {/* AI Audit */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mt-6">
+      <div className="bg-sur rounded-xl  border border-line p-5 mt-6">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-sm font-bold text-gray-800">Analyse AI des conversations</h2>
+            <h2 className="text-sm font-bold text-ink">Analyse AI des conversations</h2>
             {auditActions && auditActions.length > 0 && (
-              <p className="text-xs text-gray-500 mt-0.5">
+              <p className="text-xs text-mut mt-0.5">
                 {auditActions.filter((a) => a.priority === "urgent").length} urgentes ·{" "}
                 {auditActions.filter((a) => a.priority === "high").length} high priority ·{" "}
                 {auditActions.length} total
@@ -319,7 +319,7 @@ export default function DashboardPage() {
           <button
             onClick={runAudit}
             disabled={auditLoading}
-            className="flex items-center gap-2 px-4 py-2 bg-[#0a1f3f] text-white text-sm font-medium rounded-lg hover:bg-[#0f2855] disabled:opacity-50 transition"
+            className="flex items-center gap-2 px-4 py-2 btn-glow text-white text-sm font-medium rounded-lg hover:opacity-90 disabled:opacity-50 transition"
           >
             <Sparkles size={15} />
             {auditLoading ? "Analyse en cours..." : "Analyser les conversations"}
@@ -327,14 +327,14 @@ export default function DashboardPage() {
         </div>
 
         {auditLoading && (
-          <div className="flex items-center gap-3 py-6 text-sm text-gray-500">
+          <div className="flex items-center gap-3 py-6 text-sm text-mut">
             <div className="w-5 h-5 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin flex-shrink-0" />
             L&apos;AI analyse vos conversations...
           </div>
         )}
 
         {auditActions && auditActions.length === 0 && !auditLoading && (
-          <p className="text-sm text-gray-400 py-2">Aucune action détectée — toutes les conversations sont à jour 🏊</p>
+          <p className="text-sm text-mut py-2">Aucune action détectée — toutes les conversations sont à jour 🏊</p>
         )}
 
         {auditActions && auditActions.length > 0 && (
@@ -344,43 +344,43 @@ export default function DashboardPage() {
                 urgent: "bg-red-100 text-red-700",
                 high:   "bg-orange-100 text-orange-700",
                 medium: "bg-yellow-100 text-yellow-700",
-                low:    "bg-gray-100 text-gray-500",
+                low:    "bg-chip text-mut",
               };
               const CATEGORY_BADGE: Record<string, { cls: string; label: string }> = {
                 appeler:    { cls: "bg-green-100 text-green-700",  label: "Appeler" },
-                soumission: { cls: "bg-blue-100 text-blue-700",    label: "Soumission" },
+                soumission: { cls: "bg-chip text-blue-700",    label: "Soumission" },
                 contrat:    { cls: "bg-purple-100 text-purple-700",label: "Contrat" },
                 relance:    { cls: "bg-orange-100 text-orange-700",label: "Relance" },
                 paiement:   { cls: "bg-red-100 text-red-700",      label: "Paiement" },
                 rdv:        { cls: "bg-teal-100 text-teal-700",    label: "RDV" },
-                autre:      { cls: "bg-gray-100 text-gray-600",    label: "Autre" },
+                autre:      { cls: "bg-chip text-mut",    label: "Autre" },
               };
               const cat = CATEGORY_BADGE[a.category] ?? CATEGORY_BADGE.autre;
               return (
-                <div key={i} className="bg-gray-50 rounded-xl border border-gray-100 p-4">
+                <div key={i} className="bg-page rounded-xl border border-line p-4">
                   <div className="flex items-start justify-between gap-3 mb-2">
                     <div className="flex items-center gap-2 min-w-0 flex-wrap">
-                      <span className="text-sm font-semibold text-gray-900 truncate">{a.contactName}</span>
-                      <span className="text-xs text-gray-400">{a.phone}</span>
+                      <span className="text-sm font-semibold text-ink truncate">{a.contactName}</span>
+                      <span className="text-xs text-mut">{a.phone}</span>
                       <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${cat.cls}`}>{cat.label}</span>
                     </div>
                     <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full flex-shrink-0 ${PRIORITY_BADGE[a.priority] ?? PRIORITY_BADGE.low}`}>
                       {a.priority}
                     </span>
                   </div>
-                  <p className="text-sm text-gray-800 font-medium mb-1">{a.action}</p>
-                  <p className="text-xs text-gray-500 mb-3">{a.details}</p>
+                  <p className="text-sm text-ink font-medium mb-1">{a.action}</p>
+                  <p className="text-xs text-mut mb-3">{a.details}</p>
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => router.push(`/${franchiseSlug}/messages${a.contactId ? `?contact=${a.contactId}` : ""}`)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-[#0a1f3f] text-white text-xs font-medium rounded-lg hover:bg-[#0f2855] transition"
+                      className="flex items-center gap-1.5 px-3 py-1.5 btn-glow text-white text-xs font-medium rounded-lg hover:opacity-90 transition"
                     >
                       <MessageSquare size={12} />
                       SMS
                     </button>
                     <a
                       href={`tel:${a.phone}`}
-                      className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-50 transition"
+                      className="flex items-center gap-1.5 px-3 py-1.5 border border-line text-ink text-xs font-medium rounded-lg hover:bg-chip transition"
                     >
                       <Phone size={12} />
                       Appeler
@@ -394,9 +394,9 @@ export default function DashboardPage() {
       </div>
 
       {/* Clients table */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mt-6">
-        <div className="px-5 py-4 border-b border-gray-100">
-          <h2 className="text-sm font-bold text-gray-800">Clients — Saison 2026</h2>
+      <div className="bg-sur rounded-xl  border border-line overflow-hidden mt-6">
+        <div className="px-5 py-4 border-b border-line">
+          <h2 className="text-sm font-bold text-ink">Clients — Saison 2026</h2>
         </div>
 
         {clientsLoading ? (
@@ -404,16 +404,16 @@ export default function DashboardPage() {
             <div className="w-6 h-6 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin" />
           </div>
         ) : clients.length === 0 ? (
-          <p className="px-5 py-8 text-sm text-gray-400">
+          <p className="px-5 py-8 text-sm text-mut">
             Aucun client avec un prix de saison enregistré. Ajoutez un prix saison dans la fiche client.
           </p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gray-50">
+              <thead className="bg-page">
                 <tr>
                   {["Nom", "Adresse", "Services", "Total", "Payé", "Reste", "Notes"].map((h) => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                    <th key={h} className="px-4 py-3 text-left text-xs font-medium text-mut uppercase tracking-wider whitespace-nowrap">
                       {h}
                     </th>
                   ))}
@@ -426,27 +426,27 @@ export default function DashboardPage() {
                     <tr
                       key={c.id}
                       onClick={() => router.push(`/clients/${c.id}`)}
-                      className="hover:bg-gray-50 transition cursor-pointer"
+                      className="hover:bg-chip transition cursor-pointer"
                     >
-                      <td className="px-4 py-3 text-sm font-medium text-gray-900 whitespace-nowrap">{c.name}</td>
-                      <td className="px-4 py-3 text-sm text-gray-500 max-w-[160px] truncate">{c.address || <span className="text-gray-300">—</span>}</td>
-                      <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">{c.services.length > 0 ? c.services.join(", ") : <span className="text-gray-300">—</span>}</td>
-                      <td className="px-4 py-3 text-sm font-medium text-gray-900 whitespace-nowrap">{fmt(c.total)}</td>
-                      <td className={`px-4 py-3 text-sm font-medium whitespace-nowrap ${c.paid > 0 ? "text-green-600" : "text-gray-400"}`}>
+                      <td className="px-4 py-3 text-sm font-medium text-ink whitespace-nowrap">{c.name}</td>
+                      <td className="px-4 py-3 text-sm text-mut max-w-[160px] truncate">{c.address || <span className="text-mut">—</span>}</td>
+                      <td className="px-4 py-3 text-sm text-ink whitespace-nowrap">{c.services.length > 0 ? c.services.join(", ") : <span className="text-mut">—</span>}</td>
+                      <td className="px-4 py-3 text-sm font-medium text-ink whitespace-nowrap">{fmt(c.total)}</td>
+                      <td className={`px-4 py-3 text-sm font-medium whitespace-nowrap ${c.paid > 0 ? "text-green-600" : "text-mut"}`}>
                         {fmt(c.paid)}
                       </td>
                       <td className={`px-4 py-3 text-sm font-medium whitespace-nowrap ${reste > 0 ? "text-red-600" : "text-green-600"}`}>
                         {reste > 0 ? fmt(reste) : "✓ Soldé"}
                       </td>
-                      <td className="px-4 py-3 text-xs text-gray-400 max-w-[180px] truncate">{c.notes ?? "—"}</td>
+                      <td className="px-4 py-3 text-xs text-mut max-w-[180px] truncate">{c.notes ?? "—"}</td>
                     </tr>
                   );
                 })}
               </tbody>
               <tfoot>
-                <tr className="border-t-2 border-gray-200 bg-gray-50">
-                  <td className="px-4 py-3 text-sm font-bold text-gray-900" colSpan={3}>Total</td>
-                  <td className="px-4 py-3 text-sm font-bold text-gray-900 whitespace-nowrap">{fmt(totalRevenue)}</td>
+                <tr className="border-t-2 border-line bg-page">
+                  <td className="px-4 py-3 text-sm font-bold text-ink" colSpan={3}>Total</td>
+                  <td className="px-4 py-3 text-sm font-bold text-ink whitespace-nowrap">{fmt(totalRevenue)}</td>
                   <td className="px-4 py-3 text-sm font-bold text-green-600 whitespace-nowrap">{fmt(totalPaid)}</td>
                   <td className="px-4 py-3 text-sm font-bold text-red-600 whitespace-nowrap">{fmt(totalOwed)}</td>
                   <td />
@@ -458,24 +458,24 @@ export default function DashboardPage() {
       </div>
 
       {/* Upcoming jobs */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mt-6">
-        <h2 className="text-sm font-bold text-gray-800 mb-4">Prochains rendez-vous</h2>
+      <div className="bg-sur rounded-xl  border border-line p-5 mt-6">
+        <h2 className="text-sm font-bold text-ink mb-4">Prochains rendez-vous</h2>
         {dynamicLoading ? (
           <div className="w-5 h-5 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin" />
         ) : upcomingJobs.length === 0 ? (
-          <p className="text-sm text-gray-400">Aucun rendez-vous à venir</p>
+          <p className="text-sm text-mut">Aucun rendez-vous à venir</p>
         ) : (
           <div className="space-y-2">
             {upcomingJobs.map((j) => {
               const jc = JOB_TYPE_COLORS[j.job_type] ?? JOB_TYPE_COLORS.autre;
               return (
                 <div key={j.id} className="flex items-center gap-3 py-1.5">
-                  <Calendar size={14} className="text-gray-400 flex-shrink-0" />
-                  <p className="text-sm text-gray-500 w-32 flex-shrink-0">
+                  <Calendar size={14} className="text-mut flex-shrink-0" />
+                  <p className="text-sm text-mut w-32 flex-shrink-0">
                     {format(new Date(j.scheduled_date + "T00:00:00"), "d MMM yyyy", { locale: fr })}
                     {j.scheduled_time_start ? ` · ${j.scheduled_time_start}` : ""}
                   </p>
-                  <p className="text-sm font-medium text-gray-900 flex-1 min-w-0 truncate">{j.contactName}</p>
+                  <p className="text-sm font-medium text-ink flex-1 min-w-0 truncate">{j.contactName}</p>
                   <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full flex-shrink-0 ${jc.bg} ${jc.text}`}>
                     {j.job_type}
                   </span>
@@ -487,30 +487,30 @@ export default function DashboardPage() {
       </div>
 
       {/* Recent messages */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mt-4">
-        <h2 className="text-sm font-bold text-gray-800 mb-4">Derniers messages reçus</h2>
+      <div className="bg-sur rounded-xl  border border-line p-5 mt-4">
+        <h2 className="text-sm font-bold text-ink mb-4">Derniers messages reçus</h2>
         {dynamicLoading ? (
           <div className="w-5 h-5 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin" />
         ) : recentMessages.length === 0 ? (
-          <p className="text-sm text-gray-400">Aucun message reçu</p>
+          <p className="text-sm text-mut">Aucun message reçu</p>
         ) : (
           <div className="space-y-1">
             {recentMessages.map((m) => (
               <div
                 key={m.id}
                 onClick={() => router.push(`/${franchiseSlug}/messages${m.contact_id ? `?contact=${m.contact_id}` : ""}`)}
-                className="flex items-center gap-3 py-2 cursor-pointer hover:bg-gray-50 rounded-lg px-2 -mx-2 transition"
+                className="flex items-center gap-3 py-2 cursor-pointer hover:bg-chip rounded-lg px-2 -mx-2 transition"
               >
-                <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
-                  <span className="text-xs font-bold text-gray-500">
+                <div className="w-8 h-8 rounded-full bg-chip flex items-center justify-center flex-shrink-0">
+                  <span className="text-xs font-bold text-mut">
                     {m.contactName.charAt(0).toUpperCase()}
                   </span>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900">{m.contactName}</p>
-                  <p className="text-xs text-gray-500 truncate">{m.body}</p>
+                  <p className="text-sm font-medium text-ink">{m.contactName}</p>
+                  <p className="text-xs text-mut truncate">{m.body}</p>
                 </div>
-                <span className="text-xs text-gray-400 flex-shrink-0">{formatTime(m.created_at)}</span>
+                <span className="text-xs text-mut flex-shrink-0">{formatTime(m.created_at)}</span>
               </div>
             ))}
           </div>

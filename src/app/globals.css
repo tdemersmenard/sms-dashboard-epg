@@ -11,6 +11,23 @@ html, body {
 }
 
 :root {
+  color-scheme: light;
+  /* ── Ligne d'eau — « eau du matin » (clair) ── */
+  --le-bg: #f4f9fa;
+  --le-sur: #ffffff;
+  --le-ink: #0c2430;
+  --le-mut: #567483;
+  --le-line: #d9e6ea;
+  --le-chip: #e9f3f5;
+  --le-acc: #0a94ad;
+  --le-acc2: #3f6ee0;
+  --le-accink: #ffffff;
+  --le-glow: rgba(10, 148, 173, 0.14);
+  --le-pos: #177a4c;
+  --le-warn: #a15716;
+  --le-neg: #bb3a44;
+
+  /* legacy (pages non migrées) */
   --navy-900: #0a1f3f;
   --navy-800: #0f2241;
   --navy-700: #1a3461;
@@ -19,14 +36,32 @@ html, body {
   --pool-light: #7dd3e8;
 }
 
+html.dark {
+  color-scheme: dark;
+  /* ── Ligne d'eau — « bassin de nuit » (sombre) ── */
+  --le-bg: #050f18;
+  --le-sur: #0a1b28;
+  --le-ink: #e7f3f8;
+  --le-mut: #7fa0b4;
+  --le-line: #163042;
+  --le-chip: #0f2536;
+  --le-acc: #2fd4e6;
+  --le-acc2: #6ea8ff;
+  --le-accink: #04222a;
+  --le-glow: rgba(47, 212, 230, 0.22);
+  --le-pos: #4cc98a;
+  --le-warn: #e09054;
+  --le-neg: #ef8087;
+}
+
 * {
   box-sizing: border-box;
 }
 
 body {
-  font-family: "DM Sans", system-ui, sans-serif;
-  background: #fff;
-  color: #111827;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--le-bg);
+  color: var(--le-ink);
   overflow: hidden;
   height: 100vh;
 }
@@ -48,13 +83,14 @@ body {
 
 /* Message bubbles */
 .bubble-in {
-  background: linear-gradient(135deg, #1a3461 0%, #0f2241 100%);
-  border: 1px solid rgba(56, 182, 210, 0.1);
+  background: var(--le-chip);
+  color: var(--le-ink);
+  border: 1px solid var(--le-line);
 }
 
 .bubble-out {
-  background: linear-gradient(135deg, #38b6d2 0%, #1a8fa8 100%);
-  color: white;
+  background: linear-gradient(120deg, var(--le-acc), var(--le-acc2));
+  color: var(--le-accink);
 }
 
 /* Pulse animation for unread */
@@ -80,16 +116,16 @@ body {
   transition: all 0.15s ease;
 }
 .conversation-item:hover {
-  background: rgba(56, 182, 210, 0.06);
+  background: var(--le-glow);
 }
 .conversation-item.active {
-  background: rgba(56, 182, 210, 0.1);
-  border-right: 2px solid #38b6d2;
+  background: var(--le-chip);
+  border-right: 2px solid var(--le-acc);
 }
 
 /* Input focus glow */
 .input-glow:focus {
-  box-shadow: 0 0 0 2px rgba(56, 182, 210, 0.3);
+  box-shadow: 0 0 0 2px var(--le-glow);
 }
 
 /* New message entry animation */
@@ -132,3 +168,42 @@ body {
 .scrollbar-none::-webkit-scrollbar {
   display: none;
 }
+
+
+/* ═══ Ligne d'eau — utilitaires du système ═══ */
+/* Étiquette d'instrument: majuscules espacées */
+.lbl {
+  font-family: "Avenir Next", Avenir, Futura, "Century Gothic", sans-serif;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--le-mut);
+}
+/* Chiffres tabulaires (montants, heures) */
+.num {
+  font-family: "Avenir Next", Avenir, Futura, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+/* Texte en dégradé accent (chiffre héros) */
+.text-grad {
+  background: linear-gradient(90deg, var(--le-acc), var(--le-acc2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+/* Bouton principal — seul endroit avec glow */
+.btn-glow {
+  background: linear-gradient(120deg, var(--le-acc), var(--le-acc2));
+  color: var(--le-accink);
+  box-shadow: 0 4px 16px var(--le-glow);
+}
+
+
+/* Contrôles de formulaire: défauts thème-aware (les classes Tailwind priment) */
+input, select, textarea {
+  background-color: var(--le-sur);
+  color: var(--le-ink);
+}
+select option { background-color: var(--le-sur); color: var(--le-ink); }
+input::placeholder, textarea::placeholder { color: var(--le-mut); }

@@ -47,8 +47,8 @@ export default function DepenseTable({ depenses, onDeleted }: Props) {
           onClick={() => setCatFilter("all")}
           className={`px-3 py-1.5 rounded-full text-xs font-medium transition ${
             catFilter === "all"
-              ? "bg-[#0a1f3f] text-white"
-              : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              ? "bg-acc-grad text-accink"
+              : "bg-chip text-mut hover:bg-chip"
           }`}
         >
           Toutes
@@ -64,7 +64,7 @@ export default function DepenseTable({ depenses, onDeleted }: Props) {
               className={`px-3 py-1.5 rounded-full text-xs font-medium transition flex items-center gap-1.5 ${
                 catFilter === key
                   ? `${cat.tailwindBg} ${cat.tailwindText} ring-2 ring-offset-1 ring-current`
-                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  : "bg-chip text-mut hover:bg-chip"
               }`}
             >
               {cat.label}
@@ -75,22 +75,22 @@ export default function DepenseTable({ depenses, onDeleted }: Props) {
       </div>
 
       {filtered.length === 0 ? (
-        <div className="text-center py-12 text-gray-400 text-sm bg-white rounded-xl border border-gray-100">
+        <div className="text-center py-12 text-mut text-sm bg-sur rounded-xl border border-line">
           Aucune dépense pour cette sélection.
         </div>
       ) : (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="bg-sur rounded-xl border border-line overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-gray-50 border-b border-gray-100">
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 whitespace-nowrap">Date</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">Description</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 whitespace-nowrap">Catégorie</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 whitespace-nowrap">Montant</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 whitespace-nowrap">% Déd.</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 whitespace-nowrap">Déductible</th>
-                  <th className="text-center px-4 py-3 text-xs font-medium text-gray-500">Reçu</th>
+                <tr className="bg-page border-b border-line">
+                  <th className="text-left px-4 py-3 lbl whitespace-nowrap">Date</th>
+                  <th className="text-left px-4 py-3 lbl">Description</th>
+                  <th className="text-left px-4 py-3 lbl whitespace-nowrap">Catégorie</th>
+                  <th className="text-right px-4 py-3 lbl whitespace-nowrap">Montant</th>
+                  <th className="text-right px-4 py-3 lbl whitespace-nowrap">% Déd.</th>
+                  <th className="text-right px-4 py-3 lbl whitespace-nowrap">Déductible</th>
+                  <th className="text-center px-4 py-3 lbl">Reçu</th>
                   <th className="px-3 py-3" />
                 </tr>
               </thead>
@@ -102,15 +102,15 @@ export default function DepenseTable({ depenses, onDeleted }: Props) {
                   return (
                     <tr
                       key={d.id}
-                      className="border-b border-gray-50 last:border-0 hover:bg-gray-50/70 transition-colors"
+                      className="border-b border-line last:border-0 hover:bg-chip transition-colors"
                     >
-                      <td className="px-4 py-3 text-gray-500 whitespace-nowrap text-xs">
+                      <td className="px-4 py-3 text-mut whitespace-nowrap text-xs">
                         {new Date(d.date + "T12:00:00").toLocaleDateString("fr-CA")}
                       </td>
                       <td className="px-4 py-3">
-                        <p className="text-gray-900 font-medium">{d.description}</p>
+                        <p className="text-ink font-medium">{d.description}</p>
                         {d.note && (
-                          <p className="text-xs text-gray-400 mt-0.5 truncate max-w-xs">{d.note}</p>
+                          <p className="text-xs text-mut mt-0.5 truncate max-w-xs">{d.note}</p>
                         )}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
@@ -120,18 +120,18 @@ export default function DepenseTable({ depenses, onDeleted }: Props) {
                           {cat.label}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-right font-semibold text-gray-900 whitespace-nowrap">
+                      <td className="px-4 py-3 text-right font-semibold num text-ink whitespace-nowrap">
                         {fmt(d.montant)}
                       </td>
-                      <td className="px-4 py-3 text-right text-gray-400 text-xs">
+                      <td className="px-4 py-3 text-right text-mut text-xs">
                         {pct}%
                       </td>
-                      <td className="px-4 py-3 text-right font-medium text-green-700 whitespace-nowrap">
+                      <td className="px-4 py-3 text-right font-medium num text-pos whitespace-nowrap">
                         {fmt(deductible)}
                       </td>
                       <td className="px-4 py-3 text-center">
                         {!d.recu_url && (
-                          <label className="cursor-pointer text-xs text-blue-600 hover:underline">
+                          <label className="cursor-pointer text-xs text-acc hover:underline">
                             📎 Ajouter reçu
                             <input
                               type="file"
@@ -170,7 +170,7 @@ export default function DepenseTable({ depenses, onDeleted }: Props) {
                             onClick={() =>
                               setRecuModal({ url: d.recu_url!, nom: d.recu_nom || "reçu" })
                             }
-                            className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 text-xs font-medium transition-colors"
+                            className="inline-flex items-center gap-1 text-acc hover:text-acc text-xs font-medium transition-colors"
                           >
                             <Eye size={13} /> Voir
                           </button>
@@ -182,13 +182,13 @@ export default function DepenseTable({ depenses, onDeleted }: Props) {
                             <button
                               onClick={() => handleDelete(d)}
                               disabled={deleting}
-                              className="text-[11px] px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50 transition"
+                              className="text-[11px] px-2 py-1 bg-neg text-white rounded hover:opacity-90 disabled:opacity-50 transition"
                             >
                               {deleting ? "…" : "Oui"}
                             </button>
                             <button
                               onClick={() => setConfirmDelete(null)}
-                              className="text-[11px] px-2 py-1 bg-gray-100 text-gray-600 rounded hover:bg-gray-200 transition"
+                              className="text-[11px] px-2 py-1 bg-chip text-mut rounded hover:bg-chip transition"
                             >
                               Non
                             </button>
@@ -196,7 +196,7 @@ export default function DepenseTable({ depenses, onDeleted }: Props) {
                         ) : (
                           <button
                             onClick={() => setConfirmDelete(d.id)}
-                            className="text-gray-300 hover:text-red-500 transition-colors"
+                            className="text-mut hover:text-neg transition-colors"
                           >
                             <Trash2 size={15} />
                           </button>

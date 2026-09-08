@@ -107,7 +107,7 @@ export default function RoutesPage() {
     new google.maps.Marker({
       position: { lat: data.home.lat, lng: data.home.lng },
       map, title: "Maison",
-      icon: { path: google.maps.SymbolPath.CIRCLE, scale: 10, fillColor: "#0a1f3f", fillOpacity: 1, strokeColor: "white", strokeWeight: 2 },
+      icon: { path: google.maps.SymbolPath.CIRCLE, scale: 10, fillColor: "#0a94ad", fillOpacity: 1, strokeColor: "white", strokeWeight: 2 },
     });
 
     for (const route of data.routes) {
@@ -263,35 +263,35 @@ export default function RoutesPage() {
     <div className="p-6 max-w-6xl mx-auto space-y-6">
       {/* Toast */}
       {assignToast && (
-        <div className="fixed bottom-6 right-6 z-50 bg-[#0a1f3f] text-white text-sm font-medium px-4 py-3 rounded-xl shadow-lg">
+        <div className="fixed bottom-6 right-6 z-50 btn-glow text-sm font-medium px-4 py-3 rounded-xl">
           ✓ {assignToast}
         </div>
       )}
 
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Routes d&apos;entretien</h1>
-          <p className="text-sm text-gray-500 mt-1">Calcul automatique optimisé pour minimiser les déplacements</p>
+          <h1 className="text-2xl font-bold font-display text-ink">Routes d&apos;entretien</h1>
+          <p className="text-sm text-mut mt-1">Calcul automatique optimisé pour minimiser les déplacements</p>
         </div>
         <Link
           href="/routes/today"
-          className="inline-flex items-center gap-2 bg-green-600 text-white px-4 py-3 rounded-xl font-bold hover:bg-green-700 shadow-lg"
+          className="inline-flex items-center gap-2 btn-glow px-4 py-3 rounded-xl font-bold hover:opacity-90"
         >
           <Play size={18} /> Démarrer l&apos;itinéraire d&apos;aujourd&apos;hui
         </Link>
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3">
-          <AlertCircle size={18} className="text-red-500" />
-          <p className="text-sm text-red-700 flex-1">{error}</p>
+        <div className="bg-chip border border-line rounded-xl p-4 flex items-center gap-3">
+          <AlertCircle size={18} className="text-neg" />
+          <p className="text-sm text-neg flex-1">{error}</p>
           <button onClick={() => setError("")}><X size={16} /></button>
         </div>
       )}
       {success && (
-        <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center gap-3">
-          <Check size={18} className="text-green-500" />
-          <p className="text-sm text-green-700 flex-1">{success}</p>
+        <div className="bg-chip border border-line rounded-xl p-4 flex items-center gap-3">
+          <Check size={18} className="text-pos" />
+          <p className="text-sm text-pos flex-1">{success}</p>
           <button onClick={() => setSuccess("")}><X size={16} /></button>
         </div>
       )}
@@ -300,7 +300,7 @@ export default function RoutesPage() {
         <button
           onClick={calculate}
           disabled={loading}
-          className="w-full bg-[#0a1f3f] text-white rounded-xl py-4 font-semibold flex items-center justify-center gap-2 hover:bg-[#0d2a52] transition disabled:opacity-50"
+          className="w-full btn-glow rounded-xl py-4 font-semibold flex items-center justify-center gap-2 hover:opacity-90 transition disabled:opacity-50"
         >
           {loading
             ? <><Loader2 size={20} className="animate-spin" /> Calcul en cours (peut prendre 30-60s)...</>
@@ -312,39 +312,39 @@ export default function RoutesPage() {
         <>
           {/* Stats */}
           <div className="grid grid-cols-3 gap-3">
-            <div className="bg-white rounded-xl border p-4 text-center">
-              <p className="text-2xl font-bold text-gray-900">{data.routes.reduce((sum: number, r: any) => sum + r.stops.length, 0)}</p>
-              <p className="text-xs text-gray-500">Clients</p>
+            <div className="bg-sur rounded-xl border border-line p-4 text-center">
+              <p className="text-2xl font-bold font-display num text-ink">{data.routes.reduce((sum: number, r: any) => sum + r.stops.length, 0)}</p>
+              <p className="lbl">Clients</p>
             </div>
-            <div className="bg-white rounded-xl border p-4 text-center">
-              <p className="text-2xl font-bold text-blue-600">{Math.round(data.routes.reduce((sum: number, r: any) => sum + (r.totalKm || 0), 0) * 10) / 10} km</p>
-              <p className="text-xs text-gray-500">Distance/semaine</p>
+            <div className="bg-sur rounded-xl border border-line p-4 text-center">
+              <p className="text-2xl font-bold font-display num text-acc">{Math.round(data.routes.reduce((sum: number, r: any) => sum + (r.totalKm || 0), 0) * 10) / 10} km</p>
+              <p className="lbl">Distance/semaine</p>
             </div>
-            <div className="bg-white rounded-xl border p-4 text-center">
-              <p className="text-2xl font-bold text-orange-500">{data.routes.length}</p>
-              <p className="text-xs text-gray-500">Jours utilisés</p>
+            <div className="bg-sur rounded-xl border border-line p-4 text-center">
+              <p className="text-2xl font-bold font-display num text-warn">{data.routes.length}</p>
+              <p className="lbl">Jours utilisés</p>
             </div>
           </div>
 
           {/* Problems */}
           {(data.problems?.noAddress?.length > 0 || data.problems?.noOuverture?.length > 0 || data.problems?.failedGeocode?.length > 0) && (
-            <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 space-y-2">
+            <div className="bg-chip border border-line rounded-xl p-4 space-y-2">
               {data.problems.noAddress?.length > 0 && (
                 <div>
-                  <p className="text-sm font-semibold text-orange-800">⚠ Sans adresse:</p>
-                  <p className="text-xs text-orange-700">{data.problems.noAddress.join(", ")}</p>
+                  <p className="text-sm font-semibold text-warn">⚠ Sans adresse:</p>
+                  <p className="text-xs text-mut">{data.problems.noAddress.join(", ")}</p>
                 </div>
               )}
               {data.problems.noOuverture?.length > 0 && (
                 <div>
-                  <p className="text-sm font-semibold text-orange-800">⚠ Sans date d&apos;ouverture:</p>
-                  <p className="text-xs text-orange-700">{data.problems.noOuverture.join(", ")}</p>
+                  <p className="text-sm font-semibold text-warn">⚠ Sans date d&apos;ouverture:</p>
+                  <p className="text-xs text-mut">{data.problems.noOuverture.join(", ")}</p>
                 </div>
               )}
               {data.problems.failedGeocode?.length > 0 && (
                 <div>
-                  <p className="text-sm font-semibold text-orange-800">⚠ Adresses non reconnues:</p>
-                  <p className="text-xs text-orange-700">{data.problems.failedGeocode.join(", ")}</p>
+                  <p className="text-sm font-semibold text-warn">⚠ Adresses non reconnues:</p>
+                  <p className="text-xs text-mut">{data.problems.failedGeocode.join(", ")}</p>
                 </div>
               )}
             </div>
@@ -352,18 +352,18 @@ export default function RoutesPage() {
 
           {/* Employee filter bar */}
           {employees.length > 0 && (
-            <div className="bg-white rounded-xl border p-4 flex items-center gap-2 flex-wrap">
-              <Users size={15} className="text-gray-400 flex-shrink-0" />
-              <span className="text-xs text-gray-500 font-medium mr-1">Voir:</span>
+            <div className="bg-sur rounded-xl border border-line p-4 flex items-center gap-2 flex-wrap">
+              <Users size={15} className="text-mut flex-shrink-0" />
+              <span className="text-xs text-mut font-medium mr-1">Voir:</span>
               <button
                 onClick={() => setEmpFilter("all")}
-                className={`text-xs px-3 py-1.5 rounded-full font-medium transition ${empFilter === "all" ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+                className={`text-xs px-3 py-1.5 rounded-full font-medium transition ${empFilter === "all" ? "bg-acc-grad text-accink" : "bg-chip text-mut hover:bg-chip"}`}
               >
                 Tous
               </button>
               <button
                 onClick={() => setEmpFilter("thomas")}
-                className={`text-xs px-3 py-1.5 rounded-full font-medium transition ${empFilter === "thomas" ? "bg-gray-500 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+                className={`text-xs px-3 py-1.5 rounded-full font-medium transition ${empFilter === "thomas" ? "bg-acc-grad text-accink" : "bg-chip text-mut hover:bg-chip"}`}
               >
                 Thomas
               </button>
@@ -381,7 +381,7 @@ export default function RoutesPage() {
           )}
 
           {/* Map */}
-          <div className="bg-white rounded-xl border overflow-hidden">
+          <div className="bg-sur rounded-xl border border-line overflow-hidden">
             <div id="routes-map" style={{ width: "100%", height: 400 }}></div>
           </div>
 
@@ -393,7 +393,7 @@ export default function RoutesPage() {
               return (
                 <div
                   key={route.day}
-                  className="bg-white rounded-xl border overflow-hidden"
+                  className="bg-sur rounded-xl border border-line overflow-hidden"
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={(e) => {
                     e.preventDefault();
@@ -404,15 +404,15 @@ export default function RoutesPage() {
                   }}
                 >
                   {/* Day header */}
-                  <div className="px-4 py-3 border-b" style={{ borderLeftWidth: 4, borderLeftColor: DAY_COLORS[route.day] }}>
+                  <div className="px-4 py-3 border-b border-line" style={{ borderLeftWidth: 4, borderLeftColor: DAY_COLORS[route.day] }}>
                     <div className="flex items-center gap-3 mb-1">
-                      <span className="font-semibold text-gray-900">{route.day}</span>
-                      <span className="text-sm text-gray-500">
+                      <span className="font-semibold text-ink">{route.day}</span>
+                      <span className="text-sm text-mut">
                         {empFilter === "all" ? route.stops.length : filteredStops.length} clients
                         {empFilter !== "all" && ` / ${route.stops.length} total`}
                       </span>
                     </div>
-                    <div className="text-xs text-gray-500 flex flex-wrap gap-3">
+                    <div className="text-xs text-mut flex flex-wrap gap-3">
                       <span>🏠 Départ 08:00</span>
                       <span>📍 {route.totalKm} km</span>
                       <span>⏱ ~{Math.floor(route.totalMin / 60)}h{String(route.totalMin % 60).padStart(2, "0")}</span>
@@ -421,7 +421,7 @@ export default function RoutesPage() {
                   </div>
 
                   {/* Stops */}
-                  <div className="divide-y divide-gray-50">
+                  <div className="divide-y divide-line">
                     {(empFilter === "all" ? route.stops : filteredStops).map((stop: any, idx: number) => (
                       <div
                         key={stop.id}
@@ -439,8 +439,8 @@ export default function RoutesPage() {
                         }}
                         className={`px-4 py-3 flex items-center gap-3 border-l-2 border-transparent ${
                           confirmedIds.includes(stop.id)
-                            ? "bg-green-50/30 cursor-default"
-                            : "hover:bg-gray-50 cursor-move hover:border-blue-300"
+                            ? "bg-chip cursor-default"
+                            : "hover:bg-chip cursor-move hover:border-acc"
                         }`}
                       >
                         <span
@@ -451,9 +451,9 @@ export default function RoutesPage() {
                         </span>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <p className="text-sm font-medium text-gray-900">{stop.name}</p>
+                            <p className="text-sm font-medium text-ink">{stop.name}</p>
                             {stop.isBiweekly && (
-                              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 uppercase">
+                              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-chip text-acc uppercase">
                                 2 sem
                               </span>
                             )}
@@ -465,7 +465,7 @@ export default function RoutesPage() {
                               {empName(assignedMap[stop.id] ?? null)}
                             </span>
                           </div>
-                          <p className="text-xs text-gray-500 truncate">{stop.address}</p>
+                          <p className="text-xs text-mut truncate">{stop.address}</p>
                           {/* Assignment dropdown */}
                           {employees.length > 0 && (
                             <div className="mt-1.5 flex items-center gap-1.5">
@@ -473,14 +473,14 @@ export default function RoutesPage() {
                                 value={assignedMap[stop.id] ?? ""}
                                 onChange={e => assignClient(stop.id, e.target.value || null)}
                                 disabled={assigning === stop.id}
-                                className="text-[10px] border border-gray-200 rounded px-1.5 py-1 text-gray-600 bg-gray-50 focus:outline-none focus:border-blue-300 disabled:opacity-50"
+                                className="text-[10px] border border-line rounded px-1.5 py-1 text-mut bg-page focus:outline-none focus:border-acc disabled:opacity-50"
                               >
                                 <option value="">— Thomas</option>
                                 {employees.map(emp => (
                                   <option key={emp.id} value={emp.id}>{emp.name}</option>
                                 ))}
                               </select>
-                              {assigning === stop.id && <Loader2 size={11} className="animate-spin text-gray-400" />}
+                              {assigning === stop.id && <Loader2 size={11} className="animate-spin text-mut" />}
                             </div>
                           )}
                         </div>
@@ -488,7 +488,7 @@ export default function RoutesPage() {
                         {/* Confirm button / confirmed state */}
                         {confirmedIds.includes(stop.id) ? (
                           <div className="flex items-center gap-1 flex-shrink-0">
-                            <span className="text-xs px-2 py-1 rounded bg-green-100 text-green-700">✓ Confirmé</span>
+                            <span className="text-xs px-2 py-1 rounded bg-chip text-pos">✓ Confirmé</span>
                             <button
                               onClick={async (e) => {
                                 e.stopPropagation();
@@ -500,7 +500,7 @@ export default function RoutesPage() {
                                 });
                                 setConfirmedIds(prev => prev.filter(id => id !== stop.id));
                               }}
-                              className="text-red-400 hover:text-red-600 text-xs"
+                              className="text-neg hover:opacity-70 text-xs"
                               title="Annuler la confirmation"
                             >
                               ✕
@@ -531,16 +531,16 @@ export default function RoutesPage() {
                               }
                             }}
                             disabled={confirmingIds.includes(stop.id)}
-                            className="text-xs px-2 py-1 rounded flex-shrink-0 bg-blue-100 text-blue-700 hover:bg-blue-200 disabled:opacity-50"
+                            className="text-xs px-2 py-1 rounded flex-shrink-0 bg-chip text-acc hover:opacity-80 disabled:opacity-50"
                           >
                             {confirmingIds.includes(stop.id) ? "..." : "Confirmer"}
                           </button>
                         )}
 
-                        <div className="text-right text-xs text-gray-500 flex-shrink-0 space-y-0.5">
-                          <p className="text-sm font-semibold text-gray-900">{stop.arrivalTime} → {stop.departureTime}</p>
-                          <p>{stop.distFromPrev} km • {stop.driveMinFromPrev} min route</p>
-                          <p className="text-blue-500">1er: {stop.firstEntretienDate}</p>
+                        <div className="text-right text-xs text-mut flex-shrink-0 space-y-0.5">
+                          <p className="text-sm font-semibold num text-ink">{stop.arrivalTime} → {stop.departureTime}</p>
+                          <p className="num">{stop.distFromPrev} km • {stop.driveMinFromPrev} min route</p>
+                          <p className="text-acc">1er: {stop.firstEntretienDate}</p>
                         </div>
                       </div>
                     ))}
@@ -551,13 +551,13 @@ export default function RoutesPage() {
           </div>
 
           {/* Confirm all */}
-          <div className="bg-white rounded-xl border p-5 space-y-3">
-            <p className="text-sm text-gray-500">Confirmer va créer tous les rendez-vous d&apos;entretien jusqu&apos;au 30 septembre 2026.</p>
+          <div className="bg-sur rounded-xl border border-line p-5 space-y-3">
+            <p className="text-sm text-mut">Confirmer va créer tous les rendez-vous d&apos;entretien jusqu&apos;au 30 septembre 2026.</p>
             <div className="flex flex-col md:flex-row gap-3">
               <button
                 onClick={() => confirm(false)}
                 disabled={confirming}
-                className="flex-1 bg-[#0a1f3f] text-white rounded-lg py-3 font-medium flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-[#0d2a52] transition"
+                className="flex-1 btn-glow rounded-lg py-3 font-medium flex items-center justify-center gap-2 disabled:opacity-50 hover:opacity-90 transition"
               >
                 {confirming ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
                 Confirmer tout sans SMS
@@ -565,7 +565,7 @@ export default function RoutesPage() {
               <button
                 onClick={() => confirm(true)}
                 disabled={confirming}
-                className="flex-1 bg-green-600 text-white rounded-lg py-3 font-medium flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-green-700 transition"
+                className="flex-1 bg-pos text-white rounded-lg py-3 font-medium flex items-center justify-center gap-2 disabled:opacity-50 hover:opacity-90 transition"
               >
                 {confirming ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
                 Confirmer tout + SMS
@@ -575,20 +575,20 @@ export default function RoutesPage() {
 
           {/* Zone bulk assignment */}
           {employees.length > 0 && (
-            <div className="bg-white rounded-xl border p-5 space-y-3">
+            <div className="bg-sur rounded-xl border border-line p-5 space-y-3">
               <div className="flex items-center gap-2">
-                <Users size={16} className="text-gray-500" />
-                <h3 className="text-sm font-semibold text-gray-800">Attribution par zone</h3>
+                <Users size={16} className="text-mut" />
+                <h3 className="text-sm font-semibold font-display text-ink">Attribution par zone</h3>
               </div>
-              <p className="text-xs text-gray-500">Assigner tous les clients d&apos;une zone à un employé d&apos;un seul coup (basé sur la ville du contact).</p>
+              <p className="text-xs text-mut">Assigner tous les clients d&apos;une zone à un employé d&apos;un seul coup (basé sur la ville du contact).</p>
               <div className="flex items-center gap-3 flex-wrap">
                 <div className="flex-1 min-w-[140px]">
-                  <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide block mb-1">Zone (ville)</label>
+                  <label className="lbl block mb-1">Zone (ville)</label>
                   {uniqueZones.length > 0 ? (
                     <select
                       value={bulkZone}
                       onChange={e => setBulkZone(e.target.value)}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                      className="w-full border border-line rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-acc"
                     >
                       {uniqueZones.map(z => <option key={z} value={z}>{z}</option>)}
                     </select>
@@ -598,16 +598,16 @@ export default function RoutesPage() {
                       value={bulkZone}
                       onChange={e => setBulkZone(e.target.value)}
                       placeholder="ex: Granby, Waterloo..."
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                      className="w-full border border-line rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-acc"
                     />
                   )}
                 </div>
                 <div className="flex-1 min-w-[140px]">
-                  <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide block mb-1">Assigné à</label>
+                  <label className="lbl block mb-1">Assigné à</label>
                   <select
                     value={bulkEmpId}
                     onChange={e => setBulkEmpId(e.target.value)}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                    className="w-full border border-line rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-acc"
                   >
                     <option value="">— Thomas (défaut)</option>
                     {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
@@ -617,7 +617,7 @@ export default function RoutesPage() {
                   <button
                     onClick={assignByZone}
                     disabled={bulkAssigning || !bulkZone}
-                    className="px-4 py-2 bg-[#0a1f3f] text-white text-sm font-medium rounded-lg hover:bg-[#0d2a52] disabled:opacity-50 flex items-center gap-2 transition"
+                    className="px-4 py-2 btn-glow text-sm font-medium rounded-lg hover:opacity-90 disabled:opacity-50 flex items-center gap-2 transition"
                   >
                     {bulkAssigning ? <Loader2 size={14} className="animate-spin" /> : <Users size={14} />}
                     Assigner

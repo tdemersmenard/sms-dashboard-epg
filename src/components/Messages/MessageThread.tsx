@@ -124,9 +124,9 @@ export default function MessageThread({
   }, [messages]);
 
   return (
-    <div className="flex flex-col h-full bg-white">
+    <div className="flex flex-col h-full bg-sur">
       {/* Header */}
-      <div className="flex-shrink-0 border-b border-gray-100 bg-white px-4 py-3 flex items-center gap-3">
+      <div className="flex-shrink-0 border-b border-line bg-sur px-4 py-3 flex items-center gap-3">
         <div
           className="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center text-sm font-semibold text-white"
           style={{ backgroundColor: avatarBg }}
@@ -134,16 +134,16 @@ export default function MessageThread({
           {initials}
         </div>
         <div className="flex-1 min-w-0">
-          <h2 className="text-sm font-semibold text-gray-900 truncate">
+          <h2 className="text-sm font-semibold text-ink truncate">
             {name}
           </h2>
-          <p className="text-[11px] text-gray-400 font-mono">
+          <p className="text-[11px] text-mut font-mono">
             {formatPhone(conversation.phone)}
           </p>
         </div>
         <Link
           href={`/clients/${conversation.contact_id}`}
-          className="flex items-center gap-1.5 text-xs text-blue-500 hover:text-blue-600 transition px-2 py-1.5 rounded-lg hover:bg-blue-50"
+          className="flex items-center gap-1.5 text-xs text-acc transition px-2 py-1.5 rounded-lg hover:bg-chip"
         >
           <ExternalLink size={13} />
           Fiche
@@ -154,11 +154,11 @@ export default function MessageThread({
       <div className="flex-1 overflow-y-auto px-4 py-4">
         {loading ? (
           <div className="flex items-center justify-center h-full">
-            <div className="w-5 h-5 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin" />
+            <div className="w-5 h-5 border-2 border-line border-t-acc rounded-full animate-spin" />
           </div>
         ) : messages.length === 0 ? (
           <div className="flex items-center justify-center h-full">
-            <p className="text-gray-300 text-sm">Aucun message</p>
+            <p className="text-mut text-sm">Aucun message</p>
           </div>
         ) : (
           <div className="space-y-1">
@@ -169,11 +169,11 @@ export default function MessageThread({
                     key={item.key}
                     className="flex items-center gap-3 py-3"
                   >
-                    <div className="flex-1 h-px bg-gray-100" />
-                    <span className="text-[11px] text-gray-400 font-medium">
+                    <div className="flex-1 h-px bg-chip" />
+                    <span className="text-[11px] text-mut font-medium">
                       {item.label}
                     </span>
-                    <div className="flex-1 h-px bg-gray-100" />
+                    <div className="flex-1 h-px bg-chip" />
                   </div>
                 );
               }
@@ -197,11 +197,10 @@ export default function MessageThread({
                     <div
                       className={`px-3.5 py-2 word-break ${
                         isOut
-                          ? "text-white"
-                          : "text-gray-900"
+                          ? "bubble-out"
+                          : "bubble-in"
                       }`}
                       style={{
-                        backgroundColor: isOut ? "#0a1f3f" : "#e5e5ea",
                         borderRadius: isOut
                           ? "18px 18px 4px 18px"
                           : "18px 18px 18px 4px",
@@ -213,17 +212,17 @@ export default function MessageThread({
                       </p>
                     </div>
                     <div
-                      className={`flex items-center gap-1 mt-1 text-[10px] text-gray-400 ${
+                      className={`flex items-center gap-1 mt-1 text-[10px] text-mut ${
                         isOut ? "justify-end" : "justify-start"
                       }`}
                     >
-                      <span className="opacity-60">
+                      <span className="num opacity-60">
                         {formatFullTime(msg.created_at)}
                       </span>
                       {isOut && (
                         <span
                           className={
-                            isFailed ? "text-red-400" : "text-gray-400"
+                            isFailed ? "text-neg" : "text-mut"
                           }
                         >
                           {statusIcon(msg.status)}

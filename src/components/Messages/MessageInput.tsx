@@ -88,19 +88,19 @@ export default function MessageInput({
   return (
     <div
       ref={containerRef}
-      className="flex-shrink-0 bg-gray-50 border-t border-gray-200 px-3 py-3 relative"
+      className="flex-shrink-0 bg-page border-t border-line px-3 py-3 relative"
     >
       {/* Template dropdown — renders above the input */}
       {showTemplates && templates.length > 0 && (
-        <div className="absolute bottom-full left-3 right-3 mb-2 bg-white rounded-xl shadow-lg border border-gray-100 max-h-[300px] overflow-y-auto z-50">
+        <div className="absolute bottom-full left-3 right-3 mb-2 bg-sur rounded-xl border border-line max-h-[300px] overflow-y-auto z-50">
           {templates.map((tpl) => (
             <button
               key={tpl.id}
               onClick={() => applyTemplate(tpl)}
-              className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0"
+              className="w-full text-left px-4 py-3 hover:bg-chip transition-colors border-b border-line last:border-0"
             >
-              <p className="text-sm font-semibold text-gray-800">{tpl.name}</p>
-              <p className="text-xs text-gray-400 truncate mt-0.5">
+              <p className="text-sm font-semibold text-ink">{tpl.name}</p>
+              <p className="text-xs text-mut truncate mt-0.5">
                 {tpl.body}
               </p>
             </button>
@@ -110,7 +110,7 @@ export default function MessageInput({
 
       {/* Input wrapper */}
       <div
-        className="flex items-end gap-2 bg-white border border-gray-200 px-3 py-2 transition-shadow focus-within:shadow-sm focus-within:border-gray-300"
+        className="flex items-end gap-2 bg-sur border border-line px-3 py-2 transition-shadow focus-within:border-acc"
         style={{ borderRadius: 22 }}
       >
         {/* Templates button */}
@@ -119,8 +119,8 @@ export default function MessageInput({
           onClick={() => setShowTemplates((v) => !v)}
           className={`flex-shrink-0 p-1 rounded-full transition-colors mb-0.5 ${
             showTemplates
-              ? "text-blue-500 bg-blue-50"
-              : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+              ? "text-acc bg-chip"
+              : "text-mut hover:text-ink hover:bg-chip"
           }`}
           title="Templates"
         >
@@ -139,7 +139,7 @@ export default function MessageInput({
           placeholder="Message..."
           rows={1}
           disabled={disabled || sending}
-          className="flex-1 bg-transparent text-sm text-gray-900 placeholder:text-gray-400 resize-none focus:outline-none py-0.5 leading-relaxed disabled:opacity-50"
+          className="flex-1 bg-transparent text-sm text-ink placeholder:text-mut resize-none focus:outline-none py-0.5 leading-relaxed disabled:opacity-50"
           style={{ maxHeight: 120 }}
         />
 
@@ -148,20 +148,19 @@ export default function MessageInput({
           type="button"
           onClick={handleSend}
           disabled={!hasText || sending || disabled}
-          className="flex-shrink-0 w-[34px] h-[34px] rounded-full flex items-center justify-center transition-colors mb-0.5"
-          style={{
-            backgroundColor: hasText ? "#3b82f6" : "#d1d5db",
-          }}
+          className={`flex-shrink-0 w-[34px] h-[34px] rounded-full flex items-center justify-center transition-colors mb-0.5 ${
+            hasText ? "btn-glow" : "bg-chip text-mut"
+          }`}
         >
           {sending ? (
-            <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+            <div className="w-3.5 h-3.5 border-2 border-accink border-t-transparent rounded-full animate-spin" />
           ) : (
-            <Send size={15} className="text-white translate-x-px" />
+            <Send size={15} className="translate-x-px" />
           )}
         </button>
       </div>
 
-      <p className="text-[10px] text-gray-400 mt-1.5 pl-2">
+      <p className="text-[10px] text-mut mt-1.5 pl-2">
         Entrée pour envoyer · Shift+Entrée pour nouvelle ligne
       </p>
     </div>

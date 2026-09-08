@@ -10,7 +10,7 @@ const STAGE_COLORS: Record<string, string> = {
   "soumission envoyée": "#f97316",
   "closé":              "#22c55e",
   "planifié":           "#a855f7",
-  "complété":           "#374151",
+  "complété":           "#6b7280",
   "perdu":              "#ef4444",
 };
 
@@ -28,20 +28,20 @@ export default function PipelineColumn({ stage, contacts }: Props) {
     <div className="flex flex-col w-64 flex-shrink-0">
       {/* Header */}
       <div
-        className="rounded-t-lg px-3 py-2.5 bg-white border border-gray-200 border-b-0"
+        className="rounded-t-lg px-3 py-2.5 bg-sur border border-line border-b-0"
         style={{ borderTop: `4px solid ${color}` }}
       >
         <div className="flex items-center justify-between">
-          <span className="text-sm font-semibold text-gray-800">{label}</span>
+          <span className="text-sm font-semibold font-display text-ink">{label}</span>
           <span
-            className="text-xs font-bold text-white rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5"
-            style={{ backgroundColor: color }}
+            className="text-xs font-bold num rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5"
+            style={{ backgroundColor: `${color}26`, color }}
           >
             {contacts.length}
           </span>
         </div>
         {total > 0 && (
-          <p className="text-xs text-gray-400 mt-0.5">
+          <p className="text-xs text-mut mt-0.5 num">
             {total.toLocaleString("fr-CA", { style: "currency", currency: "CAD", maximumFractionDigits: 0 })}
           </p>
         )}
@@ -53,8 +53,8 @@ export default function PipelineColumn({ stage, contacts }: Props) {
           <div
             ref={provided.innerRef}
             {...provided.droppableProps}
-            className={`flex-1 min-h-[120px] rounded-b-lg border border-t-0 border-gray-200 p-2 overflow-y-auto transition-colors ${
-              snapshot.isDraggingOver ? "bg-blue-50" : "bg-gray-50"
+            className={`flex-1 min-h-[120px] rounded-b-lg border border-t-0 border-line p-2 overflow-y-auto transition-colors ${
+              snapshot.isDraggingOver ? "bg-acc/10" : "bg-page"
             }`}
           >
             {contacts.map((c, i) => (

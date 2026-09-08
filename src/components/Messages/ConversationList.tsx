@@ -72,20 +72,20 @@ export default function ConversationList({
   });
 
   return (
-    <div className="flex flex-col h-full bg-white">
+    <div className="flex flex-col h-full bg-sur">
       {/* Search */}
-      <div className="px-3 pt-3 pb-2 border-b border-gray-100">
+      <div className="px-3 pt-3 pb-2 border-b border-line">
         <div className="relative">
           <Search
             size={15}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-mut"
           />
           <input
             type="text"
             placeholder="Rechercher..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="w-full bg-gray-100 rounded-full pl-9 pr-4 py-2 text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-200 transition"
+            className="input-glow w-full bg-chip rounded-full pl-9 pr-4 py-2 text-sm text-ink placeholder:text-mut focus:outline-none transition"
           />
         </div>
       </div>
@@ -94,10 +94,10 @@ export default function ConversationList({
       <div className="flex-1 overflow-y-auto scrollbar-none">
         {loading ? (
           <div className="flex items-center justify-center py-16">
-            <div className="w-5 h-5 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin" />
+            <div className="w-5 h-5 border-2 border-line border-t-acc rounded-full animate-spin" />
           </div>
         ) : filtered.length === 0 ? (
-          <p className="text-gray-400 text-sm text-center py-16">
+          <p className="text-mut text-sm text-center py-16">
             {debouncedQuery ? "Aucun résultat" : "Aucune conversation"}
           </p>
         ) : (
@@ -112,10 +112,8 @@ export default function ConversationList({
               <button
                 key={conv.contact_id}
                 onClick={() => onSelect(conv.contact_id)}
-                className={`w-full text-left px-3 py-3 flex items-center gap-3 transition-colors duration-150 ${
-                  isActive
-                    ? "bg-blue-50"
-                    : "hover:bg-gray-50"
+                className={`conversation-item w-full text-left px-3 py-3 flex items-center gap-3 ${
+                  isActive ? "active" : ""
                 }`}
               >
                 {/* Avatar */}
@@ -132,27 +130,27 @@ export default function ConversationList({
                     <span
                       className={`text-sm truncate ${
                         hasUnread
-                          ? "font-semibold text-gray-900"
-                          : "font-medium text-gray-700"
+                          ? "font-semibold text-ink"
+                          : "font-medium text-ink"
                       }`}
                     >
                       {name}
                     </span>
-                    <span className="text-[11px] text-gray-400 flex-shrink-0 ml-2">
+                    <span className="num text-[11px] text-mut flex-shrink-0 ml-2">
                       {conv.last_message_at
                         ? formatConvTime(conv.last_message_at)
                         : ""}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <p className="flex-1 min-w-0 text-xs text-gray-500 truncate leading-snug">
+                    <p className="flex-1 min-w-0 text-xs text-mut truncate leading-snug">
                       {conv.last_direction === "outbound" && (
-                        <span className="text-gray-600">Toi: </span>
+                        <span className="text-mut">Toi: </span>
                       )}
                       {conv.last_message ?? ""}
                     </p>
                     {hasUnread && (
-                      <span className="flex-shrink-0 min-w-[20px] h-5 rounded-full bg-blue-500 text-white text-[11px] font-semibold flex items-center justify-center px-1.5">
+                      <span className="num flex-shrink-0 min-w-[20px] h-5 rounded-full bg-acc text-accink text-[11px] font-semibold flex items-center justify-center px-1.5">
                         {conv.unread_count}
                       </span>
                     )}

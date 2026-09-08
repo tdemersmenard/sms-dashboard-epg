@@ -149,20 +149,20 @@ export default function ReglagesPage() {
   return (
     <div className="max-w-3xl mx-auto px-4 py-8 space-y-8">
       <div className="flex items-center gap-3">
-        <Settings className="text-gray-500" size={28} />
+        <Settings className="text-mut" size={28} />
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Réglages</h1>
-          <p className="text-sm text-gray-500">{franchiseName || "Franchise"}</p>
+          <h1 className="text-2xl font-bold font-display text-ink">Réglages</h1>
+          <p className="text-sm text-mut">{franchiseName || "Franchise"}</p>
         </div>
       </div>
 
       {/* ── NOTIFICATIONS ─────────────────────────────────────── */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-        <div className="px-6 py-5 border-b border-gray-100 flex items-center gap-3">
-          <Bell size={20} className="text-orange-500" />
+      <div className="bg-sur rounded-xl border border-line ">
+        <div className="px-6 py-5 border-b border-line flex items-center gap-3">
+          <Bell size={20} className="text-warn" />
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Notifications</h2>
-            <p className="text-sm text-gray-500">
+            <h2 className="text-lg font-semibold font-display text-ink">Notifications</h2>
+            <p className="text-sm text-mut">
               Numéro où vous recevrez les rapports quotidiens et alertes
             </p>
           </div>
@@ -170,12 +170,12 @@ export default function ReglagesPage() {
         <div className="p-6 space-y-4">
           {notifLoading ? (
             <div className="flex items-center justify-center py-8">
-              <Loader2 className="animate-spin text-gray-400" size={24} />
+              <Loader2 className="animate-spin text-mut" size={24} />
             </div>
           ) : (
             <>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-ink mb-1">
                   Numéro de téléphone pour les notifications
                 </label>
                 <input
@@ -183,9 +183,9 @@ export default function ReglagesPage() {
                   value={notifPhone}
                   onChange={(e) => setNotifPhone(e.target.value)}
                   placeholder="+15551234567"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  className="w-full px-3 py-2 border border-line rounded-lg text-sm focus:ring-2 focus:ring-acc focus:border-acc outline-none"
                 />
-                <p className="mt-1 text-xs text-gray-400">
+                <p className="mt-1 text-xs text-mut">
                   Rapport journalier, rappels de leads, alertes paiements
                 </p>
               </div>
@@ -193,8 +193,8 @@ export default function ReglagesPage() {
               {notifFeedback && (
                 <div className={`flex items-center gap-2 p-3 rounded-lg text-sm ${
                   notifFeedback.type === "success"
-                    ? "bg-green-50 text-green-700 border border-green-200"
-                    : "bg-red-50 text-red-700 border border-red-200"
+                    ? "bg-chip text-pos border border-line"
+                    : "bg-chip text-neg border border-line"
                 }`}>
                   {notifFeedback.type === "success" ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
                   {notifFeedback.message}
@@ -204,7 +204,7 @@ export default function ReglagesPage() {
               <button
                 onClick={handleSaveNotif}
                 disabled={notifSaving || !notifPhone}
-                className="px-5 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                className="px-5 py-2.5 btn-glow rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {notifSaving && <Loader2 className="animate-spin" size={16} />}
                 {notifSaving ? "Sauvegarde..." : "Sauvegarder"}
@@ -215,12 +215,12 @@ export default function ReglagesPage() {
       </div>
 
       {/* ── MES PAIEMENTS (BILLING) ──────────────────────────── */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-        <div className="px-6 py-5 border-b border-gray-100 flex items-center gap-3">
-          <DollarSign size={20} className="text-green-600" />
+      <div className="bg-sur rounded-xl border border-line ">
+        <div className="px-6 py-5 border-b border-line flex items-center gap-3">
+          <DollarSign size={20} className="text-pos" />
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Mes paiements</h2>
-            <p className="text-sm text-gray-500">
+            <h2 className="text-lg font-semibold font-display text-ink">Mes paiements</h2>
+            <p className="text-sm text-mut">
               Frais dus au franchiseur — lecture seule
             </p>
           </div>
@@ -228,37 +228,37 @@ export default function ReglagesPage() {
         <div className="p-6">
           {billingLoading ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="animate-spin text-gray-400" size={24} />
+              <Loader2 className="animate-spin text-mut" size={24} />
             </div>
           ) : billing ? (
             <div className="space-y-6">
               {/* Summary cards */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
-                  <p className="text-xs font-medium text-blue-600 uppercase">Revenus saison</p>
-                  <p className="text-2xl font-bold text-blue-900 mt-1">{fmt(billing.seasonRevenue)} $</p>
+                <div className="bg-chip rounded-lg p-4 border border-line">
+                  <p className="lbl">Revenus saison</p>
+                  <p className="text-2xl font-bold font-display num text-acc mt-1">{fmt(billing.seasonRevenue)} $</p>
                 </div>
-                <div className="bg-orange-50 rounded-lg p-4 border border-orange-100">
-                  <p className="text-xs font-medium text-orange-600 uppercase">Redevances ({billing.royaltyPercent}%)</p>
-                  <p className="text-2xl font-bold text-orange-900 mt-1">{fmt(billing.seasonRoyalties)} $</p>
+                <div className="bg-chip rounded-lg p-4 border border-line">
+                  <p className="lbl">Redevances ({billing.royaltyPercent}%)</p>
+                  <p className="text-2xl font-bold font-display num text-warn mt-1">{fmt(billing.seasonRoyalties)} $</p>
                 </div>
-                <div className="bg-red-50 rounded-lg p-4 border border-red-100">
-                  <p className="text-xs font-medium text-red-600 uppercase">Total dû (saison)</p>
-                  <p className="text-2xl font-bold text-red-900 mt-1">{fmt(billing.seasonTotal)} $</p>
+                <div className="bg-chip rounded-lg p-4 border border-line">
+                  <p className="lbl">Total dû (saison)</p>
+                  <p className="text-2xl font-bold font-display num text-neg mt-1">{fmt(billing.seasonTotal)} $</p>
                 </div>
               </div>
 
               {/* Structure */}
-              <div className="bg-gray-50 rounded-lg p-4 space-y-2 text-sm text-gray-600">
-                <p className="font-semibold text-gray-800">Structure tarifaire</p>
+              <div className="bg-page rounded-lg p-4 space-y-2 text-sm text-mut">
+                <p className="font-semibold text-ink">Structure tarifaire</p>
                 <p>• Redevance : <span className="font-medium">{billing.royaltyPercent}%</span> des revenus mensuels</p>
                 <p>• Frais système : <span className="font-medium">{fmt(billing.monthlyFee)} $/mois</span></p>
                 <div className="flex items-center gap-2">
                   <span>• Frais initial de franchise : <span className="font-medium">{fmt(billing.franchiseFee)} $</span></span>
                   {billing.franchiseFeePaid ? (
-                    <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-medium">Payé</span>
+                    <span className="text-xs px-2 py-0.5 bg-chip text-pos rounded-full font-medium">Payé</span>
                   ) : (
-                    <span className="text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded-full font-medium">Non payé</span>
+                    <span className="text-xs px-2 py-0.5 bg-chip text-neg rounded-full font-medium">Non payé</span>
                   )}
                 </div>
               </div>
@@ -266,14 +266,14 @@ export default function ReglagesPage() {
               {/* Monthly breakdown */}
               {billing.monthlyBreakdown.length > 0 && (
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                  <h3 className="text-sm font-semibold text-ink mb-3 flex items-center gap-2">
                     <Receipt size={16} />
                     Détail mensuel (saison en cours)
                   </h3>
                   <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
+                    <table className="w-full text-sm num">
                       <thead>
-                        <tr className="border-b border-gray-200 text-left text-gray-500">
+                        <tr className="border-b border-line text-left text-mut">
                           <th className="py-2 pr-4 font-medium">Mois</th>
                           <th className="py-2 pr-4 font-medium text-right">Revenus</th>
                           <th className="py-2 pr-4 font-medium text-right">Redevance</th>
@@ -283,7 +283,7 @@ export default function ReglagesPage() {
                       </thead>
                       <tbody>
                         {billing.monthlyBreakdown.map((m) => (
-                          <tr key={m.month} className="border-b border-gray-100">
+                          <tr key={m.month} className="border-b border-line">
                             <td className="py-2.5 pr-4 capitalize">{m.month}</td>
                             <td className="py-2.5 pr-4 text-right">{fmt(m.revenue)} $</td>
                             <td className="py-2.5 pr-4 text-right">{fmt(m.royalty)} $</td>
@@ -293,7 +293,7 @@ export default function ReglagesPage() {
                         ))}
                       </tbody>
                       <tfoot>
-                        <tr className="border-t-2 border-gray-300 font-semibold">
+                        <tr className="border-t-2 border-line font-semibold">
                           <td className="py-2.5 pr-4">Total</td>
                           <td className="py-2.5 pr-4 text-right">{fmt(billing.seasonRevenue)} $</td>
                           <td className="py-2.5 pr-4 text-right">{fmt(billing.seasonRoyalties)} $</td>
@@ -307,18 +307,18 @@ export default function ReglagesPage() {
               )}
             </div>
           ) : (
-            <p className="text-sm text-gray-500 py-4">Impossible de charger les données de facturation.</p>
+            <p className="text-sm text-mut py-4">Impossible de charger les données de facturation.</p>
           )}
         </div>
       </div>
 
       {/* ── TWILIO CONFIG ────────────────────────────────────── */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-        <div className="px-6 py-5 border-b border-gray-100 flex items-center gap-3">
-          <Phone size={20} className="text-blue-600" />
+      <div className="bg-sur rounded-xl border border-line ">
+        <div className="px-6 py-5 border-b border-line flex items-center gap-3">
+          <Phone size={20} className="text-acc" />
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Configuration Twilio</h2>
-            <p className="text-sm text-gray-500">
+            <h2 className="text-lg font-semibold font-display text-ink">Configuration Twilio</h2>
+            <p className="text-sm text-mut">
               Connectez votre compte Twilio pour envoyer et recevoir des SMS
             </p>
           </div>
@@ -326,26 +326,26 @@ export default function ReglagesPage() {
         <div className="p-6 space-y-5">
           {twilioLoading ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="animate-spin text-gray-400" size={24} />
+              <Loader2 className="animate-spin text-mut" size={24} />
             </div>
           ) : (
             <>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Account SID</label>
+                <label className="block text-sm font-medium text-ink mb-1">Account SID</label>
                 <input
                   type="text"
                   value={accountSid}
                   onChange={(e) => setAccountSid(e.target.value)}
                   placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  className="w-full px-3 py-2 border border-line rounded-lg text-sm focus:ring-2 focus:ring-acc focus:border-acc outline-none"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-ink mb-1">
                   Auth Token
                   {hasExistingToken && (
-                    <span className="ml-2 text-xs text-green-600 font-normal">
+                    <span className="ml-2 text-xs text-pos font-normal">
                       (token enregistré — laissez vide pour conserver l&apos;existant)
                     </span>
                   )}
@@ -356,23 +356,23 @@ export default function ReglagesPage() {
                     value={authToken}
                     onChange={(e) => setAuthToken(e.target.value)}
                     placeholder={hasExistingToken ? "••••••••••••••••" : "Votre Auth Token Twilio"}
-                    className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    className="w-full px-3 py-2 pr-10 border border-line rounded-lg text-sm focus:ring-2 focus:ring-acc focus:border-acc outline-none"
                   />
                   <button
                     type="button"
                     onClick={() => setShowToken(!showToken)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-mut hover:text-ink"
                   >
                     {showToken ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
-                <p className="mt-1 text-xs text-gray-400">
+                <p className="mt-1 text-xs text-mut">
                   Chiffré avec AES-256-GCM avant le stockage en base de données
                 </p>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-ink mb-1">
                   Numéro de téléphone Twilio
                 </label>
                 <input
@@ -380,16 +380,16 @@ export default function ReglagesPage() {
                   value={phoneNumber}
                   onChange={(e) => setPhoneNumber(e.target.value)}
                   placeholder="+15551234567"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  className="w-full px-3 py-2 border border-line rounded-lg text-sm focus:ring-2 focus:ring-acc focus:border-acc outline-none"
                 />
-                <p className="mt-1 text-xs text-gray-400">Format E.164 (ex: +15551234567)</p>
+                <p className="mt-1 text-xs text-mut">Format E.164 (ex: +15551234567)</p>
               </div>
 
               {twilioFeedback && (
                 <div className={`flex items-center gap-2 p-3 rounded-lg text-sm ${
                   twilioFeedback.type === "success"
-                    ? "bg-green-50 text-green-700 border border-green-200"
-                    : "bg-red-50 text-red-700 border border-red-200"
+                    ? "bg-chip text-pos border border-line"
+                    : "bg-chip text-neg border border-line"
                 }`}>
                   {twilioFeedback.type === "success" ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
                   {twilioFeedback.message}
@@ -400,7 +400,7 @@ export default function ReglagesPage() {
                 <button
                   onClick={handleSaveTwilio}
                   disabled={twilioSaving || !accountSid || !phoneNumber}
-                  className="px-5 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  className="px-5 py-2.5 btn-glow rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {twilioSaving && <Loader2 className="animate-spin" size={16} />}
                   {twilioSaving ? "Sauvegarde..." : "Sauvegarder"}

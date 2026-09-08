@@ -98,7 +98,7 @@ export default function RapportFiscal({ depenses, annee }: Props) {
 
   if (depenses.length === 0) {
     return (
-      <div className="text-center py-12 text-gray-400 text-sm bg-white rounded-xl border border-gray-100">
+      <div className="text-center py-12 text-mut text-sm bg-sur rounded-xl border border-line">
         Aucune dépense pour cette période.
       </div>
     );
@@ -108,13 +108,13 @@ export default function RapportFiscal({ depenses, annee }: Props) {
     <div className="space-y-6">
       {/* Alert reçus manquants */}
       {sansRecu.length > 0 && (
-        <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
-          <AlertTriangle size={18} className="text-amber-600 flex-shrink-0 mt-0.5" />
+        <div className="flex items-start gap-3 bg-chip border border-line rounded-xl p-4">
+          <AlertTriangle size={18} className="text-warn flex-shrink-0 mt-0.5" />
           <div>
-            <p className="text-sm font-semibold text-amber-800">
+            <p className="text-sm font-semibold text-warn">
               {sansRecu.length} dépense{sansRecu.length > 1 ? "s" : ""} sans reçu attaché
             </p>
-            <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">
+            <p className="text-xs text-mut mt-0.5 leading-relaxed">
               {sansRecu.map(d => d.description).join(" · ")}
             </p>
           </div>
@@ -123,64 +123,64 @@ export default function RapportFiscal({ depenses, annee }: Props) {
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-          <p className="text-xs text-gray-500 mb-1">Total dépenses {annee}</p>
-          <p className="text-2xl font-bold text-gray-900">{fmt(totalMontant)}</p>
+        <div className="bg-sur rounded-xl border border-line p-4">
+          <p className="lbl mb-1">Total dépenses {annee}</p>
+          <p className="font-display num text-2xl font-bold text-ink">{fmt(totalMontant)}</p>
         </div>
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-          <p className="text-xs text-gray-500 mb-1">Total déductible</p>
-          <p className="text-2xl font-bold text-green-600">{fmt(totalDeductible)}</p>
+        <div className="bg-sur rounded-xl border border-line p-4">
+          <p className="lbl mb-1">Total déductible</p>
+          <p className="font-display num text-2xl font-bold text-pos">{fmt(totalDeductible)}</p>
         </div>
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-          <p className="text-xs text-gray-500 mb-1">Économie d&apos;impôt estimée</p>
-          <p className="text-2xl font-bold text-blue-600">{fmt(totalEconomie)}</p>
-          <p className="text-[10px] text-gray-400 mt-0.5">taux marginal ~{Math.round(TAUX_MARGINAL * 100)}%</p>
+        <div className="bg-sur rounded-xl border border-line p-4">
+          <p className="lbl mb-1">Économie d&apos;impôt estimée</p>
+          <p className="font-display num text-2xl font-bold text-acc">{fmt(totalEconomie)}</p>
+          <p className="text-[10px] text-mut mt-0.5">taux marginal ~{Math.round(TAUX_MARGINAL * 100)}%</p>
         </div>
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-          <p className="text-xs text-gray-500 mb-1">Reçus attachés</p>
-          <p className="text-2xl font-bold text-gray-900">
+        <div className="bg-sur rounded-xl border border-line p-4">
+          <p className="lbl mb-1">Reçus attachés</p>
+          <p className="font-display num text-2xl font-bold text-ink">
             {nbRecus}
-            <span className="text-base font-normal text-gray-400"> / {depenses.length}</span>
+            <span className="text-base font-normal text-mut"> / {depenses.length}</span>
           </p>
         </div>
       </div>
 
       {/* Recap table */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-100">
-          <h3 className="font-semibold text-gray-900">Récapitulatif par catégorie</h3>
+      <div className="bg-sur rounded-xl border border-line overflow-hidden">
+        <div className="px-5 py-4 border-b border-line">
+          <h3 className="font-display font-semibold text-ink">Récapitulatif par catégorie</h3>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50 border-b border-gray-100">
-                <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">Catégorie</th>
-                <th className="text-center px-4 py-3 text-xs font-medium text-gray-500">Nb dép.</th>
-                <th className="text-center px-4 py-3 text-xs font-medium text-gray-500">% Déd.</th>
-                <th className="text-right px-4 py-3 text-xs font-medium text-gray-500">Total dépensé</th>
-                <th className="text-right px-5 py-3 text-xs font-medium text-gray-500">Total déductible</th>
+              <tr className="bg-page border-b border-line">
+                <th className="text-left px-5 py-3 lbl">Catégorie</th>
+                <th className="text-center px-4 py-3 lbl">Nb dép.</th>
+                <th className="text-center px-4 py-3 lbl">% Déd.</th>
+                <th className="text-right px-4 py-3 lbl">Total dépensé</th>
+                <th className="text-right px-5 py-3 lbl">Total déductible</th>
               </tr>
             </thead>
             <tbody>
               {bycat.map(({ key, cat, count, totalM, totalD }) => (
-                <tr key={key} className="border-b border-gray-50 last:border-0">
+                <tr key={key} className="border-b border-line last:border-0">
                   <td className="px-5 py-3">
                     <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${cat.tailwindBg} ${cat.tailwindText}`}>
                       {cat.label}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-center text-gray-600">{count}</td>
-                  <td className="px-4 py-3 text-center text-gray-500">{key === "vehicule" ? "var." : `${cat.pct}%`}</td>
-                  <td className="px-4 py-3 text-right font-medium text-gray-900">{fmt(totalM)}</td>
-                  <td className="px-5 py-3 text-right font-semibold text-green-700">{fmt(totalD)}</td>
+                  <td className="px-4 py-3 text-center text-mut">{count}</td>
+                  <td className="px-4 py-3 text-center text-mut">{key === "vehicule" ? "var." : `${cat.pct}%`}</td>
+                  <td className="px-4 py-3 text-right font-medium num text-ink">{fmt(totalM)}</td>
+                  <td className="px-5 py-3 text-right font-semibold num text-pos">{fmt(totalD)}</td>
                 </tr>
               ))}
-              <tr className="bg-gray-50 font-semibold border-t border-gray-200">
-                <td className="px-5 py-3 text-gray-900">Total</td>
-                <td className="px-4 py-3 text-center text-gray-900">{depenses.length}</td>
+              <tr className="bg-page font-semibold border-t border-line">
+                <td className="px-5 py-3 text-ink">Total</td>
+                <td className="px-4 py-3 text-center text-ink">{depenses.length}</td>
                 <td />
-                <td className="px-4 py-3 text-right text-gray-900">{fmt(totalMontant)}</td>
-                <td className="px-5 py-3 text-right text-green-700">{fmt(totalDeductible)}</td>
+                <td className="px-4 py-3 text-right num text-ink">{fmt(totalMontant)}</td>
+                <td className="px-5 py-3 text-right num text-pos">{fmt(totalDeductible)}</td>
               </tr>
             </tbody>
           </table>
@@ -188,14 +188,14 @@ export default function RapportFiscal({ depenses, annee }: Props) {
       </div>
 
       {/* ── Actions PDF ─────────────────────────────────────────────── */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-3">
-        <h3 className="font-semibold text-gray-900 mb-4">Télécharger en PDF</h3>
+      <div className="bg-sur rounded-xl border border-line p-5 space-y-3">
+        <h3 className="font-display font-semibold text-ink mb-4">Télécharger en PDF</h3>
         <div className="flex flex-wrap gap-3">
           <a
             href={`/api/depenses/rapport-annuel?annee=${annee}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-2 px-4 py-2.5 bg-[#0a1f3f] text-white text-sm font-medium rounded-lg hover:bg-[#0f2855] transition"
+            className="flex items-center gap-2 px-4 py-2.5 btn-glow text-sm font-medium rounded-lg hover:opacity-90 transition"
           >
             <FileDown size={16} />
             Rapport fiscal {annee}
@@ -204,38 +204,38 @@ export default function RapportFiscal({ depenses, annee }: Props) {
             href={`/api/depenses/bilan-mensuel?annee=${annee}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-2 px-4 py-2.5 bg-[#0a1f3f] text-white text-sm font-medium rounded-lg hover:bg-[#0f2855] transition"
+            className="flex items-center gap-2 px-4 py-2.5 btn-glow text-sm font-medium rounded-lg hover:opacity-90 transition"
           >
             <FileDown size={16} />
             Bilan par mois {annee}
           </a>
           <button
             onClick={handleCopyText}
-            className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition"
+            className="flex items-center gap-2 px-4 py-2.5 bg-chip text-ink text-sm font-medium rounded-lg hover:bg-chip transition"
           >
-            {copied ? <Check size={16} className="text-green-600" /> : <Copy size={16} />}
+            {copied ? <Check size={16} className="text-pos" /> : <Copy size={16} />}
             {copied ? "Copié !" : "Copier texte (comptable)"}
           </button>
         </div>
       </div>
 
       {/* ── Auto-envoi mensuel ──────────────────────────────────────── */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+      <div className="bg-sur rounded-xl border border-line p-5">
         <div className="flex items-start gap-3">
-          <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0 mt-0.5">
-            <CalendarClock size={18} className="text-blue-600" />
+          <div className="w-9 h-9 rounded-lg bg-chip flex items-center justify-center flex-shrink-0 mt-0.5">
+            <CalendarClock size={18} className="text-acc" />
           </div>
           <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-gray-900">Rapport mensuel automatique</h3>
-            <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+            <h3 className="font-display font-semibold text-ink">Rapport mensuel automatique</h3>
+            <p className="text-xs text-mut mt-1 leading-relaxed">
               Le 1er de chaque mois à 8h, le rapport du mois précédent est généré en PDF et envoyé
-              automatiquement à <span className="font-medium text-gray-700">service@entretienpiscinegranby.com</span>.
+              automatiquement à <span className="font-medium text-ink">service@entretienpiscinegranby.com</span>.
             </p>
             <div className="flex items-center gap-3 mt-3">
               <button
                 onClick={handleSendNow}
                 disabled={sending}
-                className="flex items-center gap-2 px-3.5 py-2 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition"
+                className="flex items-center gap-2 px-3.5 py-2 btn-glow text-xs font-medium rounded-lg hover:opacity-90 disabled:opacity-50 transition"
               >
                 {sending
                   ? <Loader2 size={14} className="animate-spin" />
@@ -244,12 +244,12 @@ export default function RapportFiscal({ depenses, annee }: Props) {
                 {sending ? "Envoi..." : `Envoyer rapport de ${prevLabel} maintenant`}
               </button>
               {sendResult === "ok" && (
-                <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
+                <span className="flex items-center gap-1 text-xs text-pos font-medium">
                   <Check size={13} /> Envoyé !
                 </span>
               )}
               {sendResult === "error" && (
-                <span className="text-xs text-red-600 font-medium">
+                <span className="text-xs text-neg font-medium">
                   Erreur — vérifier la connexion Gmail
                 </span>
               )}

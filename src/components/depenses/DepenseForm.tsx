@@ -160,10 +160,10 @@ export default function DepenseForm({ annee, onCreated, onCancel }: Props) {
   };
 
   return (
-    <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+    <div className="bg-chip border border-line rounded-xl p-4">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="font-semibold text-gray-900">Nouvelle dépense</h3>
-        <button onClick={onCancel} className="text-gray-400 hover:text-gray-600 transition-colors">
+        <h3 className="font-display font-semibold text-ink">Nouvelle dépense</h3>
+        <button onClick={onCancel} className="text-mut hover:text-ink transition-colors">
           <X size={18} />
         </button>
       </div>
@@ -171,9 +171,9 @@ export default function DepenseForm({ annee, onCreated, onCancel }: Props) {
       {/* Scan photo */}
       <div className="mb-4">
         {scanning ? (
-          <div className="flex items-center justify-center gap-2 bg-blue-50 border-2 border-dashed border-blue-300 rounded-lg p-3 opacity-60">
-            <Loader2 size={16} className="text-blue-600 animate-spin" />
-            <span className="text-blue-700 font-medium text-sm">Analyse en cours...</span>
+          <div className="flex items-center justify-center gap-2 bg-sur border-2 border-dashed border-acc rounded-lg p-3 opacity-60">
+            <Loader2 size={16} className="text-acc animate-spin" />
+            <span className="text-acc font-medium text-sm">Analyse en cours...</span>
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-2">
@@ -190,9 +190,9 @@ export default function DepenseForm({ annee, onCreated, onCancel }: Props) {
                   await handleScanPhoto(file);
                 }}
               />
-              <div className="bg-blue-50 border-2 border-dashed border-blue-300 rounded-lg p-4 text-center hover:bg-blue-100 transition">
-                <p className="text-blue-700 font-medium text-sm">📷 Prendre une photo</p>
-                <p className="text-xs text-blue-500 mt-1">Nouveau reçu</p>
+              <div className="bg-sur border-2 border-dashed border-acc rounded-lg p-4 text-center hover:bg-page transition">
+                <p className="text-acc font-medium text-sm">📷 Prendre une photo</p>
+                <p className="text-xs text-mut mt-1">Nouveau reçu</p>
               </div>
             </label>
 
@@ -208,15 +208,15 @@ export default function DepenseForm({ annee, onCreated, onCancel }: Props) {
                   await handleScanPhoto(file);
                 }}
               />
-              <div className="bg-purple-50 border-2 border-dashed border-purple-300 rounded-lg p-4 text-center hover:bg-purple-100 transition">
-                <p className="text-purple-700 font-medium text-sm">🖼️ Uploader</p>
-                <p className="text-xs text-purple-500 mt-1">Galerie / fichiers</p>
+              <div className="bg-sur border-2 border-dashed border-acc2 rounded-lg p-4 text-center hover:bg-page transition">
+                <p className="text-acc2 font-medium text-sm">🖼️ Uploader</p>
+                <p className="text-xs text-mut mt-1">Galerie / fichiers</p>
               </div>
             </label>
           </div>
         )}
         {scanMsg && (
-          <p className={`text-xs mt-1.5 ${scanMsg.startsWith("✓") ? "text-green-600" : "text-amber-600"}`}>
+          <p className={`text-xs mt-1.5 ${scanMsg.startsWith("✓") ? "text-pos" : "text-warn"}`}>
             {scanMsg}
           </p>
         )}
@@ -225,17 +225,17 @@ export default function DepenseForm({ annee, onCreated, onCancel }: Props) {
       <form onSubmit={handleSubmit} className="space-y-3">
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-xs text-gray-600 font-medium mb-1 block">Date</label>
+            <label className="text-xs text-mut font-medium mb-1 block">Date</label>
             <input
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
               required
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 bg-white"
+              className="w-full border border-line rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-acc bg-sur text-ink"
             />
           </div>
           <div>
-            <label className="text-xs text-gray-600 font-medium mb-1 block">Montant ($)</label>
+            <label className="text-xs text-mut font-medium mb-1 block">Montant ($)</label>
             <input
               type="number"
               step="0.01"
@@ -244,29 +244,29 @@ export default function DepenseForm({ annee, onCreated, onCancel }: Props) {
               onChange={(e) => setMontant(e.target.value)}
               placeholder="0.00"
               required
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 bg-white"
+              className="w-full border border-line rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-acc bg-sur text-ink"
             />
           </div>
         </div>
 
         <div>
-          <label className="text-xs text-gray-600 font-medium mb-1 block">Description</label>
+          <label className="text-xs text-mut font-medium mb-1 block">Description</label>
           <input
             type="text"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Ex: Essence pour visites clients"
             required
-            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 bg-white"
+            className="w-full border border-line rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-acc bg-sur text-ink"
           />
         </div>
 
         <div>
-          <label className="text-xs text-gray-600 font-medium mb-1 block">Catégorie</label>
+          <label className="text-xs text-mut font-medium mb-1 block">Catégorie</label>
           <select
             value={categorie}
             onChange={(e) => setCategorie(e.target.value as CategorieDepense)}
-            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 bg-white"
+            className="w-full border border-line rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-acc bg-sur text-ink"
           >
             {(Object.keys(CATS) as CategorieDepense[]).map((key) => (
               <option key={key} value={key}>
@@ -277,22 +277,22 @@ export default function DepenseForm({ annee, onCreated, onCancel }: Props) {
         </div>
 
         <div>
-          <label className="text-xs text-gray-600 font-medium mb-1 block">Note (optionnelle)</label>
+          <label className="text-xs text-mut font-medium mb-1 block">Note (optionnelle)</label>
           <input
             type="text"
             value={note}
             onChange={(e) => setNote(e.target.value)}
             placeholder="Détails supplémentaires..."
-            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 bg-white"
+            className="w-full border border-line rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-acc bg-sur text-ink"
           />
         </div>
 
         <div>
-          <label className="text-xs text-gray-600 font-medium mb-1 block">
+          <label className="text-xs text-mut font-medium mb-1 block">
             Reçu (image ou PDF, max 4 MB)
           </label>
           <div className="flex items-center gap-2">
-            <label className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 cursor-pointer hover:bg-white transition bg-white/60">
+            <label className="flex items-center gap-2 px-3 py-2 border border-line rounded-lg text-sm text-mut cursor-pointer hover:bg-page transition bg-sur">
               <Upload size={14} />
               {file ? file.name : "Choisir un fichier"}
               <input
@@ -306,21 +306,21 @@ export default function DepenseForm({ annee, onCreated, onCancel }: Props) {
               <button
                 type="button"
                 onClick={() => { setFile(null); setFileError(""); }}
-                className="text-gray-400 hover:text-gray-600 transition-colors"
+                className="text-mut hover:text-ink transition-colors"
               >
                 <X size={16} />
               </button>
             )}
           </div>
-          {fileError && <p className="text-xs text-red-500 mt-1">{fileError}</p>}
+          {fileError && <p className="text-xs text-neg mt-1">{fileError}</p>}
         </div>
 
-        {error && <p className="text-xs text-red-500">{error}</p>}
+        {error && <p className="text-xs text-neg">{error}</p>}
 
         <button
           type="submit"
           disabled={saving}
-          className="w-full py-2 bg-[#0a1f3f] text-white text-sm font-medium rounded-lg hover:bg-[#0f2855] disabled:opacity-50 transition"
+          className="w-full py-2 btn-glow text-sm font-medium rounded-lg hover:opacity-90 disabled:opacity-50 transition"
         >
           {saving ? "Enregistrement..." : "Enregistrer la dépense"}
         </button>

@@ -145,15 +145,15 @@ export default function CataloguePage() {
     return (
       <div className="p-6 max-w-2xl mx-auto">
         <div className="flex items-center gap-3 mb-6">
-          <Tag size={22} className="text-[#0a1f3f]" strokeWidth={1.75} />
-          <h1 className="text-xl font-bold text-gray-900">Catalogue de produits</h1>
+          <Tag size={22} className="text-acc" strokeWidth={1.75} />
+          <h1 className="text-xl font-bold font-display text-ink">Catalogue de produits</h1>
         </div>
-        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-6">
+        <div className="bg-chip border border-line rounded-xl p-6">
           <div className="flex items-center gap-2 mb-3">
-            <AlertTriangle size={18} className="text-yellow-600" />
-            <p className="font-semibold text-yellow-800">Migration Supabase requise</p>
+            <AlertTriangle size={18} className="text-warn" />
+            <p className="font-semibold text-warn">Migration Supabase requise</p>
           </div>
-          <p className="text-sm text-yellow-700 mb-4">Copiez et exécutez ce SQL dans l&apos;éditeur SQL Supabase pour créer la table et pré-remplir les produits.</p>
+          <p className="text-sm text-mut mb-4">Copiez et exécutez ce SQL dans l&apos;éditeur SQL Supabase pour créer la table et pré-remplir les produits.</p>
           <div className="relative">
             <pre className="bg-gray-900 text-green-300 text-xs p-4 rounded-lg overflow-x-auto whitespace-pre-wrap">{MIGRATION_SQL}</pre>
             <button onClick={copySQL} className="absolute top-2 right-2 px-2 py-1 text-xs bg-white/10 hover:bg-white/20 text-white rounded">
@@ -161,7 +161,7 @@ export default function CataloguePage() {
             </button>
           </div>
           <button onClick={() => { setMigrationRequired(false); load(); }}
-            className="mt-4 px-4 py-2 bg-[#0a1f3f] text-white text-sm rounded-lg hover:bg-[#0d2a55]">
+            className="mt-4 px-4 py-2 btn-glow text-sm rounded-lg hover:opacity-90">
             J&apos;ai exécuté la migration
           </button>
         </div>
@@ -173,45 +173,45 @@ export default function CataloguePage() {
     <div className="p-6 max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <Tag size={22} className="text-[#0a1f3f]" strokeWidth={1.75} />
+          <Tag size={22} className="text-acc" strokeWidth={1.75} />
           <div>
-            <h1 className="text-xl font-bold text-gray-900">Catalogue de produits</h1>
-            <p className="text-sm text-gray-500">{items.length} produits actifs</p>
+            <h1 className="text-xl font-bold font-display text-ink">Catalogue de produits</h1>
+            <p className="text-sm text-mut num">{items.length} produits actifs</p>
           </div>
         </div>
         <button onClick={openAdd}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-[#0a1f3f] text-white text-sm font-medium rounded-lg hover:bg-[#0d2a55]">
+          className="inline-flex items-center gap-2 px-4 py-2 btn-glow text-sm font-medium rounded-lg hover:opacity-90">
           <Plus size={15} /> Ajouter
         </button>
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-gray-400">Chargement...</div>
+        <div className="text-center py-12 text-mut">Chargement...</div>
       ) : (
         <div className="space-y-6">
           {categories.map(cat => {
             const catItems = items.filter(i => (i.category || "Autre") === cat);
             return (
               <div key={cat}>
-                <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2 px-1">{cat}</h2>
-                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden divide-y divide-gray-100">
+                <h2 className="lbl mb-2 px-1">{cat}</h2>
+                <div className="bg-sur rounded-xl border border-line overflow-hidden divide-y divide-line">
                   {catItems.map(item => (
                     <div key={item.id} className={`flex items-center gap-3 p-4 ${!item.active ? "opacity-50" : ""}`}>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <p className="font-medium text-sm text-gray-900">{item.name}</p>
-                          {!item.active && <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">Inactif</span>}
+                          <p className="font-medium text-sm text-ink">{item.name}</p>
+                          {!item.active && <span className="text-xs bg-chip text-mut px-1.5 py-0.5 rounded-full">Inactif</span>}
                         </div>
-                        {item.description && <p className="text-xs text-gray-400 mt-0.5 truncate">{item.description}</p>}
+                        {item.description && <p className="text-xs text-mut mt-0.5 truncate">{item.description}</p>}
                       </div>
-                      <span className="text-sm font-semibold text-[#0a1f3f] flex-shrink-0">{item.default_price}$</span>
+                      <span className="text-sm font-semibold num text-acc flex-shrink-0">{item.default_price}$</span>
                       <div className="flex items-center gap-1 flex-shrink-0">
-                        <button onClick={() => openEdit(item)} className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition">
+                        <button onClick={() => openEdit(item)} className="p-1.5 text-mut hover:text-ink hover:bg-chip rounded-lg transition">
                           <Pencil size={14} />
                         </button>
-                        <button onClick={() => toggleActive(item)} className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition">
+                        <button onClick={() => toggleActive(item)} className="p-1.5 text-mut hover:text-ink hover:bg-chip rounded-lg transition">
                           {item.active
-                            ? <ToggleRight size={18} className="text-green-500" />
+                            ? <ToggleRight size={18} className="text-pos" />
                             : <ToggleLeft size={18} />}
                         </button>
                       </div>
@@ -226,54 +226,54 @@ export default function CataloguePage() {
 
       {showModal && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
-            <div className="p-5 border-b border-gray-100 flex items-center justify-between">
-              <h2 className="font-bold text-gray-900">{editing ? "Modifier le produit" : "Nouveau produit"}</h2>
-              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
+          <div className="bg-sur border border-line rounded-2xl w-full max-w-md">
+            <div className="p-5 border-b border-line flex items-center justify-between">
+              <h2 className="font-bold font-display text-ink">{editing ? "Modifier le produit" : "Nouveau produit"}</h2>
+              <button onClick={() => setShowModal(false)} className="text-mut hover:text-ink"><X size={18} /></button>
             </div>
             <div className="p-5 space-y-4">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Nom *</label>
+                <label className="block text-xs font-medium text-mut mb-1">Nom *</label>
                 <input type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#0a1f3f]"
+                  className="w-full px-3 py-2 border border-line rounded-lg text-sm focus:outline-none focus:border-acc"
                   placeholder="Nom du produit/service" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
+                <label className="block text-xs font-medium text-mut mb-1">Description</label>
                 <input type="text" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#0a1f3f]"
+                  className="w-full px-3 py-2 border border-line rounded-lg text-sm focus:outline-none focus:border-acc"
                   placeholder="Description courte (optionnel)" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Prix ($) *</label>
+                  <label className="block text-xs font-medium text-mut mb-1">Prix ($) *</label>
                   <input type="number" value={form.default_price} onChange={e => setForm(f => ({ ...f, default_price: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#0a1f3f]"
+                    className="w-full px-3 py-2 border border-line rounded-lg text-sm focus:outline-none focus:border-acc"
                     min={0} placeholder="0" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Ordre</label>
+                  <label className="block text-xs font-medium text-mut mb-1">Ordre</label>
                   <input type="number" value={form.sort_order} onChange={e => setForm(f => ({ ...f, sort_order: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#0a1f3f]"
+                    className="w-full px-3 py-2 border border-line rounded-lg text-sm focus:outline-none focus:border-acc"
                     min={0} />
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Catégorie</label>
+                <label className="block text-xs font-medium text-mut mb-1">Catégorie</label>
                 <input type="text" value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
                   list="categories-list"
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#0a1f3f]"
+                  className="w-full px-3 py-2 border border-line rounded-lg text-sm focus:outline-none focus:border-acc"
                   placeholder="Saisonnier, Entretien, Service..." />
                 <datalist id="categories-list">
                   {categories.map(c => <option key={c} value={c} />)}
                 </datalist>
               </div>
             </div>
-            <div className="p-5 border-t border-gray-100 flex gap-3 justify-end">
+            <div className="p-5 border-t border-line flex gap-3 justify-end">
               <button onClick={() => setShowModal(false)}
-                className="px-4 py-2 border border-gray-200 text-sm rounded-lg hover:bg-gray-50">Annuler</button>
+                className="px-4 py-2 border border-line text-sm rounded-lg hover:bg-chip">Annuler</button>
               <button onClick={handleSave} disabled={!form.name.trim() || !form.default_price || saving}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-[#0a1f3f] text-white text-sm rounded-lg hover:bg-[#0d2a55] disabled:opacity-40">
+                className="inline-flex items-center gap-2 px-4 py-2 btn-glow text-sm rounded-lg hover:opacity-90 disabled:opacity-40">
                 <Save size={14} /> {saving ? "Sauvegarde..." : "Sauvegarder"}
               </button>
             </div>

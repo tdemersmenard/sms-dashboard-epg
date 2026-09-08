@@ -19,7 +19,7 @@ const JOB_TYPE_COLORS: Record<string, { bg: string; text: string; border: string
   entretien:  { bg: "bg-blue-50",     text: "text-blue-700",     border: "border-blue-300",     dot: "bg-blue-500" },
   réparation: { bg: "bg-red-50",      text: "text-red-700",      border: "border-red-300",      dot: "bg-red-500" },
   spa:        { bg: "bg-purple-50",   text: "text-purple-700",   border: "border-purple-300",   dot: "bg-purple-500" },
-  autre:      { bg: "bg-gray-50",     text: "text-gray-700",     border: "border-gray-300",     dot: "bg-gray-500" },
+  autre:      { bg: "bg-chip",     text: "text-ink",     border: "border-line",     dot: "bg-mut" },
 };
 
 interface JobWithContact {
@@ -252,33 +252,33 @@ export default function CalendarPage() {
       {/* HEADER */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 capitalize">{headerLabel()}</h1>
-          <p className="text-sm text-gray-500">{jobs.length} rendez-vous</p>
+          <h1 className="font-display text-2xl font-bold text-ink capitalize">{headerLabel()}</h1>
+          <p className="text-sm text-mut">{jobs.length} rendez-vous</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex bg-gray-100 rounded-lg p-1">
+          <div className="flex bg-chip rounded-lg p-1">
             {(["day", "week", "month"] as ViewMode[]).map(v => (
               <button
                 key={v}
                 onClick={() => setViewMode(v)}
-                className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${viewMode === v ? "bg-white text-[#0a1f3f] shadow-sm" : "text-gray-600 hover:text-gray-900"}`}
+                className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${viewMode === v ? "bg-sur text-acc " : "text-mut hover:text-ink"}`}
               >
                 {v === "day" ? "Jour" : v === "week" ? "Semaine" : "Mois"}
               </button>
             ))}
           </div>
-          <button onClick={navigatePrev} className="p-2 bg-gray-100 rounded-lg hover:bg-gray-200">
+          <button onClick={navigatePrev} className="p-2 bg-chip rounded-lg hover:bg-chip">
             <ChevronLeft size={18} />
           </button>
-          <button onClick={goToday} className="px-3 py-1.5 bg-gray-100 rounded-lg text-sm font-medium hover:bg-gray-200">
+          <button onClick={goToday} className="px-3 py-1.5 bg-chip rounded-lg text-sm font-medium hover:bg-chip">
             Aujourd&apos;hui
           </button>
-          <button onClick={navigateNext} className="p-2 bg-gray-100 rounded-lg hover:bg-gray-200">
+          <button onClick={navigateNext} className="p-2 bg-chip rounded-lg hover:bg-chip">
             <ChevronRight size={18} />
           </button>
           <button
             onClick={() => setShowNewJobModal(true)}
-            className="bg-[#0a1f3f] text-white px-3 py-2 rounded-lg flex items-center gap-2 text-sm font-medium hover:bg-[#0d2a52]"
+            className="btn-glow px-3 py-2 rounded-lg flex items-center gap-2 text-sm font-medium hover:opacity-90"
           >
             <Plus size={16} /> Nouveau
           </button>
@@ -287,14 +287,14 @@ export default function CalendarPage() {
 
       {/* VUE JOUR */}
       {viewMode === "day" && (
-        <div className="bg-white rounded-xl border overflow-hidden">
-          <div className={`px-4 py-3 border-b ${isToday(currentDate) ? "bg-blue-50" : ""}`}>
-            <p className="text-sm text-gray-500 uppercase">{format(currentDate, "EEEE", { locale: fr })}</p>
-            <p className="text-2xl font-bold text-gray-900">{format(currentDate, "d MMMM", { locale: fr })}</p>
+        <div className="bg-sur rounded-xl border border-line overflow-hidden">
+          <div className={`px-4 py-3 border-b border-line ${isToday(currentDate) ? "bg-chip" : ""}`}>
+            <p className="lbl">{format(currentDate, "EEEE", { locale: fr })}</p>
+            <p className="font-display text-2xl font-bold text-ink">{format(currentDate, "d MMMM", { locale: fr })}</p>
           </div>
-          <div className="divide-y">
+          <div className="divide-y divide-line">
             {jobs.length === 0 ? (
-              <p className="p-8 text-center text-sm text-gray-500">Aucun rendez-vous</p>
+              <p className="p-8 text-center text-sm text-mut">Aucun rendez-vous</p>
             ) : (
               jobs.map((job) => {
                 const colors = JOB_TYPE_COLORS[job.job_type] || JOB_TYPE_COLORS.autre;
@@ -303,14 +303,14 @@ export default function CalendarPage() {
                   <div
                     key={job.id}
                     onClick={() => setSelectedJob(job)}
-                    className={`p-4 cursor-pointer hover:bg-gray-50 ${isConfirmed ? "border-l-4 border-l-green-500" : ""}`}
+                    className={`p-4 cursor-pointer hover:bg-chip ${isConfirmed ? "border-l-4 border-l-pos" : ""}`}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-start gap-3 flex-1 min-w-0">
                         <span className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${colors.dot}`}></span>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <p className="font-semibold text-gray-900">{job.contactName}</p>
+                            <p className="font-semibold text-ink">{job.contactName}</p>
                             {isConfirmed && (
                               <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-green-100 text-green-700 flex items-center gap-1">
                                 <Check size={10} /> Confirmé
@@ -318,11 +318,11 @@ export default function CalendarPage() {
                             )}
                           </div>
                           <p className={`text-xs ${colors.text} font-medium capitalize`}>{job.job_type}</p>
-                          {job.notes && <p className="text-xs text-gray-500 mt-1">{job.notes}</p>}
+                          {job.notes && <p className="text-xs text-mut mt-1">{job.notes}</p>}
                         </div>
                       </div>
-                      <div className="text-right text-xs text-gray-500 flex-shrink-0">
-                        <p className="font-semibold text-gray-900 flex items-center gap-1">
+                      <div className="text-right text-xs text-mut flex-shrink-0">
+                        <p className="font-semibold text-ink flex items-center gap-1">
                           <Clock size={12} /> {job.scheduled_time_start?.slice(0, 5) || "?"}
                         </p>
                         <p>{job.scheduled_time_end?.slice(0, 5)}</p>
@@ -338,8 +338,8 @@ export default function CalendarPage() {
 
       {/* VUE SEMAINE */}
       {viewMode === "week" && (
-        <div className="bg-white rounded-xl border overflow-hidden">
-          <div className="grid grid-cols-7 divide-x">
+        <div className="bg-sur rounded-xl border border-line overflow-hidden">
+          <div className="grid grid-cols-7 divide-x divide-line">
             {eachDayOfInterval({
               start: startOfWeek(currentDate, { weekStartsOn: 1 }),
               end: endOfWeek(currentDate, { weekStartsOn: 1 }),
@@ -348,9 +348,9 @@ export default function CalendarPage() {
               const dayJobs = jobs.filter((j) => j.scheduled_date === dateStr);
               return (
                 <div key={dateStr} className="min-h-[300px]">
-                  <div className={`p-2 text-center border-b ${isToday(day) ? "bg-blue-50" : ""}`}>
-                    <p className="text-[10px] text-gray-500 uppercase">{format(day, "EEE", { locale: fr })}</p>
-                    <p className={`text-sm font-bold ${isToday(day) ? "text-blue-600" : "text-gray-900"}`}>{format(day, "d")}</p>
+                  <div className={`p-2 text-center border-b border-line ${isToday(day) ? "bg-chip" : ""}`}>
+                    <p className="lbl text-[10px]">{format(day, "EEE", { locale: fr })}</p>
+                    <p className={`text-sm font-bold ${isToday(day) ? "text-acc" : "text-ink"}`}>{format(day, "d")}</p>
                   </div>
                   <div className="p-1.5 space-y-1">
                     {dayJobs.map((job) => {
@@ -360,11 +360,11 @@ export default function CalendarPage() {
                         <div
                           key={job.id}
                           onClick={() => setSelectedJob(job)}
-                          className={`text-[10px] p-1.5 rounded cursor-pointer ${colors.bg} border ${colors.border} hover:shadow-sm ${isConfirmed ? "ring-2 ring-green-400" : ""}`}
+                          className={`text-[10px] p-1.5 rounded cursor-pointer ${colors.bg} border ${colors.border} ${isConfirmed ? "ring-2 ring-pos" : ""}`}
                         >
                           <p className={`font-semibold ${colors.text} truncate`}>{job.scheduled_time_start?.slice(0, 5)}</p>
-                          <p className="text-gray-700 truncate">{job.contactName}</p>
-                          {isConfirmed && <p className="text-green-600 font-bold">✓ OK</p>}
+                          <p className="text-ink truncate">{job.contactName}</p>
+                          {isConfirmed && <p className="text-pos font-bold">✓ OK</p>}
                         </div>
                       );
                     })}
@@ -378,8 +378,8 @@ export default function CalendarPage() {
 
       {/* VUE MOIS */}
       {viewMode === "month" && (
-        <div className="bg-white rounded-xl border overflow-hidden">
-          <div className="grid grid-cols-7 border-b text-center text-xs text-gray-500 uppercase">
+        <div className="bg-sur rounded-xl border border-line overflow-hidden">
+          <div className="grid grid-cols-7 border-b border-line text-center lbl">
             {["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map(d => (
               <div key={d} className="py-2">{d}</div>
             ))}
@@ -395,9 +395,9 @@ export default function CalendarPage() {
               return (
                 <div
                   key={dateStr}
-                  className={`min-h-[100px] border-r border-b p-1 ${inMonth ? "bg-white" : "bg-gray-50"} ${isToday(day) ? "ring-2 ring-inset ring-blue-400" : ""}`}
+                  className={`min-h-[100px] border-r border-b border-line p-1 ${inMonth ? "bg-sur" : "bg-page"} ${isToday(day) ? "ring-2 ring-inset ring-acc" : ""}`}
                 >
-                  <p className={`text-xs font-semibold ${inMonth ? "text-gray-900" : "text-gray-400"} ${isToday(day) ? "text-blue-600" : ""}`}>
+                  <p className={`text-xs font-semibold ${inMonth ? "text-ink" : "text-mut"} ${isToday(day) ? "text-acc" : ""}`}>
                     {format(day, "d")}
                   </p>
                   <div className="space-y-0.5 mt-1">
@@ -407,13 +407,13 @@ export default function CalendarPage() {
                         <div
                           key={job.id}
                           onClick={() => setSelectedJob(job)}
-                          className={`text-[9px] px-1 py-0.5 rounded cursor-pointer ${colors.bg} ${colors.text} truncate ${job.confirmed_at ? "border-l-2 border-green-500" : ""}`}
+                          className={`text-[9px] px-1 py-0.5 rounded cursor-pointer ${colors.bg} ${colors.text} truncate ${job.confirmed_at ? "border-l-2 border-pos" : ""}`}
                         >
                           {job.scheduled_time_start?.slice(0, 5)} {job.contactName}
                         </div>
                       );
                     })}
-                    {dayJobs.length > 3 && <p className="text-[9px] text-gray-500">+{dayJobs.length - 3}</p>}
+                    {dayJobs.length > 3 && <p className="text-[9px] text-mut">+{dayJobs.length - 3}</p>}
                   </div>
                 </div>
               );
@@ -425,11 +425,11 @@ export default function CalendarPage() {
       {/* MODAL JOB */}
       {selectedJob && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-end md:items-center justify-center p-0 md:p-4" onClick={() => setSelectedJob(null)}>
-          <div className="bg-white rounded-t-2xl md:rounded-2xl w-full md:max-w-md max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="p-5 border-b flex items-center justify-between">
+          <div className="bg-sur rounded-t-2xl md:rounded-2xl w-full md:max-w-md max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="p-5 border-b border-line flex items-center justify-between">
               <div>
-                <p className="text-xs text-gray-500 capitalize">{selectedJob.job_type}</p>
-                <p className="text-lg font-bold text-gray-900">{selectedJob.contactName}</p>
+                <p className="text-xs text-mut capitalize">{selectedJob.job_type}</p>
+                <p className="text-lg font-bold text-ink">{selectedJob.contactName}</p>
                 {selectedJob.confirmed_at && (
                   <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-green-100 text-green-700 inline-flex items-center gap-1 mt-1">
                     <Check size={10} /> Confirmé
@@ -441,12 +441,12 @@ export default function CalendarPage() {
             <div className="p-5 space-y-3">
               {!selectedJob.confirmed_at ? (
                 <div className="space-y-2">
-                  <p className="text-sm text-gray-600">
+                  <p className="text-sm text-mut">
                     📅 {format(parseISO(selectedJob.scheduled_date), "EEEE d MMMM yyyy", { locale: fr })}
                   </p>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="text-xs text-gray-500">Heure début</label>
+                      <label className="text-xs text-mut">Heure début</label>
                       <input
                         type="time"
                         value={selectedJob.scheduled_time_start?.slice(0, 5) || "08:00"}
@@ -460,11 +460,11 @@ export default function CalendarPage() {
                           setSelectedJob({ ...selectedJob, scheduled_time_start: newStart });
                           await loadJobs();
                         }}
-                        className="w-full text-sm border rounded-lg px-2 py-1.5"
+                        className="w-full text-sm border border-line rounded-lg px-2 py-1.5 bg-sur text-ink"
                       />
                     </div>
                     <div>
-                      <label className="text-xs text-gray-500">Heure fin</label>
+                      <label className="text-xs text-mut">Heure fin</label>
                       <input
                         type="time"
                         value={selectedJob.scheduled_time_end?.slice(0, 5) || "10:00"}
@@ -478,12 +478,12 @@ export default function CalendarPage() {
                           setSelectedJob({ ...selectedJob, scheduled_time_end: newEnd });
                           await loadJobs();
                         }}
-                        className="w-full text-sm border rounded-lg px-2 py-1.5"
+                        className="w-full text-sm border border-line rounded-lg px-2 py-1.5 bg-sur text-ink"
                       />
                     </div>
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500">Date</label>
+                    <label className="text-xs text-mut">Date</label>
                     <input
                       type="date"
                       value={selectedJob.scheduled_date}
@@ -507,13 +507,13 @@ export default function CalendarPage() {
 
                         await loadJobs();
                       }}
-                      className="w-full text-sm border rounded-lg px-2 py-1.5"
+                      className="w-full text-sm border border-line rounded-lg px-2 py-1.5 bg-sur text-ink"
                     />
                   </div>
-                  {selectedJob.notes && <p className="text-xs text-gray-500 mt-2">📝 {selectedJob.notes}</p>}
+                  {selectedJob.notes && <p className="text-xs text-mut mt-2">📝 {selectedJob.notes}</p>}
                 </div>
               ) : (
-                <div className="text-sm text-gray-600 space-y-1">
+                <div className="text-sm text-mut space-y-1">
                   <p>📅 {format(parseISO(selectedJob.scheduled_date), "EEEE d MMMM yyyy", { locale: fr })}</p>
                   <p>⏰ {selectedJob.scheduled_time_start?.slice(0, 5)} – {selectedJob.scheduled_time_end?.slice(0, 5)}</p>
                   {selectedJob.notes && <p className="mt-2">📝 {selectedJob.notes}</p>}
@@ -524,7 +524,7 @@ export default function CalendarPage() {
                 <button
                   onClick={() => confirmOpening(selectedJob.id)}
                   disabled={confirmingId === selectedJob.id}
-                  className="w-full bg-green-600 text-white rounded-lg py-3 font-medium flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="w-full bg-pos text-white rounded-lg py-3 font-medium flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   <Check size={16} /> {confirmingId === selectedJob.id ? "Envoi..." : "Confirmer + envoyer SMS au client"}
                 </button>
@@ -533,7 +533,7 @@ export default function CalendarPage() {
               {selectedJob.job_type === "ouverture" && selectedJob.confirmed_at && (
                 <button
                   onClick={() => unconfirmOpening(selectedJob.id)}
-                  className="w-full bg-gray-100 text-gray-700 rounded-lg py-2 text-sm font-medium"
+                  className="w-full bg-chip text-ink rounded-lg py-2 text-sm font-medium"
                 >
                   Annuler la confirmation
                 </button>
@@ -550,18 +550,18 @@ export default function CalendarPage() {
       {/* MODAL NEW JOB */}
       {showNewJobModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-end md:items-center justify-center p-0 md:p-4" onClick={() => setShowNewJobModal(false)}>
-          <div className="bg-white rounded-t-2xl md:rounded-2xl w-full md:max-w-md max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="p-5 border-b flex items-center justify-between">
-              <p className="font-bold text-gray-900">Nouveau rendez-vous</p>
+          <div className="bg-sur rounded-t-2xl md:rounded-2xl w-full md:max-w-md max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="p-5 border-b border-line flex items-center justify-between">
+              <p className="font-bold text-ink">Nouveau rendez-vous</p>
               <button onClick={() => setShowNewJobModal(false)}><X size={20} /></button>
             </div>
             <div className="p-5 space-y-4">
               <div>
-                <label className="text-xs font-medium text-gray-700">Client</label>
+                <label className="text-xs font-medium text-ink">Client</label>
                 <select
                   value={jobForm.contact_id}
                   onChange={(e) => setJobForm({ ...jobForm, contact_id: e.target.value })}
-                  className="w-full mt-1 border rounded-lg px-3 py-2 text-sm"
+                  className="w-full mt-1 border border-line rounded-lg px-3 py-2 text-sm bg-sur text-ink"
                 >
                   <option value="">Sélectionner un client</option>
                   {contacts.map(c => (
@@ -570,11 +570,11 @@ export default function CalendarPage() {
                 </select>
               </div>
               <div>
-                <label className="text-xs font-medium text-gray-700">Type</label>
+                <label className="text-xs font-medium text-ink">Type</label>
                 <select
                   value={jobForm.job_type}
                   onChange={(e) => setJobForm({ ...jobForm, job_type: e.target.value as JobType })}
-                  className="w-full mt-1 border rounded-lg px-3 py-2 text-sm"
+                  className="w-full mt-1 border border-line rounded-lg px-3 py-2 text-sm bg-sur text-ink"
                 >
                   <option value="ouverture">Ouverture</option>
                   <option value="fermeture">Fermeture</option>
@@ -586,26 +586,26 @@ export default function CalendarPage() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-medium text-gray-700">Date</label>
-                  <input type="date" value={jobForm.scheduled_date} onChange={(e) => setJobForm({ ...jobForm, scheduled_date: e.target.value })} className="w-full mt-1 border rounded-lg px-3 py-2 text-sm" />
+                  <label className="text-xs font-medium text-ink">Date</label>
+                  <input type="date" value={jobForm.scheduled_date} onChange={(e) => setJobForm({ ...jobForm, scheduled_date: e.target.value })} className="w-full mt-1 border border-line rounded-lg px-3 py-2 text-sm bg-sur text-ink" />
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-gray-700">Heure début</label>
-                  <input type="time" value={jobForm.scheduled_time_start} onChange={(e) => setJobForm({ ...jobForm, scheduled_time_start: e.target.value })} className="w-full mt-1 border rounded-lg px-3 py-2 text-sm" />
+                  <label className="text-xs font-medium text-ink">Heure début</label>
+                  <input type="time" value={jobForm.scheduled_time_start} onChange={(e) => setJobForm({ ...jobForm, scheduled_time_start: e.target.value })} className="w-full mt-1 border border-line rounded-lg px-3 py-2 text-sm bg-sur text-ink" />
                 </div>
               </div>
               <div>
-                <label className="text-xs font-medium text-gray-700">Heure fin</label>
-                <input type="time" value={jobForm.scheduled_time_end} onChange={(e) => setJobForm({ ...jobForm, scheduled_time_end: e.target.value })} className="w-full mt-1 border rounded-lg px-3 py-2 text-sm" />
+                <label className="text-xs font-medium text-ink">Heure fin</label>
+                <input type="time" value={jobForm.scheduled_time_end} onChange={(e) => setJobForm({ ...jobForm, scheduled_time_end: e.target.value })} className="w-full mt-1 border border-line rounded-lg px-3 py-2 text-sm bg-sur text-ink" />
               </div>
               <div>
-                <label className="text-xs font-medium text-gray-700">Notes</label>
-                <textarea value={jobForm.notes} onChange={(e) => setJobForm({ ...jobForm, notes: e.target.value })} className="w-full mt-1 border rounded-lg px-3 py-2 text-sm" rows={2} />
+                <label className="text-xs font-medium text-ink">Notes</label>
+                <textarea value={jobForm.notes} onChange={(e) => setJobForm({ ...jobForm, notes: e.target.value })} className="w-full mt-1 border border-line rounded-lg px-3 py-2 text-sm bg-sur text-ink" rows={2} />
               </div>
               <button
                 onClick={handleNewJob}
                 disabled={!jobForm.contact_id || savingJob}
-                className="w-full bg-[#0a1f3f] text-white rounded-lg py-3 font-medium disabled:opacity-50"
+                className="w-full btn-glow text-white rounded-lg py-3 font-medium disabled:opacity-50"
               >
                 {savingJob ? "Création..." : "Créer le rendez-vous"}
               </button>
