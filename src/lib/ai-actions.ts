@@ -1210,12 +1210,26 @@ export async function executeActions(actions: AIAction[], contactId: string) {
               .limit(1);
 
             if (!existingPayments || existingPayments.length === 0) {
+              // Fermeture: payée le jour même du RDV (aucun rappel) → due_date = date du job si booké
+              let dueDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+              if (config.service === "fermeture") {
+                const { data: fermJob } = await supabaseAdmin
+                  .from("jobs")
+                  .select("scheduled_date")
+                  .eq("contact_id", contactId)
+                  .eq("job_type", "fermeture")
+                  .neq("status", "annulé")
+                  .order("scheduled_date", { ascending: false })
+                  .limit(1)
+                  .maybeSingle();
+                if (fermJob?.scheduled_date) dueDate = fermJob.scheduled_date;
+              }
               await supabaseAdmin.from("payments").insert({
                 contact_id: contactId,
                 amount,
                 method: "interac",
                 status: "en_attente",
-                due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+                due_date: dueDate,
                 notes: config.service,
                 ...(contact.franchise_id ? { franchise_id: contact.franchise_id } : {}),
               });

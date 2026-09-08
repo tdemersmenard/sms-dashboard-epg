@@ -141,6 +141,10 @@ export async function sendPaymentReminders(franchiseId: string) {
     .eq("franchise_id", franchiseId);
 
   for (const payment of payments || []) {
+    // Fermetures: payées le jour même du RDV, en personne — AUCUN rappel SMS.
+    // (Cible uniquement les paiements "fermeture…" — pas les packages qui contiennent le mot.)
+    if (/^fermeture/i.test((payment.notes || "").trim())) continue;
+
     const actionKey = `payment_reminder_${payment.id}`;
     if (await wasAlreadySent(actionKey, payment.contact_id)) continue;
 
