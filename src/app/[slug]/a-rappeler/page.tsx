@@ -37,14 +37,19 @@ export default function ARappelerPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/callback");
-    const data = await res.json();
-    if (data.migrationRequired) {
-      setMigrationRequired(true);
-    } else {
-      setContacts(data.contacts ?? []);
+    try {
+      const res = await fetch("/api/callback");
+      const data = await res.json();
+      if (data.migrationRequired) {
+        setMigrationRequired(true);
+      } else {
+        setContacts(data.contacts ?? []);
+      }
+    } catch (e) {
+      console.error("[a-rappeler] load error:", e);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
   useEffect(() => { load(); }, [load]);

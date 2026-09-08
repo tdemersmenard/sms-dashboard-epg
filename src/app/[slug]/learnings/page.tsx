@@ -49,7 +49,6 @@ export default function LearningsPage() {
     const { data } = await supabase
       .from("ai_learnings")
       .select("*")
-      .eq("franchise_id", franchiseId)
       .order("created_at", { ascending: false });
     setLearnings((data as Learning[]) || []);
     setLoading(false);
@@ -61,12 +60,12 @@ export default function LearningsPage() {
     setLearnings((prev) =>
       prev.map((l) => (l.id === id ? { ...l, active: !current } : l))
     );
-    await supabase.from("ai_learnings").update({ active: !current }).eq("id", id).eq("franchise_id", franchiseId);
+    await supabase.from("ai_learnings").update({ active: !current }).eq("id", id);
   };
 
   const deleteLearning = async (id: string) => {
     setLearnings((prev) => prev.filter((l) => l.id !== id));
-    await supabase.from("ai_learnings").delete().eq("id", id).eq("franchise_id", franchiseId);
+    await supabase.from("ai_learnings").delete().eq("id", id);
   };
 
   const addLearning = async () => {
@@ -74,7 +73,7 @@ export default function LearningsPage() {
     setSaving(true);
     const { data } = await supabase
       .from("ai_learnings")
-      .insert({ category: newCategory, lesson: newLesson.trim(), source: "Thomas", active: true, franchise_id: franchiseId })
+      .insert({ category: newCategory, lesson: newLesson.trim(), source: "Thomas", active: true })
       .select()
       .single();
     if (data) {

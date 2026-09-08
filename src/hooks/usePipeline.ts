@@ -31,6 +31,7 @@ export function usePipeline() {
       .order("created_at", { ascending: false });
     if (error) {
       console.error("usePipeline loadContacts:", error);
+      setLoading(false);
       return;
     }
     setContacts((data ?? []) as Contact[]);

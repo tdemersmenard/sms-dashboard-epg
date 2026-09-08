@@ -18,7 +18,10 @@ export async function GET(req: NextRequest) {
       .limit(20);
 
     if (error) {
-      if (error.code === "42P01") return NextResponse.json({ tests: [], migrationRequired: true });
+      // 42P01 = table absente (Postgres), PGRST205 = table absente du cache PostgREST
+      if (error.code === "42P01" || error.code === "PGRST205") {
+        return NextResponse.json({ tests: [], migrationRequired: true });
+      }
       throw error;
     }
     return NextResponse.json({ tests: data || [] });

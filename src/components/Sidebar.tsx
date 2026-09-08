@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState, useEffect, useMemo } from "react";
 import {
   LayoutDashboard, Kanban, MessageSquare, Users, Calendar,
-  Navigation, Gauge, Receipt, Brain, Activity, FileText, Users2, Tag, Bot, Phone, Building2, Settings,
+  Navigation, Gauge, Receipt, Brain, Activity, FileText, Users2, Tag, Bot, Phone, Building2, Settings, Menu, X,
 } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { useFranchise } from "./FranchiseProvider";
@@ -36,6 +36,7 @@ export default function Sidebar() {
   const pathname = usePathname();
   const { franchiseSlug, isMaster, franchiseName, franchiseId } = useFranchise();
   const [unreadCount, setUnreadCount] = useState(0);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [callbackCount, setCallbackCount] = useState(0);
 
   // Derive slug from URL path (reliable for link generation even before context loads)
@@ -197,24 +198,20 @@ export default function Sidebar() {
         </div>
       </aside>
 
-      {/* BOTTOM NAV MOBILE (< md) — scrollable */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 bg-white border-t border-gray-200 z-50 pb-[env(safe-area-inset-bottom)] overflow-x-auto">
-        <div className="flex h-16 min-w-max px-2">
-          {[...NAV_ITEMS_MAIN, ...NAV_ITEMS_ADMIN].filter(item => !item.masterOnly || isMaster).concat(isMaster ? [{ label: "Master", href: "___master", icon: Building2, masterOnly: false }] : []).map(item => {
+      {/* BOTTOM NAV MOBILE (< md) — 4 items fixes + menu "Plus" plein écran.
+          (L'ancienne barre défilante cachait 10+ pages sans aucun indice visuel.) */}
+      <nav className="md:hidden fixed bottom-0 inset-x-0 bg-white border-t border-gray-200 z-50 pb-[env(safe-area-inset-bottom)]">
+        <div className="grid grid-cols-5 h-16">
+          {NAV_ITEMS_MAIN.slice(0, 4).map(item => {
             const Icon = item.icon;
-            const isMasterLink = item.href === "___master";
-            const fullHref = isMasterLink ? "/master" : `${base}${item.href}`;
-            const active = isMasterLink
-              ? pathname === "/master"
-              : isItemActive(item.href);
+            const active = isItemActive(item.href);
             return (
               <Link
                 key={item.href}
-                href={fullHref}
-                className={`flex flex-col items-center justify-center gap-0.5 px-4 min-w-[70px] transition-colors ${
-                  active
-                    ? "text-[#0a1f3f]"
-                    : "text-gray-400 hover:text-gray-600"
+                href={`${base}${item.href}`}
+                onClick={() => setMobileMenuOpen(false)}
+                className={`flex flex-col items-center justify-center gap-0.5 transition-colors ${
+                  active && !mobileMenuOpen ? "text-[#0a1f3f]" : "text-gray-400"
                 }`}
               >
                 <div className="relative">
@@ -234,8 +231,62 @@ export default function Sidebar() {
               </Link>
             );
           })}
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className={`flex flex-col items-center justify-center gap-0.5 transition-colors ${mobileMenuOpen ? "text-[#0a1f3f]" : "text-gray-400"}`}
+          >
+            {mobileMenuOpen ? <X size={20} strokeWidth={2.25} /> : <Menu size={20} strokeWidth={1.75} />}
+            <span className="text-[9px] font-medium">Plus</span>
+          </button>
         </div>
       </nav>
+
+      {/* MENU "PLUS" PLEIN ÉCRAN (mobile) */}
+      {mobileMenuOpen && (
+        <div className="md:hidden fixed inset-0 bottom-16 bg-white z-40 overflow-y-auto">
+          <div className="px-5 pt-6 pb-8">
+            <p className="text-xl font-bold text-gray-900 mb-4">Toutes les pages</p>
+            <div className="grid grid-cols-3 gap-3">
+              {[...NAV_ITEMS_MAIN, ...NAV_ITEMS_ADMIN]
+                .filter(item => !item.masterOnly || isMaster)
+                .concat(isMaster ? [{ label: "Master", href: "___master", icon: Building2, masterOnly: false }] : [])
+                .map(item => {
+                  const Icon = item.icon;
+                  const isMasterLink = item.href === "___master";
+                  const fullHref = isMasterLink ? "/master" : `${base}${item.href}`;
+                  const active = isMasterLink ? pathname === "/master" : isItemActive(item.href);
+                  return (
+                    <Link
+                      key={item.href}
+                      href={fullHref}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={`flex flex-col items-center justify-center gap-2 rounded-xl border py-4 px-2 transition ${
+                        active
+                          ? "border-[#0a1f3f] bg-[#0a1f3f]/5 text-[#0a1f3f]"
+                          : "border-gray-200 text-gray-600 active:bg-gray-50"
+                      }`}
+                    >
+                      <div className="relative">
+                        <Icon size={22} strokeWidth={1.75} />
+                        {item.href === "/messages" && unreadCount > 0 && (
+                          <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-0.5 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center leading-none">
+                            {unreadCount > 99 ? "99+" : unreadCount}
+                          </span>
+                        )}
+                        {item.href === "/a-rappeler" && callbackCount > 0 && (
+                          <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-0.5 bg-orange-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center leading-none">
+                            {callbackCount > 99 ? "99+" : callbackCount}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[11px] font-medium text-center leading-tight">{item.label}</span>
+                    </Link>
+                  );
+                })}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

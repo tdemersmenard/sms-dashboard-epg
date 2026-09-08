@@ -150,6 +150,7 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!franchiseId) return;
     const load = async () => {
+      try {
       const todayStr = format(new Date(), "yyyy-MM-dd");
 
       const [{ data: jobsRaw }, { data: msgsRaw }] = await Promise.all([
@@ -171,7 +172,11 @@ export default function DashboardPage() {
         setRecentMessages(msgsRaw.map((m) => ({ ...m, contactName: map[m.contact_id] ?? "Inconnu" })) as MsgWithContact[]);
       }
 
-      setDynamicLoading(false);
+      } catch (e) {
+        console.error("[dashboard] dynamic load error:", e);
+      } finally {
+        setDynamicLoading(false);
+      }
     };
     load();
   }, [franchiseId]);

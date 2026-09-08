@@ -73,7 +73,7 @@ export default function AdminTerminal() {
       {/* Floating button */}
       <button
         onClick={() => setOpen(o => !o)}
-        className="fixed bottom-24 right-4 md:bottom-6 md:right-6 z-50 w-12 h-12 bg-[#0a1f3f] text-white rounded-full shadow-lg flex items-center justify-center hover:bg-[#1a3a6f] transition-colors"
+        className="hidden md:flex fixed md:bottom-6 md:right-6 z-50 w-12 h-12 bg-[#0a1f3f] text-white rounded-full shadow-lg items-center justify-center hover:bg-[#1a3a6f] transition-colors"
         title="Terminal AI"
       >
         {open ? <ChevronDown size={20} /> : <Terminal size={20} />}
