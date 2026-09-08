@@ -254,8 +254,67 @@ export default function DashboardStats() {
               )}
             </div>
           </div>
+
+          {/* ── Encaissé par mois (saison) ───────────────────── */}
+          <MonthlyBreakdown data={stats.revenueByMonth} />
         </>
       ) : null}
+    </div>
+  );
+}
+
+/* ── Encaissé par mois — registre de saison ───────────────── */
+const FULL_MONTHS: Record<string, string> = {
+  "janv.": "Janvier", "févr.": "Février", "mars": "Mars", "avr.": "Avril",
+  "mai": "Mai", "juin": "Juin", "juill.": "Juillet", "août": "Août",
+  "sept.": "Septembre", "oct.": "Octobre", "nov.": "Novembre", "déc.": "Décembre",
+};
+
+function MonthlyBreakdown({ data }: { data: { month: string; revenue: number; depenses: number }[] }) {
+  const max = Math.max(...data.map((m) => m.revenue), 1);
+  const total = data.reduce((s, m) => s + m.revenue, 0);
+  const currentIdx = data.length - 1;
+
+  return (
+    <div className="bg-sur rounded-2xl border border-line/70 overflow-hidden">
+      <div className="flex items-center justify-between px-5 py-4 border-b border-line">
+        <span className="lbl">Encaissé par mois — saison</span>
+        <span className="font-display font-semibold text-ink num">{fmt(total)}</span>
+      </div>
+      <div>
+        {data.map((m, i) => {
+          const prev = i > 0 ? data[i - 1].revenue : null;
+          const delta = prev && prev > 0 ? Math.round(((m.revenue - prev) / prev) * 100) : null;
+          const isCurrent = i === currentIdx;
+          return (
+            <div
+              key={m.month}
+              className={`px-5 py-3 ${i > 0 ? "border-t border-line/60" : ""} ${isCurrent ? "bg-chip/50" : ""}`}
+            >
+              <div className="flex items-baseline justify-between mb-1.5">
+                <span className={`text-sm ${isCurrent ? "font-semibold text-ink" : "text-mut"}`}>
+                  {FULL_MONTHS[m.month] ?? m.month}
+                  {isCurrent && <span className="ml-1.5 text-[10px] text-acc font-semibold uppercase">en cours</span>}
+                </span>
+                <span className="flex items-baseline gap-3">
+                  {delta !== null && (
+                    <span className={`text-xs font-semibold num ${delta >= 0 ? "text-pos" : "text-neg"}`}>
+                      {delta >= 0 ? "+" : ""}{delta}%
+                    </span>
+                  )}
+                  <span className="font-display font-semibold text-ink num text-sm">{fmt(m.revenue)}</span>
+                </span>
+              </div>
+              <div className="h-2 bg-chip rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-acc-grad transition-all"
+                  style={{ width: `${Math.max((m.revenue / max) * 100, m.revenue > 0 ? 2 : 0)}%` }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

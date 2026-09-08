@@ -137,11 +137,12 @@ export async function GET(req: NextRequest) {
   const conversionRate = totalLeads > 0 ? Math.round((totalClients / totalLeads) * 100) : 0;
   const lostClients    = (contacts || []).filter(c => c.stage === "perdu").length;
 
-  // Graphique 6 derniers mois
+  // Encaissé par mois — toute la saison (avril → mois courant), minimum 6 mois
   const currentMonth = now.getMonth();
   const currentYear  = now.getFullYear();
+  const monthsBack   = currentMonth >= 3 ? Math.max(currentMonth - 3, 5) : 5;
   const revenueByMonth: { month: string; revenue: number; depenses: number }[] = [];
-  for (let i = 5; i >= 0; i--) {
+  for (let i = monthsBack; i >= 0; i--) {
     const d = new Date(currentYear, currentMonth - i, 1);
     const mStart = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
     const mEnd   = toDate(new Date(d.getFullYear(), d.getMonth() + 1, 1).toISOString())!;
