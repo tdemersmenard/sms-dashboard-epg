@@ -96,3 +96,18 @@ export function getAvatarColor(str: string): string {
   }
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
 }
+
+// ─── SMS: réactions iMessage/Android ─────────────────────────────────────────
+// "a attribué la mention « Adore » à …", "A aimé « … »", "Liked "…"", etc.
+// On les garde dans l'historique mais le bot n'y répond jamais.
+const REACTION_PATTERNS = [
+  /^a attribué la mention/i,
+  /^(a )?(aimé|adoré|souligné|accentué|ri de|questionné)\s*[«"']/i,
+  /^(liked|loved|disliked|laughed at|emphasized|questioned)\s*[«"']/i,
+];
+
+export function isReactionMessage(body: string | null | undefined): boolean {
+  if (!body) return false;
+  const t = body.trim();
+  return REACTION_PATTERNS.some((re) => re.test(t));
+}

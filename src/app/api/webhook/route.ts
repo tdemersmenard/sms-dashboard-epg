@@ -1,11 +1,19 @@
 export const dynamic = "force-dynamic";
+// Débounce (8s) + génération IA (jusqu'à ~20s sur Opus): il faut plus que les 15s par défaut.
+// La réponse SMS part par l'API REST, pas par le TwiML — Twilio peut timer out sans conséquence.
+export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { getFranchiseByPhoneNumber, GRANBY_FRANCHISE_ID } from "@/lib/franchise";
-import { normalizePhone } from "@/lib/utils";
+import { normalizePhone, isReactionMessage } from "@/lib/utils";
 
 const EMPTY_TWIML = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
+
+// Fenêtre de regroupement: si le client envoie plusieurs SMS coup sur coup,
+// seule l'invocation qui détient le DERNIER message répond (avec tout le contexte).
+const DEBOUNCE_MS = 8000;
+
 
 export async function POST(request: NextRequest) {
   try {
@@ -73,7 +81,7 @@ export async function POST(request: NextRequest) {
     }
 
     // ─── SAVE INBOUND MESSAGE ─────────────────────────────────────────────────
-    const { error: msgError } = await supabaseAdmin.from("messages").insert({
+    const { data: savedMsg, error: msgError } = await supabaseAdmin.from("messages").insert({
       contact_id:  contact!.id,
       twilio_sid:  messageSid,
       direction:   "inbound",
@@ -81,9 +89,16 @@ export async function POST(request: NextRequest) {
       status:      "received",
       is_read:     false,
       franchise_id: franchiseId,
-    });
+    }).select("id").single();
 
-    if (msgError) throw msgError;
+    if (msgError) {
+      // Doublon twilio_sid (retry Twilio) → déjà traité, ne surtout pas re-répondre
+      if (msgError.code === "23505") {
+        console.log("[webhook] duplicate MessageSid, skipping:", messageSid);
+        return new NextResponse(EMPTY_TWIML, { headers: { "Content-Type": "text/xml" } });
+      }
+      throw msgError;
+    }
 
     // ─── PHOTOS ───────────────────────────────────────────────────────────────
     if (mediaUrls.length > 0) {
@@ -126,8 +141,34 @@ export async function POST(request: NextRequest) {
     }
 
     // ─── AI AGENT ─────────────────────────────────────────────────────────────
+    // 1. Réaction iMessage ("Adore", "Liked", …) → historique seulement, jamais de réponse.
+    if (isReactionMessage(body)) {
+      console.log("[webhook] réaction détectée, pas de réponse IA");
+      return new NextResponse(EMPTY_TWIML, { headers: { "Content-Type": "text/xml" } });
+    }
+
     if (process.env.AI_AGENT_ENABLED === "true") {
       try {
+        // 2. Débounce anti-double-réponse: si le client envoie plusieurs messages coup
+        // sur coup, on attend, puis seule l'invocation détenant le DERNIER vrai message
+        // (hors réactions) génère UNE réponse — avec tous les messages en contexte.
+        await new Promise((r) => setTimeout(r, DEBOUNCE_MS));
+
+        const { data: latestMsgs } = await supabaseAdmin
+          .from("messages")
+          .select("id, body")
+          .eq("contact_id", contact!.id)
+          .eq("direction", "inbound")
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: false })
+          .limit(5);
+
+        const latestReal = (latestMsgs || []).find((m) => !isReactionMessage(m.body));
+        if (latestReal && latestReal.id !== savedMsg!.id) {
+          console.log("[webhook] message plus récent détecté, cette invocation laisse la main");
+          return new NextResponse(EMPTY_TWIML, { headers: { "Content-Type": "text/xml" } });
+        }
+
         const { generateAIResponse } = await import("@/lib/ai-agent");
         const aiReply = await generateAIResponse(
           contact!.id,

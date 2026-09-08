@@ -327,7 +327,7 @@ RÈGLES IMPORTANTES:
    - Client: "👍"
    - Client: "Ok merci!"
    - Client: "Parfait merci à vous aussi"
-   Si tu as déjà dit bonne journée/soirée et que le client répond par une politesse, NE GÉNÈRE AUCUNE RÉPONSE. Laisse le champ vide.
+   Si tu as déjà dit bonne journée/soirée et que le client répond par une politesse, réponds EXACTEMENT __NO_REPLY__ et RIEN d'autre. C'est le SEUL marqueur reconnu par le système — n'écris JAMAIS de variante comme "System:", "[Fin de conversation]", "(Aucune réponse)" ou autre: tout texte différent de __NO_REPLY__ sera ENVOYÉ AU CLIENT par SMS.
 17. DÉFENDRE LE SERVICE: Tu travailles POUR Entretien Piscine Granby. Tu ne t'excuses JAMAIS pour la qualité du travail fait. Si un client se plaint ou doute:
    - NE DIS JAMAIS "je suis désolé pour cette erreur" ou "on aurait dû faire mieux" si tu ne sais pas ce qui s'est passé
    - Pose des questions pour comprendre la situation: "Pouvez-vous me décrire exactement ce que vous avez remarqué?"
@@ -609,13 +609,19 @@ export async function generateAIResponse(contactId: string, inboundMessage: stri
       .eq("contact_id", contactId)
       .order("created_at", { ascending: true });
 
-    // Nettoyer les messages outbound: enlever les tags __ACTION:...__ du texte
+    // Nettoyer les messages outbound: enlever les tags __ACTION:...__ et les marqueurs
+    // de fin de conversation qui ont pu fuiter (sinon le modèle apprend à les répéter)
     const cleanMessages = (messages || []).map(msg => {
       if (msg.direction === "outbound") {
-        // Enlever toutes les lignes qui contiennent __ACTION: ou __NO_REPLY__
         const cleanBody = msg.body
           .split("\n")
-          .filter((line: string) => !line.includes("__ACTION:") && !line.includes("__NO_REPLY__"))
+          .filter((line: string) => {
+            if (line.includes("__ACTION:") || line.includes("__NO_REPLY__")) return false;
+            const t = line.trim();
+            if (/^system\s*:/i.test(t)) return false;
+            if (/^[[(].*(fin de conversation|ne pas répondre|aucune réponse|no.?reply)/i.test(t)) return false;
+            return true;
+          })
           .join("\n")
           .trim();
         return { ...msg, body: cleanBody || msg.body };
@@ -985,7 +991,22 @@ CONTEXTE TEMPOREL:
     if (aiText.trim() === "__NO_REPLY__") return null;
 
     // Parse actions from response
-    const { cleanMessage, actions } = parseActions(aiText);
+    const { cleanMessage: parsedMessage, actions } = parseActions(aiText);
+
+    // Assainissement: le modèle invente parfois des marqueurs de fin de conversation
+    // ("System: [Fin de conversation - ne pas répondre]", "(Aucune réponse …)") au lieu
+    // du __NO_REPLY__ exact — ces lignes ne doivent JAMAIS partir en SMS au client.
+    const cleanMessage = (parsedMessage || "")
+      .split("\n")
+      .filter((line) => {
+        const t = line.trim();
+        if (/^system\s*:/i.test(t)) return false;
+        if (/^[[(].*(fin de conversation|ne pas répondre|aucune réponse|no.?reply)/i.test(t)) return false;
+        if (/^_{0,2}no.?reply_{0,2}$/i.test(t)) return false;
+        return true;
+      })
+      .join("\n")
+      .trim();
 
     // FILET DE SÉCURITÉ: le bot affirme qu'un RDV est booké mais n'a émis aucun BOOK_JOB?
     // → on tente de reconstruire le booking depuis la conversation, sinon on alerte le proprio.
