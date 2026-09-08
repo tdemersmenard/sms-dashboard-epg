@@ -24,7 +24,7 @@ export async function GET() {
     franchiseSlug = f?.slug ?? null;
   }
 
-  return NextResponse.json({
+  const res = NextResponse.json({
     user: {
       id:                  u.id,
       email:               u.email,
@@ -34,4 +34,17 @@ export async function GET() {
       franchise_slug:      franchiseSlug,
     },
   });
+
+  // Auto-réparation du cookie de rôle: les sessions durent 365 jours et les
+  // sessions créées avant le système de rôles n'ont jamais reçu chlore_role —
+  // sans lui, le middleware bloque les pages master (ex: Dépenses → dashboard).
+  res.cookies.set("chlore_role", isMaster ? "master" : "owner", {
+    httpOnly: false,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    expires: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+    path: "/",
+  });
+
+  return res;
 }

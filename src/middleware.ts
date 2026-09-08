@@ -64,9 +64,12 @@ export function middleware(req: NextRequest) {
     }
   }
 
-  // Role-based route protection
+  // Role-based route protection.
+  // IMPORTANT: si le cookie de rôle est ABSENT (vieille session d'avant le système
+  // de rôles), on laisse passer — /api/auth/me le répare au prochain chargement.
+  // On ne bloque que sur un rôle explicitement non-master.
   const role = req.cookies.get("chlore_role")?.value;
-  const isMaster = role === "master";
+  const isMaster = role === "master" || role === undefined;
 
   // Block /master for non-master users
   if (!isMaster && (pathname === "/master" || pathname.startsWith("/master/"))) {
