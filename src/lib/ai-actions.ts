@@ -292,8 +292,15 @@ async function getOwnerForContact(contactId: string): Promise<{ ownerId: string;
   return { ownerId: owner.id, franchiseId: fId };
 }
 
-export async function executeActions(actions: AIAction[], contactId: string) {
+// Sort de l'exécution du BOOK_JOB — permet à l'appelant de NE PAS envoyer une
+// réponse "c'est confirmé" pré-écrite quand le booking a en réalité échoué.
+export interface ActionOutcomes {
+  bookJob?: "success" | "skipped_duplicate" | "conflict" | "failed";
+}
+
+export async function executeActions(actions: AIAction[], contactId: string): Promise<ActionOutcomes> {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
+  const outcomes: ActionOutcomes = {};
 
   for (const action of actions) {
     try {
@@ -387,7 +394,7 @@ export async function executeActions(actions: AIAction[], contactId: string) {
           const todayMtl = new Date().toLocaleDateString("en-CA", { timeZone: "America/Montreal" });
           if (action.date < todayMtl) {
             console.error(`[ai-actions] BOOK_JOB: date passée ${action.date}, refusé`);
-            await logBook("failed", "date_passee");
+            await logBook("failed", "date_passee"); outcomes.bookJob = "failed";
             break;
           }
 
@@ -403,7 +410,7 @@ export async function executeActions(actions: AIAction[], contactId: string) {
 
           if (existingBook && existingBook.length > 0) {
             console.log(`[ai-actions] BOOK_JOB: job ${action.jobType} on ${action.date} already exists, skipping`);
-            await logBook("skipped", "doublon_meme_type_meme_date", { existingJobId: existingBook[0].id });
+            await logBook("skipped", "doublon_meme_type_meme_date", { existingJobId: existingBook[0].id }); outcomes.bookJob = "skipped_duplicate";
             break;
           }
 
@@ -431,7 +438,7 @@ export async function executeActions(actions: AIAction[], contactId: string) {
           const { data: conflicts } = await overlapQuery();
           if (conflicts && conflicts.length > 0) {
             console.warn(`[ai-actions] BOOK_JOB: créneau ${action.date} ${action.startTime} déjà pris (${conflicts.length} conflit(s))`);
-            await logBook("failed", "creneau_deja_pris", { conflictJobIds: conflicts.map(c => c.id) });
+            await logBook("failed", "creneau_deja_pris", { conflictJobIds: conflicts.map(c => c.id) }); outcomes.bookJob = "conflict";
             await notifySlotTaken();
             break;
           }
@@ -449,7 +456,7 @@ export async function executeActions(actions: AIAction[], contactId: string) {
 
           if (insertErr || !insertedJob) {
             console.error("[ai-actions] BOOK_JOB: insert failed:", insertErr?.message);
-            await logBook("failed", "insert_error", { error: insertErr?.message });
+            await logBook("failed", "insert_error", { error: insertErr?.message }); outcomes.bookJob = "failed";
             break;
           }
 
@@ -460,7 +467,7 @@ export async function executeActions(actions: AIAction[], contactId: string) {
           if (lostRace) {
             await supabaseAdmin.from("jobs").delete().eq("id", insertedJob.id);
             console.warn(`[ai-actions] BOOK_JOB: course perdue sur ${action.date} ${action.startTime}, job retiré`);
-            await logBook("failed", "course_perdue_creneau", { conflictJobIds: (postConflicts || []).map(c => c.id) });
+            await logBook("failed", "course_perdue_creneau", { conflictJobIds: (postConflicts || []).map(c => c.id) }); outcomes.bookJob = "conflict";
             await notifySlotTaken();
             break;
           }
@@ -470,7 +477,7 @@ export async function executeActions(actions: AIAction[], contactId: string) {
             await supabaseAdmin.from("contacts").update({ ouverture_date: action.date }).eq("id", contactId);
           }
 
-          await logBook("success", "job_cree", { jobId: insertedJob.id });
+          await logBook("success", "job_cree", { jobId: insertedJob.id }); outcomes.bookJob = "success";
           console.log(`[ai-actions] BOOK_JOB: ${action.jobType} on ${action.date} ${action.startTime}-${action.endTime} (job ${insertedJob.id})`);
           break;
         }
@@ -1364,6 +1371,9 @@ export async function executeActions(actions: AIAction[], contactId: string) {
       }
     } catch (err) {
       console.error(`[ai-actions] Error executing ${action.type}:`, err);
+      if (action.type === "BOOK_JOB" && !outcomes.bookJob) outcomes.bookJob = "failed";
     }
   }
+
+  return outcomes;
 }

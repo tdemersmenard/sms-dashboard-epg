@@ -1049,7 +1049,18 @@ CONTEXTE TEMPOREL:
     // (cause principale des bookings "confirmés" au client mais absents du calendrier).
     if (actions.length > 0) {
       try {
-        await executeActions(actions, contactId);
+        const outcomes = await executeActions(actions, contactId);
+        // La réponse du bot est écrite AVANT l'exécution, en supposant le succès.
+        // Si le BOOK_JOB a échoué, envoyer "c'est confirmé!" serait un mensonge:
+        // - conflit/course: le handler a déjà envoyé "ce créneau vient d'être pris,
+        //   proposez-moi d'autres disponibilités" → on supprime la réponse pré-écrite
+        //   (sinon le client reçoit deux messages contradictoires).
+        // - autre échec: on supprime aussi — mieux vaut le silence qu'une fausse
+        //   confirmation; l'échec est loggé dans automation_logs.
+        if (outcomes.bookJob === "conflict" || outcomes.bookJob === "failed") {
+          console.warn(`[ai-agent] BOOK_JOB ${outcomes.bookJob} — réponse pré-écrite supprimée pour éviter une fausse confirmation`);
+          return null;
+        }
       } catch (err) {
         console.error("[ai-agent] Action error:", err);
       }
