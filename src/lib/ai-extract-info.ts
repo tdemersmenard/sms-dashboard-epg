@@ -1,4 +1,44 @@
 import { supabaseAdmin } from "@/lib/supabase";
+import Anthropic from "@anthropic-ai/sdk";
+
+/**
+ * Extraction LLM (Haiku) en secours des regex: les adresses données sans mot-clé
+ * de rue ("780 Denison Est", "105 St Patrick") ou hors de la fenêtre récente
+ * échappaient aux regex et n'étaient jamais sauvegardées.
+ */
+async function extractWithHaiku(
+  inboundBodies: string[],
+  missing: string[],
+): Promise<Record<string, string>> {
+  try {
+    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
+    const convo = inboundBodies.slice(0, 50).reverse().join("\n---\n");
+    const response = await anthropic.messages.create({
+      model: "claude-haiku-4-5",
+      max_tokens: 200,
+      thinking: { type: "disabled" },
+      system: `Tu extrais les infos d'un CLIENT depuis ses SMS à une entreprise de piscines au Québec. Réponds UNIQUEMENT un JSON avec ces clés (null si absent du texte): ${missing.map(m => `"${m}"`).join(", ")}.
+- "address": adresse civique du client (numéro + rue, SANS la ville). Ex: "780 rue Denison Est", "105 St Patrick". null si jamais mentionnée.
+- "city": ville. "postal_code": code postal format "J2G 8C7". "email": courriel du client.
+- "pool_type": "hors-terre" ou "creusée" UNIQUEMENT si le client décrit SA piscine.
+- "first_name"/"last_name": si le client se nomme.
+N'INVENTE RIEN: si l'info n'est pas écrite noir sur blanc par le client, mets null.`,
+      messages: [{ role: "user", content: convo || "(aucun message)" }],
+    });
+    const text = response.content[0]?.type === "text" ? response.content[0].text : "";
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return {};
+    const parsed = JSON.parse(jsonMatch[0]);
+    const out: Record<string, string> = {};
+    for (const k of missing) {
+      if (parsed[k] && typeof parsed[k] === "string" && parsed[k].trim()) out[k] = parsed[k].trim();
+    }
+    return out;
+  } catch (e) {
+    console.error("[extract-info] haiku extraction error:", e);
+    return {};
+  }
+}
 
 export async function extractAndSaveContactInfo(contactId: string) {
   const { data: messages } = await supabaseAdmin
@@ -7,7 +47,7 @@ export async function extractAndSaveContactInfo(contactId: string) {
     .eq("contact_id", contactId)
     .eq("direction", "inbound")
     .order("created_at", { ascending: false })
-    .limit(15);
+    .limit(50);
 
   if (!messages || messages.length === 0) return;
 
@@ -109,6 +149,32 @@ export async function extractAndSaveContactInfo(contactId: string) {
         if (parts[1]) updates.last_name = parts.slice(1).join(" ");
       }
     }
+  }
+
+  // Fallback Haiku pour ce que les regex n'ont pas trouvé (surtout les adresses
+  // sans mot-clé de rue, et les infos données plus tôt dans la conversation)
+  const stillMissing: string[] = [];
+  if (!contact.address && !updates.address) stillMissing.push("address");
+  if (!contact.city && !updates.city) stillMissing.push("city");
+  if (!contact.postal_code && !updates.postal_code) stillMissing.push("postal_code");
+  if (!contact.email && !updates.email) stillMissing.push("email");
+  if (!contact.pool_type && !updates.pool_type) stillMissing.push("pool_type");
+
+  if (stillMissing.length > 0) {
+    const haiku = await extractWithHaiku(messages.map((m) => m.body), stillMissing);
+    // Validations spécifiques avant d'accepter
+    if (haiku.address && /\d/.test(haiku.address) && haiku.address.length >= 6 && haiku.address.length <= 80 && !haiku.address.toLowerCase().includes("windsor")) {
+      updates.address = haiku.address;
+    }
+    if (haiku.city && haiku.city.length <= 40) updates.city = haiku.city;
+    if (haiku.postal_code && /^[A-Za-z]\d[A-Za-z]\s?\d[A-Za-z]\d$/.test(haiku.postal_code.trim())) {
+      const raw = haiku.postal_code.replace(/\s/g, "").toUpperCase();
+      updates.postal_code = raw.slice(0, 3) + " " + raw.slice(3);
+    }
+    if (haiku.email && /^[\w.-]+@[\w.-]+\.\w{2,}$/.test(haiku.email) && !haiku.email.includes("entretienpiscinegranby")) {
+      updates.email = haiku.email.toLowerCase();
+    }
+    if (haiku.pool_type === "hors-terre" || haiku.pool_type === "creusée") updates.pool_type = haiku.pool_type;
   }
 
   // Validation finale
