@@ -165,6 +165,23 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   const [savingWater, setSavingWater] = useState(false);
 
   const [showJobModal, setShowJobModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const deleteClient = async () => {
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const res = await fetch(`/api/contacts/${id}`, { method: "DELETE" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `Erreur ${res.status}`);
+      router.push(`/${franchiseSlug}/clients`);
+    } catch (e) {
+      setDeleteError(e instanceof Error ? e.message : "Échec de la suppression");
+      setDeleting(false);
+    }
+  };
   const [savingJob, setSavingJob] = useState(false);
   const [jobForm, setJobForm] = useState({
     job_type: "ouverture" as Job["job_type"],
@@ -615,6 +632,13 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <button
+            onClick={() => setShowDeleteModal(true)}
+            title="Supprimer le client"
+            className="flex items-center justify-center w-9 h-9 border border-line rounded-lg text-mut hover:text-neg hover:border-neg transition"
+          >
+            <Trash2 size={15} />
+          </button>
+          <button
             onClick={() => router.push(`/${franchiseSlug}/messages?contact=${id}`)}
             className="flex items-center gap-1.5 px-3 py-2 border border-line rounded-lg text-sm text-ink hover:bg-chip transition"
           >
@@ -630,6 +654,37 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
           </button>
         </div>
       </div>
+
+      {/* Modal suppression */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => !deleting && setShowDeleteModal(false)}>
+          <div className="bg-sur border border-line rounded-2xl p-6 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-display font-semibold text-ink text-lg mb-2">Supprimer ce client?</h3>
+            <p className="text-sm text-mut mb-1">
+              <b className="text-ink">{[contact?.first_name, contact?.last_name].filter(Boolean).join(" ") || contact?.phone}</b> sera supprimé définitivement,
+              avec tout son historique: messages, rendez-vous, paiements et documents.
+            </p>
+            <p className="text-sm font-semibold text-neg mb-4">Cette action est irréversible.</p>
+            {deleteError && <p className="text-sm text-neg mb-3">{deleteError}</p>}
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                disabled={deleting}
+                className="px-4 py-2 border border-line rounded-lg text-sm text-ink hover:bg-chip transition"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={deleteClient}
+                disabled={deleting}
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-neg text-white hover:opacity-90 transition disabled:opacity-50"
+              >
+                {deleting ? "Suppression…" : "Supprimer définitivement"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 2-column layout */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
