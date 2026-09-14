@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { getAppUrl } from "@/config/brand";
 import { supabaseAdmin } from "@/lib/supabase";
 import { getActiveFranchiseId } from "@/lib/franchise-context";
 
@@ -38,7 +39,7 @@ export async function POST(req: NextRequest) {
 
     // Envoyer le SMS au client
     if (contact.phone?.startsWith("+")) {
-      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
+      const baseUrl = getAppUrl();
       const dateStr = new Date(job.scheduled_date + "T12:00:00").toLocaleDateString("fr-CA", { weekday: "long", day: "numeric", month: "long" });
       const heure = job.scheduled_time_start ? job.scheduled_time_start.slice(0, 5) : "8h00";
       const name = contact.first_name || "Bonjour";

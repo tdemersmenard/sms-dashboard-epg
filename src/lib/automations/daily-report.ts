@@ -1,7 +1,8 @@
 import { supabaseAdmin } from "@/lib/supabase";
+import { getAppUrl } from "@/config/brand";
 import { getOwnerContactId, getFranchiseOwner } from "@/lib/automations/helpers";
 
-const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
+const BASE_URL = getAppUrl();
 
 export async function sendDailyReport(franchiseId: string): Promise<string[]> {
   const logs: string[] = [];

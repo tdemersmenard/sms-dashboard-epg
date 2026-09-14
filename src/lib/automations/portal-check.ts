@@ -1,10 +1,11 @@
 import { supabaseAdmin } from "@/lib/supabase";
+import { getAppUrl } from "@/config/brand";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 
 export async function createMissingPortals(franchiseId: string): Promise<string[]> {
   const logs: string[] = [];
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
+  const baseUrl = getAppUrl();
 
   // Trouver les clients closés/planifiés avec email mais sans portail
   const { data: contacts } = await supabaseAdmin

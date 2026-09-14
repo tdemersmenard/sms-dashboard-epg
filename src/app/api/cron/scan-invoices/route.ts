@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from "next/server";
+import { getAppUrl } from "@/config/brand";
 import { supabaseAdmin } from "@/lib/supabase";
 import { getAuthedGmail } from "@/lib/google";
 import Anthropic from "@anthropic-ai/sdk";
@@ -156,7 +157,7 @@ Si ce n'est PAS une facture, retourne uniquement {"isInvoice": false}.`,
 
     // Notifier les propriétaires de franchises si des factures ont été ajoutées
     if (detected.length > 0) {
-      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
+      const baseUrl = getAppUrl();
       const total = detected.reduce((s, d) => s + d.montant, 0);
       const list  = detected.map(d => `${d.vendor} (${d.montant}$)`).join(", ");
 

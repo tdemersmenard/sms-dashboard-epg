@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { getAppUrl } from "@/config/brand";
 import { supabaseAdmin } from "@/lib/supabase";
 import { getActiveFranchiseId } from "@/lib/franchise-context";
 
@@ -54,7 +55,7 @@ export async function PATCH(req: NextRequest) {
             .single();
 
           if (empContact) {
-            const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
+            const baseUrl = getAppUrl();
             await fetch(`${baseUrl}/api/sms/send`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },

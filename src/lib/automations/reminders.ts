@@ -1,7 +1,8 @@
 import { supabaseAdmin } from "@/lib/supabase";
+import { getAppUrl } from "@/config/brand";
 import { getFranchiseOwner } from "@/lib/automations/helpers";
 
-const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
+const BASE_URL = getAppUrl();
 
 async function sendSMS(contactId: string, body: string) {
   await fetch(`${BASE_URL}/api/sms/send`, {

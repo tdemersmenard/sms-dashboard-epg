@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase";
+import { getAppUrl } from "@/config/brand";
 
 const GMAPS = process.env.GOOGLE_MAPS_API_KEY!;
 const HOME_ADDR = "86 rue de Windsor, Granby, QC, Canada";
@@ -385,7 +386,7 @@ export async function calculateRoutes(franchiseId?: string): Promise<Calculation
 // ─── CONFIRM (inchangé, garde l'ancienne logique) ───
 export async function confirmRoutes(routes: DayRoute[], sendSMS: boolean): Promise<string[]> {
   const results: string[] = [];
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
+  const baseUrl = getAppUrl();
   const endDate = new Date("2026-09-30T23:59:59");
 
   for (const dayRoute of routes) {

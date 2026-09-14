@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
+import { getAppUrl } from "@/config/brand";
 import { supabaseAdmin } from "@/lib/supabase";
 import { getAuthedGmail } from "@/lib/google";
 
@@ -168,7 +169,7 @@ if (matchedContact) {
               confirmed_at: new Date().toISOString(),
             });
 
-            const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
+            const baseUrl = getAppUrl();
             const dateFormatted = new Date(contact.ouverture_date + "T12:00:00").toLocaleDateString("fr-CA", { weekday: "long", day: "numeric", month: "long" });
 
             await fetch(`${baseUrl}/api/sms/send`, {
@@ -176,7 +177,7 @@ if (matchedContact) {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 contactId: contact.id,
-                body: `Bonjour ${contact.first_name}! Votre paiement a bien été reçu. Votre ${jobType} est confirmée pour le ${dateFormatted} à ${startTime}. À bientôt! — CHLORE, Entretien Piscine Granby`,
+                body: `Bonjour ${contact.first_name}! Votre paiement a bien été reçu. Votre ${jobType} est confirmée pour le ${dateFormatted} à ${startTime}. À bientôt! — CHLORE, ALTAMAR`,
               }),
             });
 
@@ -189,7 +190,7 @@ if (matchedContact) {
     }
 
     // Notifier Thomas
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
+    const baseUrl = getAppUrl();
     const { data: thomas } = await supabaseAdmin.from("contacts").select("id").eq("phone", "+14509942215").single();
     if (thomas) {
       await fetch(`${baseUrl}/api/sms/send`, {
@@ -204,7 +205,7 @@ if (matchedContact) {
   } else {
     // Si le montant ne match aucun paiement en attente
     // Ne PAS créer de payment fantôme — juste notifier Thomas
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
+    const baseUrl = getAppUrl();
     const { data: thomas } = await supabaseAdmin.from("contacts").select("id").eq("phone", "+14509942215").single();
     if (thomas) {
       await fetch(`${baseUrl}/api/sms/send`, {

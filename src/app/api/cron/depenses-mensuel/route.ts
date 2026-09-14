@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from "next/server";
+import { getAppUrl } from "@/config/brand";
 
 /**
  * Cron — le 1er de chaque mois à 8h
@@ -24,7 +25,7 @@ export async function GET(req: NextRequest) {
     const mois = prevMonth.getMonth() + 1;   // 1-12
     const annee = prevMonth.getFullYear();
 
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
+    const baseUrl = getAppUrl();
 
     const res = await fetch(`${baseUrl}/api/depenses/envoyer-rapport`, {
       method: "POST",

@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { getAppUrl } from "@/config/brand";
 import { supabaseAdmin } from "@/lib/supabase";
 import Stripe from "stripe";
 
@@ -66,7 +67,7 @@ export async function POST(req: NextRequest) {
       paymentRowId = pendingList[0].id;
     }
 
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
+    const baseUrl = getAppUrl();
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
@@ -74,7 +75,7 @@ export async function POST(req: NextRequest) {
         price_data: {
           currency: "cad",
           product_data: {
-            name: "Entretien Piscine Granby",
+            name: "ALTAMAR",
             description,
           },
           unit_amount: Math.round(amountToPay * 100),

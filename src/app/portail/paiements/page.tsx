@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, Suspense } from "react";
+import { BRAND } from "@/config/brand";
 import { useRouter, useSearchParams } from "next/navigation";
 import { CreditCard, Check, CheckCircle, XCircle } from "lucide-react";
 
@@ -161,7 +162,7 @@ export default function PortailPaiements() {
                     <p className="font-semibold text-green-800 text-sm mb-2">Virement Interac</p>
                     <p className="text-sm text-green-700">1. Ouvrez votre application bancaire</p>
                     <p className="text-sm text-green-700">2. Envoyez un virement à:</p>
-                    <p className="text-base font-bold text-green-900 my-2 break-all">service@entretienpiscinegranby.com</p>
+                    <p className="text-base font-bold text-green-900 my-2 break-all">${BRAND.email}</p>
                     <p className="text-sm text-green-700">3. Montant: <strong>{fmt(p.amount)}</strong></p>
                     {p.notes && <p className="text-sm text-green-700">4. Message: <strong>{p.notes}</strong></p>}
                     <p className="text-xs text-green-500 mt-3">Le paiement sera confirmé manuellement dans les heures qui suivent.</p>

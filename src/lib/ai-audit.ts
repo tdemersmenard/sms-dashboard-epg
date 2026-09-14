@@ -59,7 +59,7 @@ export async function runAudit(): Promise<AuditAction[]> {
     const response = await anthropic.messages.create({
       model: "claude-sonnet-4-5-20250929",
       max_tokens: 4000,
-      system: `Tu es un assistant qui analyse des conversations SMS entre une entreprise d'entretien de piscines (Entretien Piscine Granby) et ses clients. Tu dois identifier TOUTES les actions à prendre.
+      system: `Tu es un assistant qui analyse des conversations SMS entre une entreprise d'entretien de piscines (ALTAMAR) et ses clients. Tu dois identifier TOUTES les actions à prendre.
 
 Réponds UNIQUEMENT en JSON valide. Format:
 {"actions": [{"contactId": "uuid", "contactName": "nom", "phone": "tel", "priority": "urgent|high|medium|low", "action": "description courte", "details": "détails", "category": "appeler|soumission|contrat|relance|paiement|rdv|autre"}]}

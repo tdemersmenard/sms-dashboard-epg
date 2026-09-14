@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase";
+import { getAppUrl } from "@/config/brand";
 
 const GMAPS = process.env.GOOGLE_MAPS_API_KEY!;
 // TODO: HOME_ADDR should be per-franchise in the future (loaded from franchises.business_address)
@@ -292,7 +293,7 @@ export async function autoAssignNewClients(franchiseId?: string): Promise<string
     results.push(`${name}: ajouté au ${bestDay} à ${arrivalTime}`);
 
     // Notifier Thomas (UNE notif par client)
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
+    const baseUrl = getAppUrl();
     const { data: thomas } = await supabaseAdmin.from("contacts").select("id").eq("phone", "+14509942215").single();
     if (thomas) {
       await fetch(`${baseUrl}/api/sms/send`, {

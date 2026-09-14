@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { getAppUrl } from "@/config/brand";
 import { supabaseAdmin } from "@/lib/supabase";
 import { getActiveFranchiseId } from "@/lib/franchise-context";
 
@@ -24,7 +25,7 @@ export async function POST(req: NextRequest) {
 
     // Si le client passe à "closé" pour la première fois ET a un email ET pas encore de portail
     if (stage === "closé" && contact.email && !contact.portal_password) {
-      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
+      const baseUrl = getAppUrl();
 
       // Appeler send-welcome qui va générer le mdp et envoyer le SMS
       await fetch(`${baseUrl}/api/portail/send-welcome`, {

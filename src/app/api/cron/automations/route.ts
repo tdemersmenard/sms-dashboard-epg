@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from "next/server";
+import { getAppUrl } from "@/config/brand";
 import { supabaseAdmin } from "@/lib/supabase";
 
 export async function GET(req: NextRequest) {
@@ -118,7 +119,7 @@ export async function GET(req: NextRequest) {
 
       // Envoyer seulement entre 8h et 9h
       if (montrealHour >= 8 && montrealHour < 9) {
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
+        const baseUrl = getAppUrl();
 
         for (const id of batch.contactIds) {
           try {
@@ -217,7 +218,7 @@ export async function GET(req: NextRequest) {
       const montrealHour2 = parseInt(now2.toLocaleTimeString("en-US", { timeZone: "America/Montreal", hour: "2-digit", hour12: false }));
 
       if (montrealHour2 >= 10 && montrealHour2 < 11) {
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
+        const baseUrl = getAppUrl();
         for (const id of batch.contactIds) {
           try {
             const { data: contact } = await supabaseAdmin

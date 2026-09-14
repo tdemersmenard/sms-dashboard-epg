@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
+import { BRAND, getAppUrl } from "@/config/brand";
 import { supabaseAdmin } from "@/lib/supabase";
 import { getActiveFranchiseId } from "@/lib/franchise-context";
 
@@ -58,7 +59,7 @@ export async function POST(req: NextRequest) {
       const hasEntretien = svcs.some((s: string) => s.toLowerCase().includes("entretien"));
       if (hasEntretien && fullContact.address && fullContact.ouverture_date) {
         // Trigger auto-assign en background (non-bloquant)
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
+        const baseUrl = getAppUrl();
         fetch(`${baseUrl}/api/cron/automations`, {
           headers: { "Authorization": `Bearer ${process.env.CRON_SECRET || ""}` },
         }).catch(() => {});
@@ -66,7 +67,7 @@ export async function POST(req: NextRequest) {
     }
 
     const clientName = contact.first_name || "Bonjour";
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
+    const baseUrl = getAppUrl();
 
     if (contact.phone?.startsWith("+") && !silentClient) {
       await fetch(`${baseUrl}/api/sms/send`, {
@@ -74,7 +75,7 @@ export async function POST(req: NextRequest) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contactId,
-          body: `Bonjour ${clientName}! Vous avez une demande de paiement de ${amount}$ pour: ${description}. Vous pouvez payer par virement Interac à service@entretienpiscinegranby.com ou par carte sur votre portail client. Merci!`,
+          body: `Bonjour ${clientName}! Vous avez une demande de paiement de ${amount}$ pour: ${description}. Vous pouvez payer par virement Interac à ${BRAND.email} ou par carte sur votre portail client. Merci!`,
         }),
       });
     }

@@ -1,11 +1,12 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { getAppUrl } from "@/config/brand";
 import { supabaseAdmin } from "@/lib/supabase";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
+const APP_URL = getAppUrl();
 
 export async function POST(req: NextRequest) {
   try {
@@ -37,7 +38,7 @@ export async function POST(req: NextRequest) {
       .eq("id", contactId);
 
     const firstName = contact.first_name || "Bonjour";
-    const sms = `Bonjour ${firstName}! Votre portail client Entretien Piscine Granby est maintenant disponible. Connectez-vous sur ${APP_URL}/portail avec votre courriel (${contact.email}) et le mot de passe temporaire: ${tempPassword}`;
+    const sms = `Bonjour ${firstName}! Votre portail client ALTAMAR est maintenant disponible. Connectez-vous sur ${APP_URL}/portail avec votre courriel (${contact.email}) et le mot de passe temporaire: ${tempPassword}`;
 
     if (contact.phone?.startsWith("+")) {
       await fetch(`${APP_URL}/api/sms/send`, {

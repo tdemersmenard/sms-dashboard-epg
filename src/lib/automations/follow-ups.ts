@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase";
+import { getAppUrl } from "@/config/brand";
 import { getFranchiseOwner } from "@/lib/automations/helpers";
 
 const FOLLOW_UP_DELAY_DAYS = 3;
@@ -10,7 +11,7 @@ const ACTIVE_STAGES = ["contacté", "soumission_envoyée", "nouveau"];
 export async function sendFollowUps(franchiseId: string): Promise<string[]> {
   const logs: string[] = [];
   const now = new Date();
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
+  const baseUrl = getAppUrl();
 
   // Look up franchise name for messages
   const franchise = await getFranchiseOwner(franchiseId);

@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { BRAND, getAppUrl } from "@/config/brand";
 import { supabaseAdmin } from "@/lib/supabase";
 import { generatePDFBuffer } from "@/lib/generate-pdf";
 import { getActiveFranchiseId } from "@/lib/franchise-context";
@@ -41,7 +42,7 @@ export async function POST(req: NextRequest) {
     const docNumber = `FACT-2026-${String((count || 0) + 1).padStart(4, "0")}`;
 
     const clientName = [contact.first_name, contact.last_name].filter(Boolean).join(" ") || "Client";
-    const paymentTerms = "Paiement par virement Interac à service@entretienpiscinegranby.com, par carte via le portail client, ou comptant.";
+    const paymentTerms = "Paiement par virement Interac à ${BRAND.email}, par carte via le portail client, ou comptant.";
     const serviceSummary = lineItems.map((i: { description: string }) => i.description).join(", ");
 
     // Generate PDF with line items
@@ -105,7 +106,7 @@ export async function POST(req: NextRequest) {
         emailError = "no_email";
       } else {
         try {
-          const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
+          const baseUrl = getAppUrl();
           const emailResp = await fetch(`${baseUrl}/api/email/send-document`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },

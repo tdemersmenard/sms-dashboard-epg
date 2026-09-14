@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { getAppUrl } from "@/config/brand";
 import { supabaseAdmin } from "@/lib/supabase";
 import { generatePDFBuffer } from "@/lib/generate-pdf";
 import { sendForSignature } from "@/lib/docusign";
@@ -69,7 +70,7 @@ export async function POST(req: NextRequest) {
 
     if (thomas) {
       const baseUrl =
-        process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
+        getAppUrl();
       await fetch(`${baseUrl}/api/sms/send`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

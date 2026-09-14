@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { BRAND, getAppUrl } from "@/config/brand";
 import { supabaseAdmin } from "@/lib/supabase";
 import { getAuthedGmail } from "@/lib/google";
 
@@ -53,10 +54,10 @@ export async function POST(req: NextRequest) {
       const gmail = await getAuthedGmail();
 
       const boundary = "boundary_chlore_" + Date.now();
-      const subject = `${docTypeLabel} ${doc.doc_number} — Entretien Piscine Granby`;
+      const subject = `${docTypeLabel} ${doc.doc_number} — ALTAMAR`;
 
       const rawEmail = [
-        `From: "Entretien Piscine Granby" <me>`,
+        `From: "ALTAMAR" <me>`,
         `To: ${clientEmail}`,
         `Subject: ${subject}`,
         `MIME-Version: 1.0`,
@@ -71,9 +72,9 @@ export async function POST(req: NextRequest) {
         `<p><strong>Document:</strong> ${doc.doc_number}<br>`,
         `<strong>Service:</strong> ${docData.service || ""}<br>`,
         `<strong>Montant:</strong> ${doc.amount}$</p>`,
-        `<p><strong>Paiement par virement Interac:</strong> service@entretienpiscinegranby.com</p>`,
+        `<p><strong>Paiement par virement Interac:</strong> ${BRAND.email}</p>`,
         `<p>Merci de votre confiance!</p>`,
-        `<p>Thomas Demers-Ménard<br>Entretien Piscine Granby<br>450-994-2215</p>`,
+        `<p>Thomas Demers-Ménard<br>ALTAMAR<br>450-994-2215</p>`,
         `</div>`,
         `--${boundary}`,
         `Content-Type: application/pdf; name="${doc.doc_number}.pdf"`,
@@ -115,7 +116,7 @@ export async function POST(req: NextRequest) {
           .single();
 
         if (thomas) {
-          const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
+          const baseUrl = getAppUrl();
           const docTypeLabel = doc.doc_type === "facture" ? "Facture" : "Contrat";
           await fetch(`${baseUrl}/api/sms/send`, {
             method: "POST",

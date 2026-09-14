@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { BRAND } from "@/config/brand";
 import { Copy, Check, AlertTriangle, FileDown, Mail, Loader2, CalendarClock } from "lucide-react";
 import {
   Depense, CATS, CategorieDepense,
@@ -54,7 +55,7 @@ export default function RapportFiscal({ depenses, annee }: Props) {
 
   const handleCopyText = () => {
     const lines = [
-      `RAPPORT FISCAL ${annee} — Entretien Piscine Granby`,
+      `RAPPORT FISCAL ${annee} — ALTAMAR`,
       `Préparé le ${new Date().toLocaleDateString("fr-CA")}`,
       "",
       "=== RÉSUMÉ ===",
@@ -229,7 +230,7 @@ export default function RapportFiscal({ depenses, annee }: Props) {
             <h3 className="font-display font-semibold text-ink">Rapport mensuel automatique</h3>
             <p className="text-xs text-mut mt-1 leading-relaxed">
               Le 1er de chaque mois à 8h, le rapport du mois précédent est généré en PDF et envoyé
-              automatiquement à <span className="font-medium text-ink">service@entretienpiscinegranby.com</span>.
+              automatiquement à <span className="font-medium text-ink">${BRAND.email}</span>.
             </p>
             <div className="flex items-center gap-3 mt-3">
               <button

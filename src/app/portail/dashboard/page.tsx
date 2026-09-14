@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, Suspense } from "react";
+import { BRAND } from "@/config/brand";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FileText, Calendar, CreditCard, Phone, Mail, ChevronRight, Download, CheckCircle, XCircle, MessageSquare, Send, LogOut } from "lucide-react";
 
@@ -278,7 +279,7 @@ export default function PortailDashboard() {
             <Phone size={15} /> Appeler
           </a>
           <a
-            href="mailto:service@entretienpiscinegranby.com"
+            href="mailto:${BRAND.email}"
             className="flex-1 bg-gray-100 text-gray-700 rounded-xl py-2.5 flex items-center justify-center gap-2 text-sm font-medium hover:bg-gray-200 transition"
           >
             <Mail size={15} /> Courriel

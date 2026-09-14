@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase";
+import { getAppUrl } from "@/config/brand";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 
@@ -299,7 +300,7 @@ export interface ActionOutcomes {
 }
 
 export async function executeActions(actions: AIAction[], contactId: string): Promise<ActionOutcomes> {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
+  const baseUrl = getAppUrl();
   const outcomes: ActionOutcomes = {};
 
   for (const action of actions) {

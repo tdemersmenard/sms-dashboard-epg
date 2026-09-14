@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
   const ical = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//CHLORE CRM//Entretien Piscine Granby//FR",
+    "PRODID:-//CHLORE CRM//ALTAMAR//FR",
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
     "X-WR-CALNAME:CHLORE - Piscines",

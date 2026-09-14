@@ -131,7 +131,7 @@ export async function POST(req: NextRequest) {
 
     const ctx = await getDBContext();
 
-    const systemPrompt = `Tu es l'assistant administratif de Thomas, propriétaire d'Entretien Piscine Granby.
+    const systemPrompt = `Tu es l'assistant administratif de Thomas, propriétaire d'ALTAMAR.
 Tu as accès à la base de données du CRM CHLORE et tu peux exécuter des actions.
 
 CONTEXTE ACTUEL (${new Date().toLocaleDateString("fr-CA")}):

@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
 import { NextRequest, NextResponse } from "next/server";
+import { getAppUrl } from "@/config/brand";
 import { supabaseAdmin } from "@/lib/supabase";
 import { getActiveFranchiseId } from "@/lib/franchise-context";
 
@@ -11,7 +12,7 @@ export async function POST(req: NextRequest) {
   try {
     const franchiseId = await getActiveFranchiseId();
     const { stop, day } = await req.json();
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
+    const baseUrl = getAppUrl();
 
     // Vérifier qu'on n'a pas déjà confirmé ce client (anti-doublon)
     const { data: alreadyLogged } = await supabaseAdmin

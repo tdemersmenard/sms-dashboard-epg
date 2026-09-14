@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase";
+import { getAppUrl } from "@/config/brand";
 
 /**
  * Réconciliation des fermetures Flow B (fermeture à facturer, non incluse dans un forfait).
@@ -48,7 +49,7 @@ async function notifyOwner(franchiseId: string, body: string, baseUrl: string): 
 
 export async function reconcileFermetures(franchiseId: string): Promise<string[]> {
   const out: string[] = [];
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
+  const baseUrl = getAppUrl();
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Montreal" });
 
   const { data: jobs } = await supabaseAdmin

@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase";
+import { getAppUrl } from "@/config/brand";
 import { getOwnerContactId, getFranchiseOwner } from "@/lib/automations/helpers";
 
 const ENTRETIEN_KEYWORDS = [
@@ -97,7 +98,7 @@ export async function scanCallbackLeads(franchiseId: string): Promise<string[]> 
 }
 
 export async function sendCallbackRecap(franchiseId: string): Promise<string> {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
+  const baseUrl = getAppUrl();
   const today = new Date().toISOString().split("T")[0];
 
   const franchise = await getFranchiseOwner(franchiseId);

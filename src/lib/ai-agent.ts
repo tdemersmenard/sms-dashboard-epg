@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { getAppUrl, BRAND } from "@/config/brand";
 import { supabaseAdmin } from "@/lib/supabase";
 import { parseActions, executeActions, BUYER_PROFILES } from "@/lib/ai-actions";
 
@@ -133,11 +134,11 @@ function describeDispos(map: DisposMap): string {
     .join(", ");
 }
 
-const SYSTEM_PROMPT = `Tu es CHLORE, l'assistant virtuel d'Entretien Piscine Granby. Tu gères les demandes clients par SMS de façon autonome et professionnelle.
+const SYSTEM_PROMPT = `Tu es CHLORE, l'assistant virtuel d'${BRAND.name} (${BRAND.tagline}). Tu gères les demandes clients par SMS de façon autonome et professionnelle.
 
 RÈGLE ABSOLUE: Tu VOUVOIES TOUJOURS par défaut. Utilise "vous", "votre", "vos" sauf si le client a DÉJÀ tutoyé dans un message précédent.
 
-IDENTITÉ: Tu es CHLORE, l'assistant intelligent de l'entreprise. Ne dis JAMAIS que tu es Thomas. Présente-toi comme "CHLORE, l'assistant d'Entretien Piscine Granby".
+IDENTITÉ: Tu es CHLORE, l'assistant intelligent de l'entreprise. Ne dis JAMAIS que tu es Thomas. Présente-toi comme "CHLORE, l'assistant d'${BRAND.name}".
 
 SERVICES & PRIX:
 📦 PACKAGE OUVERTURE + FERMETURE: 450$ (meilleur deal! — 299$ ouverture + 150$ fermeture, soit 50% de rabais sur la fermeture!)
@@ -158,7 +159,7 @@ STRATÉGIE DE VENTE:
 4. Faciliter la décision: "Vous dites oui, je m'occupe de tout!"
 5. Si le client hésite 2 fois → propose l'appel téléphonique. Ne pousse jamais plus de 2 fois.
 
-PAIEMENT: Interac à service@entretienpiscinegranby.com, carte de crédit via le portail client, ou cash.
+PAIEMENT: Interac à ${BRAND.email}, carte de crédit via le portail client, ou cash.
 
 DISPONIBILITÉS: L'horaire de la saison courante est fourni dans le contexte client (HORAIRE DE LA SAISON), et les créneaux exacts dans PROCHAINES DISPONIBILITÉS.
 DURÉE: Une ouverture/fermeture = ${JOB_DURATION_MIN} minutes. Buffer de ${BUFFER_MIN} minutes entre chaque RDV.
@@ -328,7 +329,7 @@ RÈGLES IMPORTANTES:
    - Client: "Ok merci!"
    - Client: "Parfait merci à vous aussi"
    Si tu as déjà dit bonne journée/soirée et que le client répond par une politesse, réponds EXACTEMENT __NO_REPLY__ et RIEN d'autre. C'est le SEUL marqueur reconnu par le système — n'écris JAMAIS de variante comme "System:", "[Fin de conversation]", "(Aucune réponse)" ou autre: tout texte différent de __NO_REPLY__ sera ENVOYÉ AU CLIENT par SMS.
-17. DÉFENDRE LE SERVICE: Tu travailles POUR Entretien Piscine Granby. Tu ne t'excuses JAMAIS pour la qualité du travail fait. Si un client se plaint ou doute:
+17. DÉFENDRE LE SERVICE: Tu travailles POUR ${BRAND.name}. Tu ne t'excuses JAMAIS pour la qualité du travail fait. Si un client se plaint ou doute:
    - NE DIS JAMAIS "je suis désolé pour cette erreur" ou "on aurait dû faire mieux" si tu ne sais pas ce qui s'est passé
    - Pose des questions pour comprendre la situation: "Pouvez-vous me décrire exactement ce que vous avez remarqué?"
    - Défends le travail: "Notre technicien suit un protocole strict à chaque visite. Il est possible que [explication technique logique]."
@@ -498,7 +499,7 @@ async function triageConversation(
       .map((m) => `${m.role === "user" ? "CLIENT" : "BOT"}: ${typeof m.content === "string" ? m.content : "[image]"}`)
       .join("\n");
 
-    const sys = `Tu es un routeur interne pour CHLORE, le bot de vente d'Entretien Piscine Granby. Analyse la conversation et réponds UNIQUEMENT avec un objet JSON valide, rien d'autre.
+    const sys = `Tu es un routeur interne pour CHLORE, le bot de vente d'${BRAND.name}. Analyse la conversation et réponds UNIQUEMENT avec un objet JSON valide, rien d'autre.
 
 Détermine 2 choses:
 
@@ -1081,7 +1082,7 @@ CONTEXTE TEMPOREL:
     // Si c'est une erreur d'overload Anthropic, envoyer un fallback au client
     if (err.status === 529 || err.status === 503 || err.status === 429) {
       try {
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sms-dashboard-epg.vercel.app";
+        const baseUrl = getAppUrl();
         await fetch(`${baseUrl}/api/sms/send`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
