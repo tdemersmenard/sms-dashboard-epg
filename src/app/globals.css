@@ -13,16 +13,16 @@ html, body {
 :root {
   color-scheme: light;
   /* ── Ligne d'eau — « eau du matin » (clair) ── */
-  --le-bg: #f4f9fa;
+  --le-bg: #f3f7fa;
   --le-sur: #ffffff;
-  --le-ink: #0c2430;
-  --le-mut: #567483;
-  --le-line: #d9e6ea;
-  --le-chip: #e9f3f5;
-  --le-acc: #0a94ad;
-  --le-acc2: #3f6ee0;
+  --le-ink: #0a1628;
+  --le-mut: #52708a;
+  --le-line: #d8e4ec;
+  --le-chip: #e7f0f5;
+  --le-acc: #0077b6;
+  --le-acc2: #7dd3de;
   --le-accink: #ffffff;
-  --le-glow: rgba(10, 148, 173, 0.14);
+  --le-glow: rgba(0, 119, 182, 0.14);
   --le-pos: #177a4c;
   --le-warn: #a15716;
   --le-neg: #bb3a44;
@@ -39,16 +39,16 @@ html, body {
 html.dark {
   color-scheme: dark;
   /* ── Ligne d'eau — « bassin de nuit » (sombre) ── */
-  --le-bg: #050f18;
-  --le-sur: #0a1b28;
-  --le-ink: #e7f3f8;
-  --le-mut: #7fa0b4;
-  --le-line: #163042;
-  --le-chip: #0f2536;
-  --le-acc: #2fd4e6;
-  --le-acc2: #6ea8ff;
-  --le-accink: #04222a;
-  --le-glow: rgba(47, 212, 230, 0.22);
+  --le-bg: #0a1628;
+  --le-sur: #10223a;
+  --le-ink: #e8f1f8;
+  --le-mut: #7e9ab3;
+  --le-line: #1c3450;
+  --le-chip: #142c47;
+  --le-acc: #7dd3de;
+  --le-acc2: #3a9fd8;
+  --le-accink: #06222e;
+  --le-glow: rgba(125, 211, 222, 0.20);
   --le-pos: #4cc98a;
   --le-warn: #e09054;
   --le-neg: #ef8087;

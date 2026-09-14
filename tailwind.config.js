@@ -18,13 +18,18 @@ module.exports = {
         pos:   "var(--le-pos)",
         warn:  "var(--le-warn)",
         neg:   "var(--le-neg)",
-        // ── Legacy (pages non migrées) — à retirer en fin de refonte
+        // ── Marque ALTAMAR (tokens directs)
+        "brand-navy":  "#0a1628",
+        "brand-ocean": "#0077b6",
+        "brand-cyan":  "#7dd3de",
+        "brand-cream": "#f5f1e8",
+        // ── Échelles legacy (portail/employé non migrés) — remappées ALTAMAR
         navy: {
-          50: "#f0f3f8", 100: "#d9e0ed", 200: "#b3c1db", 300: "#8da2c9",
-          400: "#6783b7", 500: "#4164a5", 600: "#2a4a82", 700: "#1a3461",
-          800: "#0f2241", 900: "#0a1f3f", 950: "#060f1f",
+          50: "#eef4f9", 100: "#d7e4f0", 200: "#afc9e1", 300: "#87add1",
+          400: "#5f92c2", 500: "#3d76a8", 600: "#2a5a85", 700: "#1c4062",
+          800: "#122b45", 900: "#0a1628", 950: "#060e1a",
         },
-        pool: { light: "#7dd3e8", DEFAULT: "#38b6d2", dark: "#1a8fa8" },
+        pool: { light: "#7dd3de", DEFAULT: "#0077b6", dark: "#005f92" },
       },
       fontFamily: {
         sans: ["-apple-system", "BlinkMacSystemFont", '"Segoe UI"', "Roboto", "sans-serif"],
