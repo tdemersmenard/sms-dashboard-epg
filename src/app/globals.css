@@ -28,12 +28,12 @@ html, body {
   --le-neg: #bb3a44;
 
   /* legacy (pages non migrées) */
-  --navy-900: #0a1f3f;
+  --navy-900: #0a1628;
   --navy-800: #0f2241;
   --navy-700: #1a3461;
   --navy-600: #2a4a82;
-  --pool: #38b6d2;
-  --pool-light: #7dd3e8;
+  --pool: #0077b6;
+  --pool-light: #7dd3de;
 }
 
 html.dark {

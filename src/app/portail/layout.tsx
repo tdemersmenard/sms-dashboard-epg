@@ -31,7 +31,7 @@ export default function PortailLayout({ children }: { children: React.ReactNode 
     router.push("/portail");
   };
 
-  if (isLoginPage) return <div className="min-h-screen bg-gradient-to-b from-[#0a1f3f] to-[#1a3a5c]">{children}</div>;
+  if (isLoginPage) return <div className="min-h-screen bg-gradient-to-b from-[#0a1628] to-[#1a3a5c]">{children}</div>;
   if (loading) return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
       <div className="w-8 h-8 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
@@ -49,7 +49,7 @@ export default function PortailLayout({ children }: { children: React.ReactNode 
   return (
     <div className="min-h-screen bg-gray-50 pb-20 md:pb-0">
       {/* Header */}
-      <header className="bg-[#0a1f3f] text-white sticky top-0 z-50">
+      <header className="bg-[#0a1628] text-white sticky top-0 z-50">
         <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-lg bg-blue-500 flex items-center justify-center text-sm font-bold flex-shrink-0">EP</div>
@@ -93,7 +93,7 @@ export default function PortailLayout({ children }: { children: React.ReactNode 
               <button
                 key={item.path}
                 onClick={() => router.push(item.path)}
-                className={`flex flex-col items-center gap-0.5 py-1 px-3 transition ${isActive ? "text-[#0a1f3f]" : "text-gray-400"}`}
+                className={`flex flex-col items-center gap-0.5 py-1 px-3 transition ${isActive ? "text-[#0a1628]" : "text-gray-400"}`}
               >
                 <item.icon size={20} strokeWidth={isActive ? 2.5 : 1.5} />
                 <span className="text-[10px] font-medium">{item.label}</span>

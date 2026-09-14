@@ -239,7 +239,7 @@ export default function PortailDashboard() {
       {/* Contact */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
         <div className="flex items-center gap-2 mb-3">
-          <MessageSquare size={16} className="text-[#0a1f3f]" />
+          <MessageSquare size={16} className="text-[#0a1628]" />
           <h2 className="font-semibold text-sm text-gray-900">Nous contacter</h2>
         </div>
 
@@ -263,7 +263,7 @@ export default function PortailDashboard() {
           <button
             onClick={handleSendSms}
             disabled={smsSending || !smsText.trim()}
-            className="mt-2 w-full bg-[#0a1f3f] text-white rounded-xl py-3 text-sm font-semibold flex items-center justify-center gap-2 hover:bg-[#0d2a52] disabled:opacity-40 transition"
+            className="mt-2 w-full bg-[#0a1628] text-white rounded-xl py-3 text-sm font-semibold flex items-center justify-center gap-2 hover:bg-[#0d2a52] disabled:opacity-40 transition"
           >
             <Send size={15} />
             {smsSending ? "Envoi en cours..." : "Envoyer un message"}

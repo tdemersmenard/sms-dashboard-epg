@@ -41,7 +41,7 @@ export default function EmployeLayout({ children }: { children: React.ReactNode 
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-[#0a1f3f] text-white sticky top-0 z-50">
+      <header className="bg-[#0a1628] text-white sticky top-0 z-50">
         <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <User size={16} className="text-blue-300" />

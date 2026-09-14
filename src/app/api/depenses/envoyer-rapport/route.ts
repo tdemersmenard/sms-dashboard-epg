@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
 
     const htmlBody = `
 <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;">
-  <div style="background:#0a1f3f;padding:24px;border-radius:8px 8px 0 0;">
+  <div style="background:#0a1628;padding:24px;border-radius:8px 8px 0 0;">
     <h1 style="color:white;margin:0;font-size:20px;">Rapport mensuel — ${nomMois} ${annee}</h1>
     <p style="color:#94a3b8;margin:4px 0 0;font-size:13px;">ALTAMAR</p>
   </div>

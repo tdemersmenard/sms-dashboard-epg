@@ -164,7 +164,7 @@ export default function EmployeDashboard() {
             return (
               <div key={job.id} className={`bg-white rounded-xl border p-4 transition-opacity ${done ? "opacity-40" : ""}`}>
                 <div className="flex items-start gap-3">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0 ${done ? "bg-green-500" : "bg-[#0a1f3f]"}`}>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0 ${done ? "bg-green-500" : "bg-[#0a1628]"}`}>
                     {done ? "✓" : idx + 1}
                   </div>
                   <div className="flex-1 min-w-0">

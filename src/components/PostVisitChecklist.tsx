@@ -218,7 +218,7 @@ export default function PostVisitChecklist({ clientName, clientId, jobType, onCl
               disabled={checkedCount === 0}
               style={{
                 flex: 1, padding: "12px 0", borderRadius: 10,
-                background: checkedCount === 0 ? "#ccc" : "#0a1f3f",
+                background: checkedCount === 0 ? "#ccc" : "#0a1628",
                 color: "#fff", border: "none", fontSize: 15, fontWeight: 600,
                 cursor: checkedCount === 0 ? "not-allowed" : "pointer",
               }}

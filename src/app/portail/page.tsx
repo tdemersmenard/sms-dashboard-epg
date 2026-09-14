@@ -84,7 +84,7 @@ export default function PortailLogin() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-[#0a1f3f] text-white rounded-xl py-3 text-sm font-semibold hover:bg-[#0d2a52] transition disabled:opacity-50"
+              className="w-full bg-[#0a1628] text-white rounded-xl py-3 text-sm font-semibold hover:bg-[#0d2a52] transition disabled:opacity-50"
             >
               {loading ? "Connexion..." : "Se connecter"}
             </button>

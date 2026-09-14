@@ -40,7 +40,7 @@ export default function EmployeLoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#0a1f3f] to-[#1a3a5c] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-b from-[#0a1628] to-[#1a3a5c] flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <div className="w-16 h-16 rounded-2xl bg-blue-500 flex items-center justify-center mx-auto mb-4 text-2xl font-bold text-white">EP</div>
@@ -60,7 +60,7 @@ export default function EmployeLoginPage() {
               onChange={e => setEmail(e.target.value)}
               required
               autoComplete="email"
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#0a1f3f]"
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#0a1628]"
               placeholder="vous@exemple.com"
             />
           </div>
@@ -72,14 +72,14 @@ export default function EmployeLoginPage() {
               onChange={e => setPassword(e.target.value)}
               required
               autoComplete="current-password"
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#0a1f3f]"
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#0a1628]"
               placeholder="••••••••"
             />
           </div>
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 bg-[#0a1f3f] text-white font-semibold rounded-lg hover:bg-[#0d2a55] transition disabled:opacity-50"
+            className="w-full py-3 bg-[#0a1628] text-white font-semibold rounded-lg hover:bg-[#0d2a55] transition disabled:opacity-50"
           >
             {loading ? "Connexion..." : "Se connecter"}
           </button>

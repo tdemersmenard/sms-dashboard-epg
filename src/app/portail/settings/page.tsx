@@ -115,7 +115,7 @@ export default function PortailSettingsPage() {
   };
 
   const inputClass = "w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition bg-gray-50";
-  const btnClass = "w-full bg-[#0a1f3f] text-white rounded-xl py-3 text-sm font-semibold hover:bg-[#0d2a52] disabled:opacity-50 transition";
+  const btnClass = "w-full bg-[#0a1628] text-white rounded-xl py-3 text-sm font-semibold hover:bg-[#0d2a52] disabled:opacity-50 transition";
 
   return (
     <div className="space-y-5 max-w-lg">
@@ -124,7 +124,7 @@ export default function PortailSettingsPage() {
       {/* Mes informations */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
         <div className="flex items-center gap-2 mb-5">
-          <User size={18} className="text-[#0a1f3f]" />
+          <User size={18} className="text-[#0a1628]" />
           <h2 className="font-semibold text-gray-900">Mes informations</h2>
         </div>
 
@@ -196,7 +196,7 @@ export default function PortailSettingsPage() {
       {/* Changer le mot de passe */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
         <div className="flex items-center gap-2 mb-5">
-          <Lock size={18} className="text-[#0a1f3f]" />
+          <Lock size={18} className="text-[#0a1628]" />
           <h2 className="font-semibold text-gray-900">Changer le mot de passe</h2>
         </div>
 
