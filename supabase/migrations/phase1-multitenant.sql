@@ -35,7 +35,7 @@ INSERT INTO franchises (
   franchise_fee_paid, royalty_percent, monthly_fee
 ) VALUES (
   '00000000-0000-0000-0000-000000000001',
-  'Entretien Piscine Granby',
+  'ALTAMAR',
   'Thomas Demers-Ménard',
   'thomas@chlore.ca',
   'active',

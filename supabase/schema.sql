@@ -1,6 +1,6 @@
 -- =============================================
 -- SMS Dashboard - Supabase Schema
--- Entretien Piscine Granby
+-- ALTAMAR
 -- =============================================
 
 -- Contacts table (tes leads/clients)

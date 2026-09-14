@@ -1,4 +1,4 @@
-# CHLORE — CRM Entretien Piscine Granby
+# CHLORE — CRM ALTAMAR
 
 CRM custom pour la gestion de leads, clients, rendez-vous et entretien de piscines — Granby, Québec.
 

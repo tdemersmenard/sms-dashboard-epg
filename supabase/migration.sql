@@ -249,7 +249,7 @@ $$ LANGUAGE plpgsql;
 INSERT INTO message_templates (name, body, category, variables) VALUES
 (
   'Confirmation RDV',
-  'Bonjour {{prénom}}, c''est Thomas d''Entretien Piscine Granby. Je confirme notre rendez-vous le {{date}} entre {{heure_début}} et {{heure_fin}} à votre domicile. À bientôt!',
+  'Bonjour {{prénom}}, c''est Thomas d''ALTAMAR. Je confirme notre rendez-vous le {{date}} entre {{heure_début}} et {{heure_fin}} à votre domicile. À bientôt!',
   'confirmation',
   '["{{prénom}}", "{{date}}", "{{heure_début}}", "{{heure_fin}}"]'
 ),
@@ -273,7 +273,7 @@ INSERT INTO message_templates (name, body, category, variables) VALUES
 ),
 (
   'Relance soumission',
-  'Bonjour {{prénom}}, c''est Thomas d''Entretien Piscine Granby. Je fais un suivi concernant la soumission que je vous ai envoyée. Avez-vous eu le temps d''y jeter un coup d''oeil? Les places pour la saison 2026 partent vite!',
+  'Bonjour {{prénom}}, c''est Thomas d''ALTAMAR. Je fais un suivi concernant la soumission que je vous ai envoyée. Avez-vous eu le temps d''y jeter un coup d''oeil? Les places pour la saison 2026 partent vite!',
   'relance',
   '["{{prénom}}"]'
 ),
@@ -291,7 +291,7 @@ INSERT INTO message_templates (name, body, category, variables) VALUES
 ),
 (
   'Premier contact',
-  'Bonjour {{prénom}}, c''est Thomas d''Entretien Piscine Granby! J''ai bien reçu votre demande. Je serais disponible pour discuter de vos besoins d''entretien de piscine. Quel moment vous conviendrait?',
+  'Bonjour {{prénom}}, c''est Thomas d''ALTAMAR! J''ai bien reçu votre demande. Je serais disponible pour discuter de vos besoins d''entretien de piscine. Quel moment vous conviendrait?',
   'relance',
   '["{{prénom}}"]'
 )
