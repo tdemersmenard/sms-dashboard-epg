@@ -3,6 +3,7 @@
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const docusign = require("docusign-esign") as any;
 
+import { BRAND } from "@/config/brand";
 import { supabaseAdmin } from "@/lib/supabase";
 
 export async function getDocuSignClient() {
@@ -39,7 +40,7 @@ export async function sendForSignature(
   const pdfBase64 = pdfBuffer.toString("base64");
 
   const envelope = new docusign.EnvelopeDefinition();
-  envelope.emailSubject = `Contrat ${docNumber} — Entretien Piscine Granby`;
+  envelope.emailSubject = `Contrat ${docNumber} — ${BRAND.name}`;
   envelope.emailBlurb = `Bonjour ${clientName}, veuillez signer votre contrat pour le service d'entretien de piscine. Montant: ${amount}$`;
   envelope.status = "sent";
 

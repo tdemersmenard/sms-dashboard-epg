@@ -1,3 +1,4 @@
+import { BRAND } from "@/config/brand";
 import React from "react";
 import ReactPDF from "@react-pdf/renderer";
 import {
@@ -29,7 +30,7 @@ function getPct(d: Depense, pctMap?: PctMap): number {
 const { Document, Page, Text, View, StyleSheet } = ReactPDF;
 
 // ── Palette ────────────────────────────────────────────────────────
-const NAVY      = "#0a1f3f";
+const NAVY      = "#0a1628";
 const WHITE     = "#ffffff";
 const SLATE400  = "#94a3b8";
 const GREEN     = "#16a34a";
@@ -90,8 +91,8 @@ function Header(docType: string, docSub: string) {
   });
   return React.createElement(View, { style: S.header },
     React.createElement(View, {},
-      React.createElement(Text, { style: S.headerTitle }, "ENTRETIEN PISCINE GRANBY"),
-      React.createElement(Text, { style: S.headerSub }, "Thomas Demers-Ménard — 450-994-2215 — service@entretienpiscinegranby.com"),
+      React.createElement(Text, { style: S.headerTitle }, BRAND.name.toUpperCase()),
+      React.createElement(Text, { style: S.headerSub }, `Thomas Demers-Ménard — ${BRAND.phone} — ${BRAND.email}`),
     ),
     React.createElement(View, { style: S.headerRight },
       React.createElement(Text, { style: S.headerDocType }, docType),
@@ -104,7 +105,7 @@ function Header(docType: string, docSub: string) {
 function Footer() {
   return React.createElement(View, { style: S.footer },
     React.createElement(Text, { style: S.footerText },
-      "Entretien Piscine Granby — 86 rue de Windsor, Granby QC J2H 1V4 — 450-994-2215 — service@entretienpiscinegranby.com"
+      `${BRAND.name} — ${BRAND.address} — ${BRAND.phone} — ${BRAND.email}`
     ),
   );
 }

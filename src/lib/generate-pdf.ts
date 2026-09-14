@@ -1,3 +1,4 @@
+import { BRAND, legalFooterLine } from "@/config/brand";
 import ReactPDF from "@react-pdf/renderer";
 import React from "react";
 
@@ -5,24 +6,24 @@ const { Document, Page, Text, View, StyleSheet } = ReactPDF;
 
 const styles = StyleSheet.create({
   page: { padding: 40, fontFamily: "Helvetica", fontSize: 11, color: "#333" },
-  header: { backgroundColor: "#0a1f3f", padding: 24, marginHorizontal: -40, marginTop: -40, marginBottom: 20 },
+  header: { backgroundColor: "#0a1628", padding: 24, marginHorizontal: -40, marginTop: -40, marginBottom: 20 },
   headerTitle: { color: "white", fontSize: 20, fontFamily: "Helvetica-Bold" },
   headerSub: { color: "#94a3b8", fontSize: 10, marginTop: 4 },
   docType: { color: "white", fontSize: 22, fontFamily: "Helvetica-Bold", textAlign: "right", marginTop: -30 },
   infoBar: { backgroundColor: "#f5f5f5", padding: 10, borderRadius: 4, flexDirection: "row", justifyContent: "space-between", marginBottom: 20 },
-  sectionTitle: { color: "#0a1f3f", fontSize: 12, fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 1, borderBottomWidth: 2, borderBottomColor: "#0a1f3f", paddingBottom: 4, marginBottom: 8, marginTop: 16 },
+  sectionTitle: { color: "#0a1628", fontSize: 12, fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 1, borderBottomWidth: 2, borderBottomColor: "#0a1628", paddingBottom: 4, marginBottom: 8, marginTop: 16 },
   row: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#ddd", paddingVertical: 8 },
-  tableHeader: { flexDirection: "row", backgroundColor: "#0a1f3f", paddingVertical: 8, paddingHorizontal: 12 },
+  tableHeader: { flexDirection: "row", backgroundColor: "#0a1628", paddingVertical: 8, paddingHorizontal: 12 },
   tableHeaderText: { color: "white", fontSize: 10, fontFamily: "Helvetica-Bold" },
   tableCell: { paddingVertical: 8, paddingHorizontal: 12, fontSize: 11 },
-  totalBox: { backgroundColor: "#0a1f3f", padding: 16, borderRadius: 4, marginTop: 20, alignItems: "flex-end" },
+  totalBox: { backgroundColor: "#0a1628", padding: 16, borderRadius: 4, marginTop: 20, alignItems: "flex-end" },
   totalText: { color: "white", fontSize: 20, fontFamily: "Helvetica-Bold" },
   totalLabel: { color: "#94a3b8", fontSize: 10 },
   paymentBox: { backgroundColor: "#f0f7ff", borderWidth: 1, borderColor: "#b3d4fc", borderRadius: 8, padding: 14, marginTop: 20 },
   paymentTitle: { fontFamily: "Helvetica-Bold", fontSize: 12 },
   paymentEmail: { fontSize: 14, marginTop: 6 },
   paymentTerms: { fontSize: 10, color: "#666", marginTop: 6 },
-  footer: { backgroundColor: "#0a1f3f", padding: 12, position: "absolute", bottom: 0, left: 0, right: 0 },
+  footer: { backgroundColor: "#0a1628", padding: 12, position: "absolute", bottom: 0, left: 0, right: 0 },
   footerText: { color: "#94a3b8", fontSize: 9, textAlign: "center" },
   sigSection: { flexDirection: "row", justifyContent: "space-between", marginTop: 40 },
   sigLine: { borderTopWidth: 1, borderTopColor: "#333", width: 180, paddingTop: 6 },
@@ -62,10 +63,10 @@ function InvoicePDF({ data }: { data: DocData }) {
   const isContract = data.docType === "contrat";
   const hasLineItems = !!(data.lineItems && data.lineItems.length > 0);
 
-  const companyName = data.companyName || "Entretien Piscine Granby";
-  const companyAddress = data.companyAddress || "86 rue de Windsor, Granby QC J2H 1V4";
+  const companyName = data.companyName || BRAND.name;
+  const companyAddress = data.companyAddress || BRAND.address;
   const companyPhone = data.companyPhone || "450-994-2215";
-  const companyEmail = data.companyEmail || "service@entretienpiscinegranby.com";
+  const companyEmail = data.companyEmail || BRAND.email;
   const companyOwner = data.companyOwner || "Thomas Demers-Ménard";
 
   // Pre-compute table rows
@@ -161,6 +162,7 @@ function InvoicePDF({ data }: { data: DocData }) {
     // Footer
     React.createElement(View, { style: styles.footer },
       React.createElement(Text, { style: styles.footerText }, `${companyName} — ${companyAddress} — ${companyPhone}`),
+      ...(legalFooterLine() ? [React.createElement(Text, { style: { ...styles.footerText, fontSize: 7, marginTop: 2 } }, legalFooterLine())] : []),
     ),
   ].filter(Boolean);
 
