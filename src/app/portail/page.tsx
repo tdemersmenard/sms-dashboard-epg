@@ -43,7 +43,7 @@ export default function PortailLogin() {
           <div className="w-16 h-16 rounded-2xl bg-blue-500 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-500/30">
             <Waves size={32} className="text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-white">Entretien Piscine Granby</h1>
+          <h1 className="text-2xl font-bold text-white">ALTAMAR</h1>
           <p className="text-blue-300 text-sm mt-1">Portail client</p>
         </div>
 

@@ -54,7 +54,7 @@ export default function PortailLayout({ children }: { children: React.ReactNode 
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-lg bg-blue-500 flex items-center justify-center text-sm font-bold flex-shrink-0">EP</div>
             <div>
-              <div className="font-semibold text-sm leading-tight">Entretien Piscine Granby</div>
+              <div className="font-semibold text-sm leading-tight">ALTAMAR</div>
               <div className="text-[11px] text-blue-300 leading-tight">Portail client</div>
             </div>
           </div>

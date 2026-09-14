@@ -48,7 +48,7 @@ export default function EmployeLayout({ children }: { children: React.ReactNode 
             <span className="font-semibold text-sm">{employee?.name || "Employé"}</span>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-xs text-blue-300">Entretien Piscine Granby</span>
+            <span className="text-xs text-blue-300">ALTAMAR</span>
             <button onClick={logout} className="text-gray-400 hover:text-red-300 transition p-1">
               <LogOut size={16} />
             </button>

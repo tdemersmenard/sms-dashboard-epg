@@ -78,7 +78,7 @@ function LoginForm() {
     <div className="bg-sur border border-line rounded-2xl p-8 w-full max-w-md">
       <div className="text-center mb-8">
         <p className="text-3xl font-bold font-display text-ink">CHLORE<span className="text-acc">.</span></p>
-        <p className="text-sm text-mut mt-1">Entretien Piscine Granby</p>
+        <p className="text-sm text-mut mt-1">ALTAMAR — Entretien piscine et spa</p>
       </div>
 
       {step === "credentials" ? (

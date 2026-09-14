@@ -1,11 +1,11 @@
 {
-  "name": "CHLORE — Entretien Piscine Granby",
+  "name": "CHLORE — ALTAMAR",
   "short_name": "CHLORE",
   "description": "CRM pour la gestion des clients et opérations",
   "start_url": "/dashboard",
   "display": "standalone",
-  "background_color": "#0a1f3f",
-  "theme_color": "#0a1f3f",
+  "background_color": "#0a1628",
+  "theme_color": "#0a1628",
   "orientation": "portrait",
   "icons": [
     {

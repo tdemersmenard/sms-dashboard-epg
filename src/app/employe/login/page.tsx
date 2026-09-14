@@ -45,7 +45,7 @@ export default function EmployeLoginPage() {
         <div className="text-center mb-8">
           <div className="w-16 h-16 rounded-2xl bg-blue-500 flex items-center justify-center mx-auto mb-4 text-2xl font-bold text-white">EP</div>
           <h1 className="text-white text-2xl font-bold">Espace employé</h1>
-          <p className="text-blue-300 text-sm mt-1">Entretien Piscine Granby</p>
+          <p className="text-blue-300 text-sm mt-1">ALTAMAR</p>
         </div>
 
         <form onSubmit={handleSubmit} className="bg-white rounded-2xl p-6 shadow-xl space-y-4">
