@@ -68,16 +68,24 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 3. Créer un nouveau contact si aucun trouvé
+    // 3. Créer un nouveau contact si aucun trouvé — LEAD ENTRANT DIRECT
+    // (quelqu'un à qui on a donné le numéro texte pour la première fois)
+    let isNewDirectLead = false;
     if (!contact) {
       const { data: newContact, error: createError } = await supabaseAdmin
         .from("contacts")
-        .insert({ phone: normalizedFrom, franchise_id: franchiseId })
+        .insert({
+          phone: normalizedFrom,
+          franchise_id: franchiseId,
+          lead_source: "sms_direct",
+          stage: "nouveau",
+        })
         .select("id")
         .single();
 
       if (createError) throw createError;
       contact = newContact;
+      isNewDirectLead = true;
     }
 
     // ─── SAVE INBOUND MESSAGE ─────────────────────────────────────────────────
@@ -98,6 +106,40 @@ export async function POST(request: NextRequest) {
         return new NextResponse(EMPTY_TWIML, { headers: { "Content-Type": "text/xml" } });
       }
       throw msgError;
+    }
+
+    // ─── NOUVEAU LEAD ENTRANT: avertir le propriétaire (non bloquant) ────────
+    if (isNewDirectLead) {
+      (async () => {
+        try {
+          const { data: fr } = await supabaseAdmin
+            .from("franchises").select("owner_phone").eq("id", franchiseId).single();
+          if (!fr?.owner_phone) return;
+          const { data: owner } = await supabaseAdmin
+            .from("contacts").select("id")
+            .eq("phone", fr.owner_phone).eq("franchise_id", franchiseId).maybeSingle();
+          if (!owner) return;
+          const preview = (body || "[Photo]").slice(0, 120);
+          const { getAppUrl } = await import("@/config/brand");
+          await fetch(`${getAppUrl()}/api/sms/send`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contactId: owner.id,
+              body: `CHLORE 🆕 Nouveau lead entrant par SMS: ${normalizedFrom}\n1er message: « ${preview} »\nLe bot s'en occupe — il est dans tes conversations et au pipeline.`,
+            }),
+          });
+          await supabaseAdmin.from("automation_logs").insert({
+            action: "new_direct_lead_notify",
+            contact_id: contact!.id,
+            status: "success",
+            details: { phone: normalizedFrom, preview },
+            franchise_id: franchiseId,
+          });
+        } catch (e) {
+          console.error("[webhook] new lead notify error:", e);
+        }
+      })();
     }
 
     // ─── PHOTOS ───────────────────────────────────────────────────────────────
