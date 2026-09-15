@@ -209,8 +209,11 @@ export async function POST(req: NextRequest) {
 
     } else if (entries.length > 0) {
       // ── FACEBOOK NATIVE FORMAT ──
-      // These leads have no phone — they need to be fetched via Facebook API.
-      // Assign to Granby by default for now.
+      // Fetch complet via l'API Graph puis traitement Saison 2027 (prix, dépôt,
+      // SMS routés par readiness). Fallback: contact minimal si le fetch échoue.
+      const { fetchMetaLead, processSaison2027Lead } = await import("@/lib/meta-saison-2027");
+      const allLogs: string[] = [];
+
       for (const entry of entries) {
         const changes = entry?.changes ?? [];
         for (const change of changes) {
@@ -218,17 +221,51 @@ export async function POST(req: NextRequest) {
           const leadgenId = change.value?.leadgen_id ?? entry?.id ?? "unknown";
           console.log("[fb-webhook] leadgen received:", leadgenId);
 
-          await supabaseAdmin.from("contacts").insert({
-            first_name: "Lead Facebook",
-            last_name: leadgenId.slice(0, 8),
-            phone: null,
-            stage: "nouveau",
-            lead_source: "facebook",
-            franchise_id: GRANBY_FRANCHISE_ID,
+          // Anti-doublon (Meta retry le webhook)
+          const { data: dup } = await supabaseAdmin
+            .from("automation_logs").select("id")
+            .eq("action", "meta_leadgen_received").contains("details", { leadgen_id: leadgenId }).limit(1);
+          if (dup && dup.length) { allLogs.push(`${leadgenId}: déjà traité, skip`); continue; }
+          await supabaseAdmin.from("automation_logs").insert({
+            action: "meta_leadgen_received", status: "success",
+            details: { leadgen_id: leadgenId }, franchise_id: GRANBY_FRANCHISE_ID,
           });
+
+          const lead = await fetchMetaLead(leadgenId);
+          if (lead) {
+            const logs = await processSaison2027Lead(lead.fields, lead.attribution, GRANBY_FRANCHISE_ID);
+            console.log(`[fb-webhook] lead ${leadgenId}:\n  ` + logs.join("\n  "));
+            allLogs.push(...logs);
+          } else {
+            // Fetch Graph impossible (token manquant/expiré) — contact minimal + alerte
+            await supabaseAdmin.from("contacts").insert({
+              first_name: "Lead Facebook",
+              last_name: leadgenId.slice(0, 8),
+              phone: null,
+              stage: "nouveau",
+              lead_source: "meta_saison_2027",
+              notes: `⚠️ Fetch Graph API échoué pour leadgen ${leadgenId} — récupérer manuellement dans Meta Ads Manager (vérifier META_PAGE_ACCESS_TOKEN).`,
+              franchise_id: GRANBY_FRANCHISE_ID,
+            });
+            allLogs.push(`${leadgenId}: ❌ fetch Graph échoué — contact minimal créé + à récupérer manuellement`);
+            try {
+              const { data: fr } = await supabaseAdmin.from("franchises").select("owner_phone").eq("id", GRANBY_FRANCHISE_ID).single();
+              const { data: owner } = fr?.owner_phone
+                ? await supabaseAdmin.from("contacts").select("id").eq("phone", fr.owner_phone).eq("franchise_id", GRANBY_FRANCHISE_ID).maybeSingle()
+                : { data: null };
+              if (owner) {
+                const baseUrl = process.env.NEXT_PUBLIC_APP_URL || `https://${req.headers.get("host")}`;
+                await fetch(`${baseUrl}/api/sms/send`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ contactId: owner.id, body: `CHLORE ⚠️ Lead Meta 2027 reçu mais IMPOSSIBLE de récupérer ses infos (token Graph?). Leadgen ${leadgenId} — va le chercher dans Meta Ads Manager.` }),
+                });
+              }
+            } catch {}
+          }
         }
       }
-      return NextResponse.json({ ok: true });
+      return NextResponse.json({ ok: true, logs: allLogs });
 
     } else {
       return NextResponse.json({ error: "Unknown payload format" }, { status: 400 });

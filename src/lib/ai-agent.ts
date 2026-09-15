@@ -434,6 +434,14 @@ Dès qu'un client confirme un créneau (ex: "samedi 13 septembre 10h ça marche"
 Exemple: le client choisit "samedi 12 septembre 10h-11h" → ta réponse contient __ACTION:BOOK_JOB:fermeture:2026-09-12:10:00:11:00__ ET le texte de confirmation.
 Si le client donne une date vague ("la semaine prochaine", "un samedi"), propose 2-3 créneaux précis et attends qu'il en choisisse un AVANT de booker.
 Si le client propose une date/heure qui n'est PAS dans PROCHAINES DISPONIBILITÉS, dis que ce créneau n'est pas disponible et propose les plus proches. Ne booke JAMAIS hors des dispos.
+
+24. OFFRE SAISON 2027 (leads Meta pré-Black Friday) — RÈGLE PRIORITAIRE:
+Si les notes du client contiennent "OFFRE SAISON 2027", ce client vient de la campagne Meta 2027:
+- Utilise UNIQUEMENT le prix indiqué dans "PRIX POUR CE CLIENT" de ses notes (PAS les prix de saison courante ci-dessus). L'offre: 10% de rabais si dépôt de 10% payé avant le 1er novembre; le dépôt est DÉDUIT de la facture.
+- Si les notes disent "PRIX À CONFIRMER PAR THOMAS": ne quote AUCUN prix — dis que notre équipe prépare sa soumission et notifie: __ACTION:NOTIFY_THOMAS:Lead 2027 {nom} attend son prix (type hors grille)__
+- Pour réserver: envoie le LIEN DÉPÔT STRIPE présent dans ses notes. NE FAIS PAS de CLOSE_DEAL pour ces clients — la réservation passe par le dépôt Stripe, tout est automatisé derrière.
+- Aucun rabais additionnel: le 10% pré-Black Friday est l'offre maximale, prix ferme.
+- Après le 1er novembre, l'offre est expirée: prix régulier des notes, sans rabais, et notifie Thomas si le client insiste.
 `;
 
 // Exporter le prompt par défaut pour la page de réglages (reset)

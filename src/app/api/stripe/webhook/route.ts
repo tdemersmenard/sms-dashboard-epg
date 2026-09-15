@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
 
         if (contactId) {
           const [{ data: contact }, { data: payment }] = await Promise.all([
-            supabaseAdmin.from("contacts").select("first_name, last_name").eq("id", contactId).single(),
+            supabaseAdmin.from("contacts").select("first_name, last_name, notes, franchise_id").eq("id", contactId).single(),
             supabaseAdmin.from("payments").select("amount").eq("id", paymentId).single(),
           ]);
 
@@ -49,21 +49,55 @@ export async function POST(req: NextRequest) {
             ? [contact.first_name, contact.last_name].filter(Boolean).join(" ")
             : "Client";
 
-          const { data: thomas } = await supabaseAdmin
-            .from("contacts")
-            .select("id")
-            .eq("phone", "+14509942215")
-            .single();
+          const isDeposit2027 = (existingPayment?.notes ?? "").includes("Dépôt saison 2027");
+          const baseUrl = getAppUrl();
 
-          if (thomas) {
-            const baseUrl = getAppUrl();
+          // Notification au propriétaire de la franchise du contact
+          const franchiseId = contact?.franchise_id ?? "00000000-0000-0000-0000-000000000001";
+          const { data: fr } = await supabaseAdmin.from("franchises").select("owner_phone").eq("id", franchiseId).single();
+          const { data: owner } = fr?.owner_phone
+            ? await supabaseAdmin.from("contacts").select("id").eq("phone", fr.owner_phone).eq("franchise_id", franchiseId).maybeSingle()
+            : { data: null };
+
+          if (owner) {
             await fetch(`${baseUrl}/api/sms/send`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
-                contactId: thomas.id,
-                body: `CHLORE: Paiement Stripe reçu! ${clientName} a payé ${payment?.amount ?? "?"}$ par carte de crédit.`,
+                contactId: owner.id,
+                body: isDeposit2027
+                  ? `💰 DÉPÔT REÇU — ${clientName} vient de payer son dépôt de ${payment?.amount ?? "?"}$ pour la saison 2027. RÉSERVÉ ✅`
+                  : `CHLORE: Paiement Stripe reçu! ${clientName} a payé ${payment?.amount ?? "?"}$ par carte de crédit.`,
               }),
+            });
+          }
+
+          // Dépôt saison 2027: marquer RÉSERVÉ + confirmer au client + désamorcer les relances
+          if (isDeposit2027) {
+            const cleanedNotes = (contact?.notes ?? "")
+              .split("\n")
+              .filter((l: string) => !l.startsWith("RELANCE_PREVUE:"))
+              .join("\n");
+            await supabaseAdmin.from("contacts").update({
+              stage: "closé",
+              notes: `${cleanedNotes}\n✅ RÉSERVÉ 2027 — dépôt ${payment?.amount ?? "?"}$ reçu le ${new Date().toLocaleDateString("en-CA", { timeZone: "America/Montreal" })} (sera déduit de la facture). Rabais 10% acquis.`.trim(),
+            }).eq("id", contactId);
+
+            await fetch(`${baseUrl}/api/sms/send`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                contactId,
+                body: `🌊 C'est officiel${contact?.first_name ? " " + contact.first_name : ""} — votre saison 2027 est RÉSERVÉE! Votre dépôt de ${payment?.amount ?? "?"}$ est confirmé et sera déduit de votre facture, et votre rabais de 10% est bloqué. On vous recontacte au printemps pour planifier l'ouverture. Merci de votre confiance! — ALTAMAR`,
+              }),
+            });
+
+            await supabaseAdmin.from("automation_logs").insert({
+              action: "saison_2027_reserve",
+              contact_id: contactId,
+              status: "success",
+              details: { amount: payment?.amount, payment_id: paymentId },
+              franchise_id: franchiseId,
             });
           }
         }
