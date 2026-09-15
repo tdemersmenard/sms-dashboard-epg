@@ -267,15 +267,15 @@ export async function processSaison2027Lead(
   log.push(thomasOk ? "✅ SMS Thomas envoyé" : "⚠️ SMS Thomas non envoyé (owner_phone/contact manquant)");
 
   // ── SMS d'ouverture au lead, routé selon Q2 ──
-  const prenom = fields.firstName ? ` ${fields.firstName.trim()}` : "";
+  const rawFirst = (fields.firstName || "").trim().split(/\s+/)[0];
+  const prenom = rawFirst ? ` ${rawFirst.charAt(0).toUpperCase()}${rawFirst.slice(1).toLowerCase()}` : "";
   const priceLine = pricing
     ? `l'entretien saisonnier 2027 pour une piscine ${pool.label} est à ${pricing.fullPrice}$, mais avec notre offre pré-Black Friday c'est ${pricing.finalPrice}$ (10% de rabais) si vous réservez avec un dépôt de ${pricing.deposit}$ avant le 1er novembre — et le dépôt est déduit de votre facture`
     : `pour votre ${pool.label}, on prépare une soumission personnalisée — notre équipe vous revient très vite avec le prix exact (l'offre de 10% de rabais s'applique aussi)`;
 
   const openers: Record<string, string[]> = {
     cette_semaine: [
-      `Bonjour${prenom}! Je suis CHLORE, l'assistant d'${BRAND.name} 🌊 Merci pour votre demande — vous êtes prêt à réserver, excellente nouvelle: ${priceLine}.`,
-      ...(depositUrl ? [`Voici votre lien sécurisé pour le dépôt de ${pricing!.deposit}$ et bloquer votre rabais: ${depositUrl}\nDès le paiement reçu, votre saison 2027 est réservée! Des questions? Je suis là.`] : []),
+      `Bonjour${prenom}! Je suis CHLORE, l'assistant d'${BRAND.name} 🌊 Merci pour votre demande! Bonne nouvelle: ${priceLine}. Voulez-vous que je vous réserve votre place pour 2027?`,
     ],
     veut_prix: [
       `Bonjour${prenom}! Je suis CHLORE, l'assistant d'${BRAND.name} 🌊 Merci pour votre demande — voici le prix, en toute transparence: ${priceLine}. Ça inclut l'ouverture au printemps, les visites régulières (aspiration, brossage, paniers, tests et balancement de l'eau — produits de balancement inclus) et la fermeture à l'automne. Voulez-vous que je vous réserve votre place?`,
