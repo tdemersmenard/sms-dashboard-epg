@@ -80,6 +80,39 @@ export async function POST(req: NextRequest) {
 
     if (isMakeFormat) {
       // ── MAKE.COM FORMAT ──
+      // Campagne Saison 2027: si le scénario Make envoie les réponses du form
+      // (type de piscine + readiness), tout le pipeline 2027 se déclenche
+      // (prix, dépôt Stripe, SMS routés, relances). Sinon: flux classique.
+      const poolTypeRaw = body.pool_type || body.type_piscine || body.q1 || null;
+      const readinessRaw = body.readiness || body.quand || body.q2 || null;
+      const is2027 = !!(body.campaign_2027 || poolTypeRaw || readinessRaw);
+
+      if (is2027 && body.phone) {
+        const { processSaison2027Lead } = await import("@/lib/meta-saison-2027");
+        const franchiseId2027 = await resolveFranchiseId(body);
+        const logs = await processSaison2027Lead(
+          {
+            firstName: body.first_name || (body.name ? String(body.name).trim().split(" ")[0] : null),
+            phone: String(body.phone),
+            city: body.city || body.ville || null,
+            poolTypeRaw: String(poolTypeRaw || ""),
+            readinessRaw: String(readinessRaw || ""),
+          },
+          {
+            leadgen_id: String(body.leadgen_id || body.lead_id || `make-${Date.now()}`),
+            ad_id: body.ad_id ? String(body.ad_id) : null,
+            adset_id: body.adset_id ? String(body.adset_id) : null,
+            campaign_id: body.campaign_id ? String(body.campaign_id) : null,
+            form_id: body.form_id ? String(body.form_id) : null,
+            ad_name: body.ad_name ? String(body.ad_name) : null,
+            campaign_name: body.campaign_name ? String(body.campaign_name) : null,
+          },
+          franchiseId2027,
+        );
+        console.log("[leads webhook] Make → pipeline 2027:\n  " + logs.join("\n  "));
+        return NextResponse.json({ success: true, pipeline: "saison_2027", logs });
+      }
+
       let firstName = body.first_name || null;
       let lastName = body.last_name || null;
       const rawPhone = body.phone || null;
