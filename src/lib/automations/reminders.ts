@@ -119,7 +119,7 @@ export async function sendJobReminders(franchiseId: string) {
 
     const name = contact.first_name || "Bonjour";
 
-    await sendSMS(job.contact_id, `Salut ${name}! On est en route pour ta ${job.job_type} de piscine prévue à ${job.scheduled_time_start.slice(0, 5)}. À tantôt! 🌊`);
+    await sendSMS(job.contact_id, `Salut ${name}! On est en route pour ta ${job.job_type} de piscine prévue à ${job.scheduled_time_start.slice(0, 5)}. À tout de suite! 🌊`);
     await logAction(actionKey, job.contact_id, franchiseId);
     results.push(`Rappel 1h: ${name} pour ${job.job_type} à ${job.scheduled_time_start}`);
   }

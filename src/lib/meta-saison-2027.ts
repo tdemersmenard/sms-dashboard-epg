@@ -182,10 +182,10 @@ export async function processSaison2027Lead(
     `Attribution Meta: campagne "${attribution.campaign_name ?? attribution.campaign_id ?? "?"}", ad "${attribution.ad_name ?? attribution.ad_id ?? "?"}" (ad_id ${attribution.ad_id ?? "?"}, adset ${attribution.adset_id ?? "?"}, form ${attribution.form_id ?? "?"}, leadgen ${attribution.leadgen_id})`,
   ];
   if (readiness === "veut_prix") {
-    noteLines.push(`RELANCE_PREVUE:${daysFromNow(2)}:As-tu eu le temps d'y penser pour ta saison 2027? ${pricing ? `Le ${pricing.finalPrice}$ (-10%) tient toujours jusqu'au 1er novembre.` : "Je te sors ton prix dès que tu veux."} Une question, peut-être?`);
+    noteLines.push(`RELANCE_PREVUE:${daysFromNow(2)}:As-tu eu le temps d'y réfléchir pour ta saison 2027? ${pricing ? `Le ${pricing.finalPrice}$ (-10%) est encore valide jusqu'au 1er novembre.` : "Je te prépare ton prix dès que tu veux."} Une question, peut-être?`);
   } else if (readiness === "magasine") {
-    noteLines.push(`RELANCE_PREVUE:${daysFromNow(5)}:Toujours en train de comparer pour 2027? Prends ton temps 🌊 Si t'as des questions sur ce qui est inclus, je suis là.`);
-    noteLines.push(`RELANCE_PREVUE:${RELANCE_J3_DEADLINE}:Petit heads-up: le -10% pour la saison 2027 finit dans 3 jours (1er novembre). Après ça, prix régulier. Veux-tu que je te garde ta place?`);
+    noteLines.push(`RELANCE_PREVUE:${daysFromNow(5)}:Toujours en train de comparer pour 2027? Prends ton temps — si tu as des questions sur ce qui est inclus, je suis là.`);
+    noteLines.push(`RELANCE_PREVUE:${RELANCE_J3_DEADLINE}:Petit rappel: le rabais de 10% pour la saison 2027 se termine dans 3 jours (1er novembre). Après, c'est le prix régulier. Veux-tu que je te réserve ta place?`);
   }
 
   // ── Contact: find-or-create (même logique que le reste du système) ──
@@ -270,18 +270,18 @@ export async function processSaison2027Lead(
   const rawFirst = (fields.firstName || "").trim().split(/\s+/)[0];
   const prenom = rawFirst ? ` ${rawFirst.charAt(0).toUpperCase()}${rawFirst.slice(1).toLowerCase()}` : "";
   const stackLine = pricing
-    ? `Pour ta ${pool.label}: la saison 2027 complète est à ${pricing.fullPrice}$ — visite chaque semaine de mai à octobre, produits de balancement inclus, ouverture pis fermeture comprises. Rien d'autre à payer.`
+    ? `Pour ta ${pool.label}: la saison 2027 complète est à ${pricing.fullPrice}$ — visite chaque semaine de mai à octobre, produits de balancement inclus, ouverture et fermeture comprises. Rien d'autre à payer.`
     : `Pour ta ${pool.label}, on te prépare un prix sur mesure — l'équipe te revient très vite (le -10% s'applique aussi).`;
   const offerLine = pricing
-    ? `Pis t'arrives au bon moment: avant le 1er novembre c'est ${pricing.finalPrice}$ (-10%) avec un dépôt de ${pricing.deposit}$ qui est déduit de ta facture.`
+    ? `Et tu arrives au bon moment: avant le 1er novembre c'est ${pricing.finalPrice}$ (-10%) avec un dépôt de ${pricing.deposit}$ qui est déduit de ta facture.`
     : `Et le rabais de 10% avant le 1er novembre s'applique aussi à ta soumission.`;
 
   const openers: Record<string, string[]> = {
     cette_semaine: [
       `Salut${prenom}! C'est l'équipe ${BRAND.name} 🌊 ${stackLine}`,
       ...(pricing && depositUrl
-        ? [`${offerLine} Vu que t'es prêt à réserver, voici ton lien sécurisé pour le dépôt de ${pricing.deposit}$: ${depositUrl}`]
-        : [`${offerLine} Dis-moi quand t'es prêt pis je te réserve ta place!`]),
+        ? [`${offerLine} Comme tu es prêt à réserver, voici ton lien sécurisé pour le dépôt de ${pricing.deposit}$: ${depositUrl}`]
+        : [`${offerLine} Dis-moi quand tu es prêt et je te réserve ta place!`]),
     ],
     veut_prix: [
       `Salut${prenom}! C'est l'équipe ${BRAND.name} 🌊 ${stackLine}`,
