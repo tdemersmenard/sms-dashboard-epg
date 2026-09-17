@@ -19,9 +19,9 @@ export async function sendFollowUps(franchiseId: string): Promise<string[]> {
 
   const MESSAGES: Record<1 | 2, (name: string) => string> = {
     1: (name: string) =>
-      `Bonjour ${name}! C'est ${franchiseName}. Je voulais juste faire un suivi — avez-vous eu le temps de réfléchir pour votre piscine? N'hésitez pas si vous avez des questions, on est là pour vous!`,
+      `Salut ${name}! C'est l'équipe ${franchiseName} 🌊 As-tu eu le temps d'y penser pour ta piscine? Une question, peut-être?`,
     2: (name: string) =>
-      `Bonjour ${name}! Dernier petit suivi de notre part. La saison d'ouverture bat son plein et nos plages horaires se remplissent vite. Si vous êtes toujours intéressé(e), on peut vous réserver une place rapidement. Sinon, pas de souci du tout — on reste disponible si vous changez d'avis! Bonne journée!`,
+      `Salut ${name}! Dernier petit suivi — nos places se remplissent vite. Toujours intéressé? Sinon aucun souci, on reste là si tu changes d'idée.`,
   };
 
   // Leads dans la liste de rappel téléphonique — le bot n'envoie pas de relance SMS pour ces contacts
@@ -71,7 +71,7 @@ export async function sendFollowUps(franchiseId: string): Promise<string[]> {
 
     // Générer un message personnalisé basé sur le contexte
     const firstName = contact.first_name || "";
-    const message = `Bonjour ${firstName}! C'est CHLORE de ${franchiseName}. Je fais un petit suivi comme convenu — ${relanceContext}. Est-ce que vous êtes prêt(e) à aller de l'avant? N'hésitez pas si vous avez des questions!`;
+    const message = `Salut ${firstName}! C'est l'équipe ${franchiseName} 🌊 ${relanceContext}`;
 
     try {
       await fetch(`${baseUrl}/api/sms/send`, {

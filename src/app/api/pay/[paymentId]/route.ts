@@ -29,7 +29,7 @@ export async function GET(req: NextRequest, { params }: { params: { paymentId: s
     return new NextResponse(
       `<html><body style="font-family:sans-serif;text-align:center;padding:60px 20px;background:#f3f7fa">
         <h2 style="color:#0a1628">🌊 Merci — paiement complété!</h2>
-        <p style="color:#52708a">Votre confirmation s'en vient par texto. Bienvenue chez ${BRAND.name}!</p>
+        <p style="color:#52708a">Ta confirmation s'en vient par texto. Bienvenue chez ${BRAND.name}! 🌊</p>
       </body></html>`,
       { headers: { "Content-Type": "text/html; charset=utf-8" } },
     );
@@ -39,7 +39,7 @@ export async function GET(req: NextRequest, { params }: { params: { paymentId: s
     return new NextResponse(
       `<html><body style="font-family:sans-serif;text-align:center;padding:60px 20px;background:#f3f7fa">
         <h2 style="color:#0a1628">✅ Déjà payé — merci!</h2>
-        <p style="color:#52708a">Ce paiement a déjà été reçu. Votre place est réservée.</p>
+        <p style="color:#52708a">Ce paiement a déjà été reçu. Ta place est réservée 🌊</p>
       </body></html>`,
       { headers: { "Content-Type": "text/html; charset=utf-8" } },
     );

@@ -182,10 +182,10 @@ export async function processSaison2027Lead(
     `Attribution Meta: campagne "${attribution.campaign_name ?? attribution.campaign_id ?? "?"}", ad "${attribution.ad_name ?? attribution.ad_id ?? "?"}" (ad_id ${attribution.ad_id ?? "?"}, adset ${attribution.adset_id ?? "?"}, form ${attribution.form_id ?? "?"}, leadgen ${attribution.leadgen_id})`,
   ];
   if (readiness === "veut_prix") {
-    noteLines.push(`RELANCE_PREVUE:${daysFromNow(2)}:vous m'aviez demandé le prix pour l'entretien saison 2027 (${pricing ? pricing.finalPrice + "$ avec le rabais pré-Black Friday" : "soumission"}) — l'offre de 10% se termine le 1er novembre`);
+    noteLines.push(`RELANCE_PREVUE:${daysFromNow(2)}:As-tu eu le temps d'y penser pour ta saison 2027? ${pricing ? `Le ${pricing.finalPrice}$ (-10%) tient toujours jusqu'au 1er novembre.` : "Je te sors ton prix dès que tu veux."} Une question, peut-être?`);
   } else if (readiness === "magasine") {
-    noteLines.push(`RELANCE_PREVUE:${daysFromNow(5)}:vous magasiniez pour l'entretien de piscine saison 2027 — sans pression, je reste disponible pour vos questions`);
-    noteLines.push(`RELANCE_PREVUE:${RELANCE_J3_DEADLINE}:dernier rappel amical — l'offre de 10% de rabais sur la saison 2027 se termine dans 3 jours (1er novembre)`);
+    noteLines.push(`RELANCE_PREVUE:${daysFromNow(5)}:Toujours en train de comparer pour 2027? Prends ton temps 🌊 Si t'as des questions sur ce qui est inclus, je suis là.`);
+    noteLines.push(`RELANCE_PREVUE:${RELANCE_J3_DEADLINE}:Petit heads-up: le -10% pour la saison 2027 finit dans 3 jours (1er novembre). Après ça, prix régulier. Veux-tu que je te garde ta place?`);
   }
 
   // ── Contact: find-or-create (même logique que le reste du système) ──
@@ -269,26 +269,34 @@ export async function processSaison2027Lead(
   // ── SMS d'ouverture au lead, routé selon Q2 ──
   const rawFirst = (fields.firstName || "").trim().split(/\s+/)[0];
   const prenom = rawFirst ? ` ${rawFirst.charAt(0).toUpperCase()}${rawFirst.slice(1).toLowerCase()}` : "";
-  const priceLine = pricing
-    ? `l'entretien saisonnier 2027 pour une piscine ${pool.label} est à ${pricing.fullPrice}$, mais avec notre offre pré-Black Friday c'est ${pricing.finalPrice}$ (10% de rabais) si vous réservez avec un dépôt de ${pricing.deposit}$ avant le 1er novembre — et le dépôt est déduit de votre facture`
-    : `pour votre ${pool.label}, on prépare une soumission personnalisée — notre équipe vous revient très vite avec le prix exact (l'offre de 10% de rabais s'applique aussi)`;
+  const stackLine = pricing
+    ? `Pour ta ${pool.label}: la saison 2027 complète est à ${pricing.fullPrice}$ — visite chaque semaine de mai à octobre, produits de balancement inclus, ouverture pis fermeture comprises. Rien d'autre à payer.`
+    : `Pour ta ${pool.label}, on te prépare un prix sur mesure — l'équipe te revient très vite (le -10% s'applique aussi).`;
+  const offerLine = pricing
+    ? `Pis t'arrives au bon moment: avant le 1er novembre c'est ${pricing.finalPrice}$ (-10%) avec un dépôt de ${pricing.deposit}$ qui est déduit de ta facture.`
+    : `Et le rabais de 10% avant le 1er novembre s'applique aussi à ta soumission.`;
 
   const openers: Record<string, string[]> = {
     cette_semaine: [
-      `Bonjour${prenom}! Je suis CHLORE, l'assistant d'${BRAND.name} 🌊 Merci pour votre demande! Bonne nouvelle: ${priceLine}. Voulez-vous que je vous réserve votre place pour 2027?`,
+      `Salut${prenom}! C'est l'équipe ${BRAND.name} 🌊 ${stackLine}`,
+      ...(pricing && depositUrl
+        ? [`${offerLine} Vu que t'es prêt à réserver, voici ton lien sécurisé pour le dépôt de ${pricing.deposit}$: ${depositUrl}`]
+        : [`${offerLine} Dis-moi quand t'es prêt pis je te réserve ta place!`]),
     ],
     veut_prix: [
-      `Bonjour${prenom}! Je suis CHLORE, l'assistant d'${BRAND.name} 🌊 Merci pour votre demande — voici le prix, en toute transparence: ${priceLine}. Ça inclut l'ouverture au printemps, les visites régulières (aspiration, brossage, paniers, tests et balancement de l'eau — produits de balancement inclus) et la fermeture à l'automne. Voulez-vous que je vous réserve votre place?`,
+      `Salut${prenom}! C'est l'équipe ${BRAND.name} 🌊 ${stackLine}`,
+      `${offerLine} Petite question pour préparer ton dossier: en ce moment, tu l'entretiens toi-même ou t'avais quelqu'un?`,
     ],
     magasine: [
-      `Bonjour${prenom}! Je suis CHLORE, l'assistant d'${BRAND.name} 🌊 Merci de votre intérêt! Chez nous, pas de cachette sur les prix: ${priceLine}. Prenez le temps de comparer — je suis là si vous avez des questions, sans aucune pression. 😊`,
+      `Salut${prenom}! C'est l'équipe ${BRAND.name} 🌊 ${stackLine}`,
+      `${offerLine} Prends le temps de comparer — pas de pression. Petite question en passant: en ce moment, tu l'entretiens toi-même ou t'avais quelqu'un?`,
     ],
   };
 
   for (const msg of openers[readiness]) {
     const ok = await sendSMS(contact.id, msg);
     log.push(`${ok ? "✅ SMS lead envoyé" : "⚠️ SMS lead non parti (Twilio)"} (${readiness}) — contenu: « ${msg} »`);
-    await new Promise((r) => setTimeout(r, 1200));
+    await new Promise((r) => setTimeout(r, 4000));
   }
   if (readiness === "veut_prix") log.push(`✅ relance programmée J+2 (${daysFromNow(2)})`);
   if (readiness === "magasine") log.push(`✅ relances programmées J+5 (${daysFromNow(5)}) et ${RELANCE_J3_DEADLINE} (J-3 deadline)`);

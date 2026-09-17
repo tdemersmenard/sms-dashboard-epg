@@ -431,7 +431,7 @@ export async function executeActions(actions: AIAction[], contactId: string): Pr
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 contactId,
-                body: `Oh! Ce créneau vient tout juste d'être réservé par un autre client. Dites-moi quelles autres disponibilités vous conviendraient et je vous propose de nouveaux créneaux!`,
+                body: `Oups — ce créneau vient juste d'être pris par un autre client. Dis-moi tes autres disponibilités pis je te propose de nouveaux créneaux!`,
               }),
             }).catch(e => console.error("[ai-actions] BOOK_JOB conflict SMS error:", e));
           };
@@ -1158,7 +1158,7 @@ export async function executeActions(actions: AIAction[], contactId: string): Pr
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                   contactId,
-                  body: `Votre portail client est prêt! Connectez-vous sur ${baseUrl}/portail avec:\nEmail: ${contact.email}\nMot de passe: ${tempPassword}\n\nVous pourrez y voir vos rendez-vous et paiements.`,
+                  body: `Ton portail client est prêt 🌊 Connecte-toi sur ${baseUrl}/portail avec:\nEmail: ${contact.email}\nMot de passe: ${tempPassword}\n\nTu y verras tes rendez-vous pis tes paiements.`,
                 }),
               });
 

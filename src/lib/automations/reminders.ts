@@ -78,7 +78,7 @@ export async function sendJobReminders(franchiseId: string) {
     const heure = job.scheduled_time_start ? ` à ${job.scheduled_time_start.slice(0, 5)}` : "";
     const jour = tomorrowDate.toLocaleDateString("fr-CA", { weekday: "long", day: "numeric", month: "long" });
 
-    await sendSMS(job.contact_id, `Bonjour ${name}! Petit rappel que votre ${job.job_type} de piscine est prévue demain (${jour})${heure}. Si vous avez des questions, contactez-nous au ${franchisePhone || "notre bureau"}. À demain!`);
+    await sendSMS(job.contact_id, `Salut ${name}! Petit rappel: ta ${job.job_type} de piscine est prévue demain (${jour})${heure}. Une question? Appelle-nous au ${franchisePhone || "bureau"}. À demain! 🌊`);
     await logAction(actionKey, job.contact_id, franchiseId);
     results.push(`Rappel 1 jour: ${name} pour ${job.job_type} le ${tomorrowStr}`);
   }
@@ -119,7 +119,7 @@ export async function sendJobReminders(franchiseId: string) {
 
     const name = contact.first_name || "Bonjour";
 
-    await sendSMS(job.contact_id, `Bonjour ${name}! Notre équipe est en route pour votre ${job.job_type} de piscine prévu à ${job.scheduled_time_start.slice(0, 5)}. À tout de suite!`);
+    await sendSMS(job.contact_id, `Salut ${name}! On est en route pour ta ${job.job_type} de piscine prévue à ${job.scheduled_time_start.slice(0, 5)}. À tantôt! 🌊`);
     await logAction(actionKey, job.contact_id, franchiseId);
     results.push(`Rappel 1h: ${name} pour ${job.job_type} à ${job.scheduled_time_start}`);
   }
@@ -159,7 +159,7 @@ export async function sendPaymentReminders(franchiseId: string) {
 
     const name = contact.first_name || "Bonjour";
     const emailPart = paymentEmail ? ` par Interac à ${paymentEmail} ou` : "";
-    await sendSMS(payment.contact_id, `Bonjour ${name}! Un paiement de ${payment.amount}$ est dû aujourd'hui pour: ${payment.notes || "service de piscine"}. Vous pouvez payer${emailPart} par carte sur votre portail. Merci!`);
+    await sendSMS(payment.contact_id, `Salut ${name}! Petit rappel: ton paiement de ${payment.amount}$ est dû aujourd'hui (${payment.notes || "service de piscine"}). Tu peux payer${emailPart} par carte sur ton portail. Merci! 🌊`);
     await logAction(actionKey, payment.contact_id, franchiseId);
     results.push(`Rappel paiement: ${name} — ${payment.amount}$ (${payment.notes})`);
   }

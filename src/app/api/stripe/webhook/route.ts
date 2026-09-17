@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 contactId,
-                body: `🌊 C'est officiel${contact?.first_name ? " " + contact.first_name : ""} — votre saison 2027 est RÉSERVÉE! Votre dépôt de ${payment?.amount ?? "?"}$ est confirmé et sera déduit de votre facture, et votre rabais de 10% est bloqué. On vous recontacte au printemps pour planifier l'ouverture. Merci de votre confiance! — ALTAMAR`,
+                body: `C'est officiel${contact?.first_name ? " " + contact.first_name : ""} — ta saison 2027 est RÉSERVÉE 🌊 Ton dépôt de ${payment?.amount ?? "?"}$ est confirmé (déduit de ta facture) pis ton -10% est barré. On se reparle au printemps pour l'ouverture. Merci! — l'équipe ALTAMAR`,
               }),
             });
 
