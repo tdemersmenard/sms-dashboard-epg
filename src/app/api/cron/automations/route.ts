@@ -187,6 +187,24 @@ export async function GET(req: NextRequest) {
     results.callback_recap_error = String(e);
   }
 
+  // 9b. File d'appels quotidienne (16h30-16h45 Montréal)
+  try {
+    const nowCQ = new Date();
+    const hCQ = parseInt(nowCQ.toLocaleTimeString("en-US", { timeZone: "America/Montreal", hour: "2-digit", hour12: false }));
+    const mCQ = parseInt(nowCQ.toLocaleTimeString("en-US", { timeZone: "America/Montreal", minute: "2-digit" }));
+    if (hCQ === 16 && mCQ >= 30 && mCQ <= 45) {
+      const { buildCallQueue } = await import("@/lib/automations/call-queue");
+      const allResults: string[] = [];
+      for (const f of activeFranchises || []) {
+        const r = await buildCallQueue(f.id);
+        allResults.push(...r);
+      }
+      results.call_queue = allResults;
+    }
+  } catch (e) {
+    results.call_queue_error = String(e);
+  }
+
   // 10. Rapport journalier (envoyer entre 20h et 21h)
   try {
     const nowReport = new Date();

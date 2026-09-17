@@ -182,6 +182,21 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // ─── COMMANDES FILE D'APPELS (propriétaire) ──────────────────────────────
+    // VENDU n / RAPPEL n [date] / MORT n envoyés par le propriétaire → traiter
+    // la commande et NE PAS passer au bot (sinon il répondrait à Thomas).
+    if (/^(VENDU|RAPPEL|MORT)\b/i.test((body || "").trim())) {
+      const { data: frOwner } = await supabaseAdmin
+        .from("franchises").select("owner_phone").eq("id", franchiseId).single();
+      if (frOwner?.owner_phone && normalizedFrom === frOwner.owner_phone) {
+        const { handleCallQueueReply } = await import("@/lib/automations/call-queue");
+        const handled = await handleCallQueueReply(franchiseId, contact!.id, body);
+        if (handled) {
+          return new NextResponse(EMPTY_TWIML, { headers: { "Content-Type": "text/xml" } });
+        }
+      }
+    }
+
     // ─── AI AGENT ─────────────────────────────────────────────────────────────
     // 1. Réaction iMessage ("Adore", "Liked", …) → historique seulement, jamais de réponse.
     if (isReactionMessage(body)) {
