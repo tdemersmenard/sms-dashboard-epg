@@ -266,7 +266,7 @@ export async function processSaison2027Lead(
       // Le lien va aussi dans les notes pour que le bot puisse le repartager
       const { data: c2 } = await supabaseAdmin.from("contacts").select("notes").eq("id", contact.id).single();
       if (c2 && !(c2.notes || "").includes(depositUrl)) {
-        await supabaseAdmin.from("contacts").update({ notes: `${c2.notes}\nLIEN DÉPÔT STRIPE: ${depositUrl}` }).eq("id", contact.id);
+        await supabaseAdmin.from("contacts").update({ notes: `${c2.notes}\nLIEN DÉPÔT STRIPE: ${depositUrl}\nLIEN RÉSERVATION SELF-SERVE: ${getAppUrl()}/reserver` }).eq("id", contact.id);
       }
     }
   }
@@ -282,18 +282,20 @@ export async function processSaison2027Lead(
   // ── SMS d'ouverture au lead, routé selon Q2 ──
   const rawFirst = (fields.firstName || "").trim().split(/\s+/)[0];
   const prenom = rawFirst ? ` ${rawFirst.charAt(0).toUpperCase()}${rawFirst.slice(1).toLowerCase()}` : "";
+  const quarterly = pricing ? Math.round(pricing.fullPrice / 4) : 0;
+  const weekly = pricing ? Math.round(pricing.fullPrice / 19) : 0;
   const stackLine = pricing
-    ? `Pour ta ${pool.label}: la saison 2027 complète est à ${pricing.fullPrice}$ — visite chaque semaine de mai à octobre, produits de balancement inclus, ouverture et fermeture comprises. Rien d'autre à payer.`
+    ? `Pour ta ${pool.label}: la saison 2027 complète est à ${pricing.fullPrice}$ — ou 4 versements de ${quarterly}$ — visite chaque semaine de mai à octobre, produits inclus, ouverture, fermeture, rapport photo après chaque passage. Ça revient à environ ${weekly}$ par semaine, tout inclus.`
     : `Pour ta ${pool.label}, on te prépare un prix sur mesure — l'équipe te revient très vite (le -10% s'applique aussi).`;
   const offerLine = pricing
-    ? `Et tu arrives au bon moment: avant le 1er novembre c'est ${pricing.finalPrice}$ (-10%) avec un dépôt de ${pricing.deposit}$ qui est déduit de ta facture.`
+    ? `Et tu arrives au bon moment: avant le 1er novembre c'est ${pricing.finalPrice}$ (-10%) avec un dépôt de ${pricing.deposit}$ — qui ne dort pas dans nos poches: il est déduit directement de ta facture de mai.`
     : `Et le rabais de 10% avant le 1er novembre s'applique aussi à ta soumission.`;
 
   const openers: Record<string, string[]> = {
     cette_semaine: [
       `Salut${prenom}! C'est l'équipe ${BRAND.name} 🌊 ${stackLine}`,
-      ...(pricing && depositUrl
-        ? [`${offerLine} Comme tu es prêt à réserver, voici ton lien sécurisé pour le dépôt de ${pricing.deposit}$: ${depositUrl}`]
+      ...(pricing
+        ? [`${offerLine} Comme tu es prêt à réserver, tu peux tout faire ici en 2 minutes (comptant ou 4 versements): ${getAppUrl()}/reserver`]
         : [`${offerLine} Dis-moi quand tu es prêt et je te réserve ta place!`]),
     ],
     veut_prix: [

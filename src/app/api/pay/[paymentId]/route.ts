@@ -49,6 +49,9 @@ export async function GET(req: NextRequest, { params }: { params: { paymentId: s
     ? "Dépôt saison 2027 — déduit de la facture"
     : payment.notes || "Paiement de service";
 
+  // ?plan=4x → la carte est sauvegardée pour les 4 versements du solde (mai-août 2027)
+  const plan = new URL(req.url).searchParams.get("plan") === "4x" ? "4x" : "comptant";
+
   const session = await stripe.checkout.sessions.create({
     mode: "payment",
     line_items: [
@@ -56,12 +59,13 @@ export async function GET(req: NextRequest, { params }: { params: { paymentId: s
         price_data: {
           currency: "cad",
           unit_amount: Math.round(Number(payment.amount) * 100),
-          product_data: { name: `${BRAND.name} — ${description}` },
+          product_data: { name: `${BRAND.name} — ${description}${plan === "4x" ? " (solde en 4 versements)" : ""}` },
         },
         quantity: 1,
       },
     ],
-    metadata: { payment_id: payment.id, contact_id: payment.contact_id ?? "" },
+    ...(plan === "4x" ? { payment_intent_data: { setup_future_usage: "off_session" as const } } : {}),
+    metadata: { payment_id: payment.id, contact_id: payment.contact_id ?? "", plan },
     success_url: `${getAppUrl()}/api/pay/${payment.id}?done=1`,
     cancel_url: `${getAppUrl()}/api/pay/${payment.id}`,
   });

@@ -96,9 +96,35 @@ export async function POST(req: NextRequest) {
               action: "saison_2027_reserve",
               contact_id: contactId,
               status: "success",
-              details: { amount: payment?.amount, payment_id: paymentId },
+              details: { amount: payment?.amount, payment_id: paymentId, plan: session.metadata?.plan ?? "comptant" },
               franchise_id: franchiseId,
             });
+
+            // Plan 4 versements: créer les 4 paiements du solde (mai-août 2027).
+            // La carte est sauvegardée (setup_future_usage) — customer/pm dans les notes du 1er versement.
+            if (session.metadata?.plan === "4x") {
+              const isEssentiel = (existingPayment?.notes ?? "").includes("ESSENTIEL");
+              const isCreusee = (existingPayment?.notes ?? "").includes("creusée");
+              const finalPrice = isEssentiel ? (isCreusee ? 1350 : 1170) : (isCreusee ? 1980 : 1620);
+              const balance = finalPrice - Number(payment?.amount ?? 0);
+              const per = Math.floor((balance / 4) * 100) / 100;
+              const last = Math.round((balance - per * 3) * 100) / 100;
+              const stripeRef = typeof session.payment_intent === "string" ? session.payment_intent : "";
+              const { data: existing4x } = await supabaseAdmin
+                .from("payments").select("id").eq("contact_id", contactId).ilike("notes", "%Versement 1/4 — saison 2027%").limit(1);
+              if (!existing4x || existing4x.length === 0) {
+                await supabaseAdmin.from("payments").insert([1, 2, 3, 4].map((n) => ({
+                  contact_id: contactId,
+                  amount: n === 4 ? last : per,
+                  method: "stripe",
+                  status: "en_attente",
+                  due_date: `2027-0${4 + n}-01`,
+                  notes: `Versement ${n}/4 — saison 2027 (solde après dépôt)${n === 1 && stripeRef ? ` — carte sauvegardée, PI: ${stripeRef}` : ""}`,
+                  franchise_id: franchiseId,
+                })));
+                console.log(`[stripe-webhook] 4 versements créés (${per}$ x3 + ${last}$)`);
+              }
+            }
           }
         }
 
