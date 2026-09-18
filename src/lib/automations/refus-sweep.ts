@@ -32,12 +32,14 @@ export async function sweepRefus(franchiseId: string): Promise<string[]> {
   const out: string[] = [];
   const now = Date.now();
 
+  // Tous les leads 2027 encore ouverts — la détection de la question de sortie se
+  // fait par le contenu du message (robuste même si le bot oublie le marqueur de notes)
   const { data: leads } = await supabaseAdmin
     .from("contacts")
     .select("id, first_name, notes, stage")
     .eq("franchise_id", franchiseId)
     .eq("lead_source", "meta_saison_2027")
-    .ilike("notes", "%SÉQUENCE REFUS%");
+    .not("stage", "in", '("closé","complété")');
 
   for (const lead of leads || []) {
     const notes = lead.notes || "";
