@@ -85,6 +85,7 @@ export async function buildCallQueue(franchiseId: string): Promise<string[]> {
 
   for (const lead of leads) {
     if (!lead.phone?.startsWith("+")) continue;
+    const notesL = (lead.notes || "").toLowerCase();
 
     const [{ data: msgs }, { data: deposit }, { data: metaLog }] = await Promise.all([
       supabaseAdmin.from("messages").select("direction, body, created_at").eq("contact_id", lead.id).order("created_at"),
@@ -122,6 +123,18 @@ export async function buildCallQueue(franchiseId: string): Promise<string[]> {
     // (c) aucune réponse à J+3
     else if (inbound.length === 0 && daysSince >= 3) {
       reason = `aucune réponse depuis ${daysSince}j`;
+    }
+    // (d) haute valeur: creusée+spa, multi-piscines, commercial/chalet — signalé UNE fois
+    else {
+      const { data: leadFull } = await supabaseAdmin
+        .from("contacts").select("pool_type, has_spa").eq("id", lead.id).single();
+      const allText = notesL + " " + (msgs || []).filter((m) => m.direction === "inbound").map((m) => m.body.toLowerCase()).join(" ");
+      const isHV = (leadFull?.pool_type === "creusée" && leadFull?.has_spa) ||
+        /chalet|commercial|airbnb|deux piscines|2 piscines|plusieurs piscines/.test(allText);
+      if (isHV && daysSince >= 1 && !notesL.includes("hv_signalé")) {
+        reason = "💎 haute valeur — vaut un appel";
+        await supabaseAdmin.from("contacts").update({ notes: (lead.notes || "") + "\nHV_SIGNALÉ" }).eq("id", lead.id);
+      }
     }
 
     if (!reason) continue;

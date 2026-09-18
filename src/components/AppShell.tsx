@@ -7,7 +7,7 @@ import { FranchiseProvider } from "./FranchiseProvider";
 
 function AppContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const isAuthPage = pathname === "/login" || pathname?.startsWith("/portail");
+  const isAuthPage = pathname === "/login" || pathname?.startsWith("/portail") || pathname?.startsWith("/reserver");
 
   return (
     <>
