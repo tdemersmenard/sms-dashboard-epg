@@ -187,6 +187,32 @@ export async function GET(req: NextRequest) {
     results.callback_recap_error = String(e);
   }
 
+  // 9a. Sweep refus 2027 (chaque run) + rapport hebdo (dimanche 17h-17h15)
+  try {
+    const { sweepRefus, sendRefusWeeklyReport } = await import("@/lib/automations/refus-sweep");
+    const allResults: string[] = [];
+    for (const f of activeFranchises || []) {
+      const r = await sweepRefus(f.id);
+      allResults.push(...r);
+    }
+    results.refus_sweep = allResults;
+
+    const nowRR = new Date();
+    const dayRR = nowRR.toLocaleDateString("en-US", { timeZone: "America/Montreal", weekday: "short" });
+    const hRR = parseInt(nowRR.toLocaleTimeString("en-US", { timeZone: "America/Montreal", hour: "2-digit", hour12: false }));
+    const mRR = parseInt(nowRR.toLocaleTimeString("en-US", { timeZone: "America/Montreal", minute: "2-digit" }));
+    if (dayRR === "Sun" && hRR === 17 && mRR <= 15) {
+      const reportResults: string[] = [];
+      for (const f of activeFranchises || []) {
+        const r = await sendRefusWeeklyReport(f.id);
+        reportResults.push(...r);
+      }
+      results.refus_report = reportResults;
+    }
+  } catch (e) {
+    results.refus_sweep_error = String(e);
+  }
+
   // 9b. File d'appels quotidienne (16h30-16h45 Montréal)
   try {
     const nowCQ = new Date();

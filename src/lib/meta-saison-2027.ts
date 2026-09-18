@@ -37,6 +37,19 @@ export const SAISON_2027_PRICING: Record<string, PoolPricing> = {
   "hors-terre": { label: "hors-terre", fullPrice: 1800, rebate: 180, finalPrice: 1620, deposit: 180 },
 };
 
+/** Forfait ESSENTIEL — downsell UNIQUEMENT (séquence premier non, jamais offert en premier).
+ *  Visite hebdo + tests/balancement; produits en sus; ouverture/fermeture en sus. */
+export const ESSENTIEL_2027_PRICING: Record<string, PoolPricing> = {
+  "creusée": { label: "creusée", fullPrice: 1500, rebate: 150, finalPrice: 1350, deposit: 150 },
+  "hors-terre": { label: "hors-terre", fullPrice: 1300, rebate: 130, finalPrice: 1170, deposit: 130 },
+};
+
+/** Services à l'unité saison 2027 (CAS B — besoin ponctuel) */
+export const UNIT_2027_PRICING = {
+  ouverture: { "hors-terre": 180, "creusée": 200 },
+  fermeture: { "hors-terre": 150, "creusée": 175 },
+};
+
 /** Normalise la réponse Q1 du formulaire vers une clé de pricing (ou null si hors grille) */
 export function normalizePoolType(raw: string): { key: string | null; isSpa: boolean; label: string } {
   const v = (raw || "").toLowerCase().trim();

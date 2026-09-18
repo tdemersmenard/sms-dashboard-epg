@@ -74,6 +74,11 @@ interface SetProfileAction extends BaseAction {
   profile: string;
 }
 
+interface SwitchEssentielAction extends BaseAction {
+  type: "SWITCH_ESSENTIEL";
+  poolType: string; // hors-terre | creusee
+}
+
 // Profils d'acheteur valides — détectés par l'IA, adaptent le pitch (jamais le prix)
 export const BUYER_PROFILES = ["presse", "prix", "analytique", "indecis", "relationnel"] as const;
 
@@ -99,7 +104,7 @@ export const PRICE_FLOORS: Record<string, number> = {
   spa: 500,
 };
 
-type AIAction = GenerateInvoiceAction | GenerateContractAction | BookJobAction | ModifyJobAction | ReminderAction | NotifyThomasAction | UpdateStageAction | UpdateNotesAction | CreatePaymentAction | CloseDealAction | SetProfileAction;
+type AIAction = GenerateInvoiceAction | GenerateContractAction | BookJobAction | ModifyJobAction | ReminderAction | NotifyThomasAction | UpdateStageAction | UpdateNotesAction | CreatePaymentAction | CloseDealAction | SetProfileAction | SwitchEssentielAction;
 
 export function parseActions(aiResponse: string): { cleanMessage: string; actions: AIAction[] } {
   const actions: AIAction[] = [];
@@ -207,6 +212,13 @@ export function parseActions(aiResponse: string): { cleanMessage: string; action
       case "UPDATE_NOTES":
         actions.push({ type: "UPDATE_NOTES", info: actionParams } as AIAction);
         break;
+      case "SWITCH_ESSENTIEL": {
+        const pt = actionParams.trim().toLowerCase();
+        if (/hors|creus/.test(pt)) {
+          actions.push({ type: "SWITCH_ESSENTIEL", poolType: /creus/.test(pt) ? "creusée" : "hors-terre" } as AIAction);
+        }
+        break;
+      }
       case "CREATE_PAYMENT": {
         const parts = actionParams.split(":");
         if (parts.length >= 2) {
@@ -1047,6 +1059,44 @@ export async function executeActions(actions: AIAction[], contactId: string): Pr
           }
 
           console.log("[ai-actions] Payment created:", action.amount, action.description);
+          break;
+        }
+
+        case "SWITCH_ESSENTIEL": {
+          // Downsell accepté: le dépôt en attente passe du montant Signature au
+          // montant Essentiel (sinon le lien /api/pay chargerait le mauvais dépôt).
+          const ESSENTIEL_DEPOSITS: Record<string, { deposit: number; finalPrice: number }> = {
+            "hors-terre": { deposit: 130, finalPrice: 1170 },
+            "creusée": { deposit: 150, finalPrice: 1350 },
+          };
+          const cfg = ESSENTIEL_DEPOSITS[action.poolType];
+          if (!cfg) break;
+
+          const { data: dep } = await supabaseAdmin
+            .from("payments").select("id, status")
+            .eq("contact_id", contactId).ilike("notes", "%Dépôt saison 2027%").maybeSingle();
+          if (dep && dep.status === "en_attente") {
+            await supabaseAdmin.from("payments").update({
+              amount: cfg.deposit,
+              notes: `Dépôt saison 2027 — déduit de la facture (${action.poolType}, ESSENTIEL, preBF_10_10)`,
+            }).eq("id", dep.id);
+          } else if (!dep) {
+            await supabaseAdmin.from("payments").insert({
+              contact_id: contactId,
+              amount: cfg.deposit,
+              method: "stripe",
+              status: "en_attente",
+              due_date: "2026-11-01",
+              notes: `Dépôt saison 2027 — déduit de la facture (${action.poolType}, ESSENTIEL, preBF_10_10)`,
+            });
+          }
+
+          const { data: csw } = await supabaseAdmin.from("contacts").select("notes").eq("id", contactId).single();
+          await supabaseAdmin.from("contacts").update({
+            notes: `${csw?.notes ?? ""}\nFORFAIT CHOISI: ESSENTIEL (${action.poolType}) — ${cfg.finalPrice}$ avec le -10%, dépôt ${cfg.deposit}$. Produits en sus, ouverture/fermeture en sus.`.trim(),
+          }).eq("id", contactId);
+
+          console.log(`[ai-actions] SWITCH_ESSENTIEL: dépôt ajusté à ${cfg.deposit}$ (${action.poolType})`);
           break;
         }
 
