@@ -115,7 +115,7 @@ export async function sendRefusWeeklyReport(franchiseId: string): Promise<string
   const counts: Record<string, number> = {};
   let total = 0;
   for (const lead of leads || []) {
-    const tags = (lead.notes || "").match(/TAG:[a-z0-9-]+/g) || [];
+    const tags: string[] = (lead.notes || "").match(/TAG:[a-z0-9-]+/g) ?? [];
     for (const t of Array.from(new Set(tags))) {
       const key = t.replace("TAG:", "");
       counts[key] = (counts[key] || 0) + 1;
