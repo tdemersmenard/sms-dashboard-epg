@@ -85,7 +85,34 @@ export async function POST(req: NextRequest) {
       // (prix, dépôt Stripe, SMS routés, relances). Sinon: flux classique.
       const poolTypeRaw = body.pool_type || body.type_piscine || body.q1 || null;
       const readinessRaw = body.readiness || body.quand || body.q2 || null;
-      const is2027 = !!(body.campaign_2027 || poolTypeRaw || readinessRaw);
+      const spaUsageRaw = body.spa_usage || body.usage_spa || body.spa || null;
+      const isSpa = !!(body.campaign_spa || spaUsageRaw);
+      const is2027 = !isSpa && !!(body.campaign_2027 || poolTypeRaw || readinessRaw);
+
+      if (isSpa && body.phone) {
+        const { processSpaLead } = await import("@/lib/meta-spa");
+        const franchiseIdSpa = await resolveFranchiseId(body);
+        const logs = await processSpaLead(
+          {
+            firstName: body.first_name || (body.name ? String(body.name).trim().split(" ")[0] : null),
+            phone: String(body.phone),
+            city: body.city || body.ville || null,
+            usageRaw: String(spaUsageRaw || ""),
+          },
+          {
+            leadgen_id: String(body.leadgen_id || body.lead_id || `make-spa-${Date.now()}`),
+            ad_id: body.ad_id ? String(body.ad_id) : null,
+            adset_id: body.adset_id ? String(body.adset_id) : null,
+            campaign_id: body.campaign_id ? String(body.campaign_id) : null,
+            form_id: body.form_id ? String(body.form_id) : null,
+            ad_name: body.ad_name ? String(body.ad_name) : null,
+            campaign_name: body.campaign_name ? String(body.campaign_name) : null,
+          },
+          franchiseIdSpa,
+        );
+        console.log("[leads webhook] Make → pipeline SPA:\n  " + logs.join("\n  "));
+        return NextResponse.json({ success: true, pipeline: "spa", logs });
+      }
 
       if (is2027 && body.phone) {
         const { processSaison2027Lead } = await import("@/lib/meta-saison-2027");
@@ -265,7 +292,16 @@ export async function POST(req: NextRequest) {
           });
 
           const lead = await fetchMetaLead(leadgenId);
-          if (lead) {
+          if (lead && lead.fields.spaUsageRaw && !lead.fields.poolTypeRaw) {
+            const { processSpaLead } = await import("@/lib/meta-spa");
+            const logs = await processSpaLead(
+              { firstName: lead.fields.firstName, phone: lead.fields.phone, city: lead.fields.city, usageRaw: lead.fields.spaUsageRaw },
+              lead.attribution,
+              GRANBY_FRANCHISE_ID,
+            );
+            console.log(`[fb-webhook] lead SPA ${leadgenId}:\n  ` + logs.join("\n  "));
+            allLogs.push(...logs);
+          } else if (lead) {
             const logs = await processSaison2027Lead(lead.fields, lead.attribution, GRANBY_FRANCHISE_ID);
             console.log(`[fb-webhook] lead ${leadgenId}:\n  ` + logs.join("\n  "));
             allLogs.push(...logs);

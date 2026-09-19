@@ -50,6 +50,17 @@ export const UNIT_2027_PRICING = {
   fermeture: { "hors-terre": 150, "creusée": 175 },
 };
 
+/** ENTRETIEN SPA — À L'ANNÉE (abonnement Stripe mensuel, engagement min. 3 mois).
+ *  Inclus (les deux formules): chimie complète balancée, nettoyage du filtre,
+ *  ligne d'eau, vérification équipement, rapport photo, produits inclus,
+ *  changement d'eau complet 1x/année. Pas de dépôt, pas de contrat de saison. */
+export const SPA_PRICING = {
+  "2sem": { label: "aux 2 semaines", monthly: 160 },
+  "mensuel": { label: "mensuel", monthly: 110 },
+  /** Upsell UNIQUEMENT si le lead a piscine ET spa */
+  "residence": { label: "Résidence Complète (piscine + spa)", monthly: 325 },
+} as const;
+
 /** Normalise la réponse Q1 du formulaire vers une clé de pricing (ou null si hors grille) */
 export function normalizePoolType(raw: string): { key: string | null; isSpa: boolean; label: string } {
   const v = (raw || "").toLowerCase().trim();
@@ -74,6 +85,8 @@ export interface MetaLeadFields {
   city: string | null;
   poolTypeRaw: string;
   readinessRaw: string;
+  /** Question du form SPA (campagne entretien spa à l'année) */
+  spaUsageRaw?: string;
 }
 
 export interface MetaAttribution {
@@ -123,6 +136,7 @@ export async function fetchMetaLead(leadgenId: string): Promise<{ fields: MetaLe
       city: pick("city", "ville"),
       poolTypeRaw: pick("piscine", "pool", "type") || "",
       readinessRaw: pick("readiness", "quand", "pr[êe]t", "moment", "d[ée]marrer", "commencer") || pick("q2") || "",
+      spaUsageRaw: pick("spa_usage", "usage", "hiver", "ferme") || "",
     },
     attribution: {
       leadgen_id: leadgenId,

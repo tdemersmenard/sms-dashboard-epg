@@ -75,7 +75,7 @@ export async function buildCallQueue(franchiseId: string): Promise<string[]> {
     .from("contacts")
     .select("id, first_name, city, pool_type, stage, notes, created_at, phone")
     .eq("franchise_id", franchiseId)
-    .eq("lead_source", "meta_saison_2027")
+    .in("lead_source", ["meta_saison_2027", "meta_spa"])
     .not("stage", "in", '("closé","perdu","complété")');
 
   if (!leads || leads.length === 0) return ["aucun lead 2027 ouvert"];
@@ -108,13 +108,20 @@ export async function buildCallQueue(franchiseId: string): Promise<string[]> {
     if (appelPrevu && appelPrevu[1] <= today) {
       reason = `rappel prévu ${appelPrevu[1] === today ? "aujourd'hui" : "le " + appelPrevu[1]}`;
     }
-    // (a) dépôt non payé 24h+ après un oui
+    // (a) dépôt non payé 24h+ après un oui (piscine) / abonnement non complété (spa)
     else if (
       deposit && deposit.status === "en_attente" && linkSent && inbound.length > 0 &&
       now - new Date(linkSent.created_at).getTime() > 24 * 3600 * 1000
     ) {
       const h = Math.floor((now - new Date(linkSent.created_at).getTime()) / 3600000);
       reason = `dépôt impayé ${h >= 48 ? Math.floor(h / 24) + "j" : h + "h"} après le lien`;
+    }
+    else if ((() => {
+      const spaLink = (msgs || []).find((m) => m.direction === "outbound" && m.body.includes("/api/spa/abonnement"));
+      return spaLink && !notesL.includes("abonnement spa actif") && inbound.length > 0 &&
+        now - new Date(spaLink.created_at).getTime() > 24 * 3600 * 1000;
+    })()) {
+      reason = "abonnement spa non complété 24h+ après le lien";
     }
     // (b) 3+ échanges sans close
     else if (inbound.length >= 3) {

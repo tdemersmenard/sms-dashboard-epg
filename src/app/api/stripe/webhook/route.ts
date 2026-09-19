@@ -25,6 +25,53 @@ export async function POST(req: NextRequest) {
       const paymentId = session.metadata?.payment_id;
       const contactId = session.metadata?.contact_id;
 
+      // ── Abonnement SPA (mode subscription, pas de payment row) ──
+      if (session.metadata?.spa_plan && contactId) {
+        const planLabel = session.metadata.spa_plan === "2sem" ? "aux 2 semaines (160$/mois)"
+          : session.metadata.spa_plan === "residence" ? "Résidence Complète (325$/mois)"
+          : "mensuel (110$/mois)";
+        const { data: spaContact } = await supabaseAdmin
+          .from("contacts").select("first_name, last_name, notes, franchise_id, services").eq("id", contactId).single();
+        await supabaseAdmin.from("contacts").update({
+          stage: "closé",
+          has_spa: true,
+          services: Array.from(new Set([...(spaContact?.services ?? []), "entretien spa"])),
+          notes: `${(spaContact?.notes ?? "").trim()}\n✅ ABONNEMENT SPA ACTIF: ${planLabel} — démarré le ${new Date().toLocaleDateString("en-CA", { timeZone: "America/Montreal" })} (Stripe sub: ${typeof session.subscription === "string" ? session.subscription : "?"}). Engagement min. 3 mois.`.trim(),
+        }).eq("id", contactId);
+
+        const spaBase = getAppUrl();
+        const clientName = spaContact ? [spaContact.first_name, spaContact.last_name].filter(Boolean).join(" ") : "Client";
+        await fetch(`${spaBase}/api/sms/send`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contactId,
+            body: `C'est parti${spaContact?.first_name ? " " + spaContact.first_name : ""}! 🌊 Ton entretien spa ${planLabel} est actif. On te texte pour planifier ta première visite. Bienvenue chez ALTAMAR!`,
+          }),
+        });
+
+        const spaFranchise = spaContact?.franchise_id ?? "00000000-0000-0000-0000-000000000001";
+        const { data: fr2 } = await supabaseAdmin.from("franchises").select("owner_phone").eq("id", spaFranchise).single();
+        const { data: owner2 } = fr2?.owner_phone
+          ? await supabaseAdmin.from("contacts").select("id").eq("phone", fr2.owner_phone).eq("franchise_id", spaFranchise).maybeSingle()
+          : { data: null };
+        if (owner2) {
+          await fetch(`${spaBase}/api/sms/send`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ contactId: owner2.id, body: `💰 ABONNEMENT SPA — ${clientName} vient de s'abonner: ${planLabel}. Planifie sa première visite!` }),
+          });
+        }
+        await supabaseAdmin.from("automation_logs").insert({
+          action: "spa_abonnement_actif",
+          contact_id: contactId,
+          status: "success",
+          details: { plan: session.metadata.spa_plan },
+          franchise_id: spaFranchise,
+        });
+        return NextResponse.json({ received: true });
+      }
+
       if (paymentId) {
         const { data: existingPayment } = await supabaseAdmin
           .from("payments")
