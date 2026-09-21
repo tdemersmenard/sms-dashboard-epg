@@ -64,7 +64,7 @@ export default function LiveDashboard({ stats }: { stats: SiteStats }) {
 
   return (
     <section id="live">
-      <div className="wrap">
+      <div className="wrap rv">
         <span className="eyebrow">La business, en vitre</span>
         <h2 className="sec">Nos chiffres tournent en direct</h2>
         <p className="sec-sub">

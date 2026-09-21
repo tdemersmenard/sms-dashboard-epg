@@ -52,7 +52,7 @@ export default function PriceSection({
 
   return (
     <section id="prix" ref={ref}>
-      <div className="wrap price-grid">
+      <div className="wrap price-grid rv">
         <div>
           <span className="eyebrow">Prix affichés — une première au Québec</span>
           <h2 className="sec">

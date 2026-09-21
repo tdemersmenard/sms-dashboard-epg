@@ -81,8 +81,29 @@ export default function ChronoSection({ pool }: { pool: PoolChoice }) {
         </div>
 
         <div className="chrono-wrap">
-          <div className={`chrono-num num${phase === "done" ? " ok" : ""}`} aria-live="polite">
-            {phase === "done" && elapsed != null ? `${elapsed.toFixed(1)}s` : clock(count)}
+          <div className={`chrono-dial${phase === "done" ? " ok" : ""}`}>
+            <svg viewBox="0 0 200 200" role="img" aria-hidden="true">
+              <defs>
+                <linearGradient id="alta-ring-grad" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stopColor="#7FE3F2" />
+                  <stop offset="100%" stopColor="#19B6D9" />
+                </linearGradient>
+              </defs>
+              <circle className="track" cx="100" cy="100" r="88" fill="none" strokeWidth="9" />
+              <circle
+                className="prog"
+                cx="100" cy="100" r="88" fill="none" strokeWidth="9"
+                strokeDasharray={2 * Math.PI * 88}
+                strokeDashoffset={
+                  phase === "done"
+                    ? 0
+                    : (1 - count / 30) * 2 * Math.PI * 88
+                }
+              />
+            </svg>
+            <div className="chrono-num num" aria-live="polite">
+              {phase === "done" && elapsed != null ? `${elapsed.toFixed(1)}s` : clock(count)}
+            </div>
           </div>
 
           {phase === "done" ? (

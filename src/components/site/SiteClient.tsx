@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import WaterCanvas from "@/components/site/WaterCanvas";
 import PriceSection, { type SitePricing, type PoolChoice } from "@/components/site/PriceSection";
@@ -13,11 +13,33 @@ const PHONE_TEL = "+14509159650";
 
 export default function SiteClient({ pricing, stats }: { pricing: SitePricing; stats: SiteStats }) {
   const [pool, setPool] = useState<PoolChoice>("hors-terre");
+  const [scrolled, setScrolled] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 24);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Révélation au scroll des sections
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    const els = root.querySelectorAll(".rv");
+    const obs = new IntersectionObserver(
+      (entries) => entries.forEach((e) => { if (e.isIntersecting) { e.target.classList.add("in"); obs.unobserve(e.target); } }),
+      { threshold: 0.12 },
+    );
+    els.forEach((el) => obs.observe(el));
+    return () => obs.disconnect();
+  }, []);
 
   return (
-    <div>
+    <div ref={rootRef}>
       {/* ── NAV ── */}
-      <nav className="alta-nav">
+      <nav className={`alta-nav${scrolled ? " scrolled" : ""}`}>
         <div className="wrap nav-in">
           <a href="#" className="logo" aria-label="ALTAMAR — accueil">
             <Image src="/brand/logo-mark-64.png" alt="" width={30} height={26} priority />
@@ -62,7 +84,7 @@ export default function SiteClient({ pricing, stats }: { pricing: SitePricing; s
 
       {/* ── RAPPORT PHOTO ── */}
       <section id="rapport">
-        <div className="wrap phone-sec">
+        <div className="wrap phone-sec rv">
           <div>
             <span className="eyebrow">Après chaque visite</span>
             <h2 className="sec">Tu sais exactement ce qui a été fait. Avec photos.</h2>
@@ -88,7 +110,7 @@ export default function SiteClient({ pricing, stats }: { pricing: SitePricing; s
 
       {/* ── CTA FINAL ── */}
       <section className="final">
-        <div className="wrap">
+        <div className="wrap rv">
           <h2>L&apos;été prochain, la seule chose que tu touches, c&apos;est l&apos;eau.</h2>
           <p>
             Réserve ta saison 2027 avant le 1er novembre&nbsp;: -10&nbsp;%, place garantie dans ton secteur,

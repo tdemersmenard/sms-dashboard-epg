@@ -22,8 +22,20 @@ export default function WaterCanvas() {
 
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     let raf = 0;
+    let visible = true;
+    let last = 0;
+    const FRAME_MS = 1000 / 30; // 30 fps suffisent pour de l'eau
+
+    const io = new IntersectionObserver((e) => {
+      visible = e[0].isIntersecting;
+      if (visible && !reduce) { cancelAnimationFrame(raf); raf = requestAnimationFrame(draw); }
+    });
+    io.observe(cv);
 
     const draw = (ts: number) => {
+      if (!visible) return;
+      if (ts - last < FRAME_MS) { raf = requestAnimationFrame(draw); return; }
+      last = ts;
       cx.clearRect(0, 0, W, H);
       const t = ts / 1000;
       for (let l = 0; l < 3; l++) {
@@ -48,6 +60,7 @@ export default function WaterCanvas() {
 
     return () => {
       cancelAnimationFrame(raf);
+      io.disconnect();
       window.removeEventListener("resize", rs);
     };
   }, []);
