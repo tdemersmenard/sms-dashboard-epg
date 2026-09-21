@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { trackEvent } from "@/components/site/MetaPixel";
 
 /**
- * PRIX INSTANTANÉ — toggle hors-terre/creusée, prix depuis pricing_config
+ * PRIX INSTANTANÉ — design du prototype, prix depuis pricing_config
  * (la même source que le bot SMS et /reserver). ViewContent au premier scroll.
  */
 
@@ -14,6 +14,9 @@ export type SitePricing = {
 };
 
 export type PoolChoice = "hors-terre" | "creusée";
+
+/** 1980 → « 1 980 » (format québécois, espace insécable) */
+const fmt = (n: number) => n.toLocaleString("fr-CA").replace(/ /g, " ");
 
 export default function PriceSection({
   pricing,
@@ -46,73 +49,74 @@ export default function PriceSection({
 
   const p = pricing.tiers.signature[pool];
   const promoOn = pricing.promo.active;
-  const deadline = new Date(pricing.promo.ends_at + "T00:00:00-04:00").toLocaleDateString("fr-CA", {
-    day: "numeric",
-    month: "long",
-  });
 
   return (
     <section id="prix" ref={ref}>
-      <div className="container">
-        <p className="alta-eyebrow">Prix instantané</p>
-        <h2 style={{ fontSize: "clamp(26px, 5vw, 40px)", marginBottom: 10 }}>
-          Pas de « demande de soumission ». Le prix est là.
-        </h2>
-        <p style={{ color: "var(--mut)", maxWidth: 620, marginBottom: 28 }}>
-          Saison 2027 complète, forfait Signature: visite chaque semaine de mai à octobre, produits inclus,
-          ouverture, fermeture, rapport photo après chaque passage.
-        </p>
-
-        <div className="alta-toggle" role="tablist" aria-label="Type de piscine">
-          {(["hors-terre", "creusée"] as PoolChoice[]).map((t) => (
-            <button key={t} role="tab" aria-selected={pool === t} className={pool === t ? "on" : ""} onClick={() => onPoolChange(t)}>
-              {t === "hors-terre" ? "Hors-terre" : "Creusée"}
+      <div className="wrap price-grid">
+        <div>
+          <span className="eyebrow">Prix affichés — une première au Québec</span>
+          <h2 className="sec">
+            Ton prix exact.
+            <br />
+            Pas de soumission mystère.
+          </h2>
+          <p className="sec-sub">
+            Choisis ton type de piscine. C&apos;est tout. Le prix que tu vois, c&apos;est le prix que tu
+            paies — le même pour tout le monde.
+          </p>
+          <div className="seg" role="group" aria-label="Type de piscine">
+            <button className={pool === "hors-terre" ? "on" : ""} onClick={() => onPoolChange("hors-terre")}>
+              Hors-terre
             </button>
-          ))}
+            <button className={pool === "creusée" ? "on" : ""} onClick={() => onPoolChange("creusée")}>
+              Creusée
+            </button>
+          </div>
         </div>
 
-        <div className="alta-panel" style={{ marginTop: 22, maxWidth: 560 }}>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 14, flexWrap: "wrap" }}>
-            {promoOn && <span className="alta-price-strike">{p.full}$</span>}
-            <span className="alta-price-num">{p.price}$</span>
-            {promoOn && <span className="alta-save-chip">Tu économises {p.saving}$</span>}
-          </div>
-
-          <div style={{ marginTop: 18, display: "grid", gap: 8, color: "var(--mut)", fontSize: 15 }}>
-            <div>
-              Ou <strong style={{ color: "var(--ink)" }}>4 versements de {p.quarterly}$</strong> — mai à août
-            </div>
-            <div>
-              Ça revient à environ <strong style={{ color: "var(--ink)" }}>{p.weekly}$/semaine</strong> de saison, tout inclus
-            </div>
-            <div>
-              Dépôt de <strong style={{ color: "var(--ink)" }}>{p.deposit}$</strong> — déduit directement de ta facture de mai.
-              Il ne dort pas dans nos poches.
-            </div>
-          </div>
-
+        <div className="price-card">
+          <span className="eyebrow">Forfait Signature · Saison 2027</span>
           {promoOn && (
-            <div
-              style={{
-                marginTop: 18,
-                paddingTop: 16,
-                borderTop: "1px solid var(--line)",
-                fontSize: 14,
-                color: "var(--mut)",
-              }}
-            >
-              <strong style={{ color: "var(--aqua)" }}>Pourquoi -{pricing.promo.rabais_pct}%?</strong>{" "}
-              {pricing.promo.raison} L&apos;offre se termine le <strong style={{ color: "var(--ink)" }}>{deadline}</strong>.
+            <div style={{ marginTop: 14 }}>
+              <span className="price-old num">{fmt(p.full)}&nbsp;$</span>
             </div>
           )}
-
+          <div className="price-big num">
+            {fmt(p.price)}
+            <small>&nbsp;$ +tx</small>
+          </div>
+          {promoOn && (
+            <span className="save-tag num">
+              Tu économises {fmt(p.saving)}&nbsp;$ — offre pré-saison jusqu&apos;au 1er novembre
+            </span>
+          )}
+          <ul className="inc">
+            <li>Visite complète chaque semaine, de mai à octobre</li>
+            <li>Tous les produits inclus — plus rien à acheter</li>
+            <li>Ouverture et fermeture comprises</li>
+            <li>Rapport photo texté après chaque visite</li>
+          </ul>
+          <div className="split num">
+            <span>4 versements de <b>{fmt(p.quarterly)}&nbsp;$</b></span>
+            <span>≈ <b>{fmt(p.weekly)}&nbsp;$ / semaine</b> de saison</span>
+          </div>
+          <div className="split num" style={{ border: "none", paddingTop: 10 }}>
+            <span>Réserve avec un dépôt de <b>{fmt(p.deposit)}&nbsp;$</b></span>
+            <span style={{ color: "var(--green)", fontWeight: 600 }}>déduit de ta facture</span>
+          </div>
           <a
+            className="btn-main"
             href="/reserver"
-            className="alta-btn alta-btn-primary"
-            style={{ marginTop: 22, width: "100%" }}
+            style={{ width: "100%", textAlign: "center", boxSizing: "border-box", marginTop: 22 }}
           >
             Réserver ma saison 2027 →
           </a>
+          {promoOn && (
+            <p className="deadline">
+              Le -10&nbsp;% existe parce qu&apos;on planifie nos routes 2027 maintenant. Après le{" "}
+              <b>1er novembre</b>, le prix remonte au tarif régulier.
+            </p>
+          )}
         </div>
       </div>
     </section>

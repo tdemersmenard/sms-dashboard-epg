@@ -2,60 +2,53 @@
 
 import { useEffect, useRef } from "react";
 
-/** Eau animée du hero — canvas 2D léger (3 couches de sinus), aucune librairie. */
+/** Eau animée du hero — canvas 2D léger, géométrie et couleurs du prototype. */
 export default function WaterCanvas() {
   const ref = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    const canvas = ref.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const cv = ref.current;
+    if (!cv) return;
+    const cx = cv.getContext("2d");
+    if (!cx) return;
 
-    let raf = 0;
-    let t = 0;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-
-    const resize = () => {
-      canvas.width = canvas.offsetWidth * dpr;
-      canvas.height = canvas.offsetHeight * dpr;
+    let W = 0, H = 0;
+    const rs = () => {
+      W = cv.width = cv.offsetWidth;
+      H = cv.height = cv.offsetHeight;
     };
-    resize();
-    window.addEventListener("resize", resize);
+    rs();
+    window.addEventListener("resize", rs);
 
-    const layers = [
-      { color: "rgba(14, 42, 71, 0.85)", amp: 22, speed: 0.012, freq: 0.0035, base: 0.72 },
-      { color: "rgba(25, 182, 217, 0.10)", amp: 30, speed: 0.018, freq: 0.0028, base: 0.78 },
-      { color: "rgba(127, 227, 242, 0.07)", amp: 18, speed: 0.026, freq: 0.0045, base: 0.84 },
-    ];
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let raf = 0;
 
-    const draw = () => {
-      const { width: w, height: h } = canvas;
-      ctx.clearRect(0, 0, w, h);
-      for (const l of layers) {
-        ctx.beginPath();
-        ctx.moveTo(0, h);
-        for (let x = 0; x <= w; x += 8 * dpr) {
-          const y =
-            h * l.base +
-            Math.sin(x * l.freq / dpr + t * l.speed * 60) * l.amp * dpr +
-            Math.sin(x * l.freq * 2.3 / dpr - t * l.speed * 40) * l.amp * 0.4 * dpr;
-          ctx.lineTo(x, y);
+    const draw = (ts: number) => {
+      cx.clearRect(0, 0, W, H);
+      const t = ts / 1000;
+      for (let l = 0; l < 3; l++) {
+        cx.beginPath();
+        const amp = 10 + l * 8;
+        const yb = H * 0.55 + l * H * 0.14;
+        const sp = 0.35 + l * 0.12;
+        for (let x = 0; x <= W; x += 8) {
+          const y = yb + Math.sin(x * 0.008 + t * sp + l * 2) * amp + Math.sin(x * 0.02 - t * sp * 0.7) * amp * 0.4;
+          if (x === 0) cx.moveTo(x, y);
+          else cx.lineTo(x, y);
         }
-        ctx.lineTo(w, h);
-        ctx.closePath();
-        ctx.fillStyle = l.color;
-        ctx.fill();
+        cx.lineTo(W, H);
+        cx.lineTo(0, H);
+        cx.closePath();
+        cx.fillStyle = ["rgba(25,182,217,.05)", "rgba(25,182,217,.07)", "rgba(14,42,71,.5)"][l];
+        cx.fill();
       }
-      t += 1 / 60;
-      raf = requestAnimationFrame(draw);
+      if (!reduce) raf = requestAnimationFrame(draw);
     };
     raf = requestAnimationFrame(draw);
 
     return () => {
       cancelAnimationFrame(raf);
-      window.removeEventListener("resize", resize);
+      window.removeEventListener("resize", rs);
     };
   }, []);
 
