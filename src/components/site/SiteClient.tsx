@@ -45,7 +45,12 @@ export default function SiteClient({ pricing, stats }: { pricing: SitePricing; s
             <Image src="/brand/logo-mark-64.png" alt="" width={30} height={26} priority />
             ALTAMAR
           </a>
-          <a className="nav-cta" href="#prix">Voir mon prix</a>
+          <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
+            <a href="/portail" style={{ color: "var(--muted)", fontSize: ".85rem", fontWeight: 600, textDecoration: "none" }}>
+              Mon portail
+            </a>
+            <a className="nav-cta" href="#prix">Voir mon prix</a>
+          </div>
         </div>
       </nav>
 
@@ -129,7 +134,10 @@ export default function SiteClient({ pricing, stats }: { pricing: SitePricing; s
       {/* ── FOOTER ── */}
       <footer>
         <div className="wrap foot-in">
-          <span>ALTAMAR — Entretien de piscines &amp; spas · Granby, Bromont et les environs</span>
+          <span>
+            ALTAMAR — Entretien de piscines &amp; spas · Granby, Bromont et les environs ·{" "}
+            <a href="/portail" style={{ color: "var(--aqua)", textDecoration: "none" }}>Portail client</a>
+          </span>
           <a href={`tel:${PHONE_TEL}`} className="num" style={{ color: "var(--faint)", textDecoration: "none" }}>{PHONE_DISPLAY}</a>
         </div>
       </footer>
