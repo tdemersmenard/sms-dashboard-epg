@@ -30,6 +30,7 @@ export const metadata: Metadata = {
     type: "website",
   },
   icons: { icon: "/brand/favicon-32.png", apple: "/brand/logo-mark-192.png" },
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "ALTAMAR" },
 };
 
 const localBusinessSchema = {
