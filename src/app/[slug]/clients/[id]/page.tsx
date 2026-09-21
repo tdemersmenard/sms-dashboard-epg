@@ -6,6 +6,7 @@ import { MessageSquare, CalendarPlus, ChevronDown, Upload, Download, Trash2, Che
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { useFranchise } from "@/components/FranchiseProvider";
 import type { Contact, Job, Document, Payment, Message } from "@/lib/types";
+import { isPoolClosed, addPoolClosedMarker, removePoolClosedMarker } from "@/lib/pool-closed";
 
 const STAGES = [
   "nouveau", "contacté", "soumission envoyée", "closé",
@@ -168,6 +169,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [notesKey, setNotesKey] = useState(0);
 
   const deleteClient = async () => {
     setDeleting(true);
@@ -884,10 +886,31 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
             </div>
           </div>
 
+          {/* Piscine fermée pour la saison */}
+          <label className={`flex items-center gap-3 rounded-xl border p-4 cursor-pointer transition ${isPoolClosed(contact.notes) ? "border-acc bg-chip" : "border-line bg-sur"}`}>
+            <input
+              type="checkbox"
+              checked={isPoolClosed(contact.notes)}
+              onChange={async (e) => {
+                const newNotes = e.target.checked
+                  ? addPoolClosedMarker(contact.notes)
+                  : removePoolClosedMarker(contact.notes);
+                await save({ notes: newNotes || null });
+                setNotesKey((k) => k + 1);
+              }}
+              className="w-5 h-5 accent-[var(--le-acc)]"
+            />
+            <span className="text-sm text-ink">
+              Piscine fermée pour la saison{" "}
+              <span className="text-mut">(stoppe les rappels de passage — se coche seule quand la fermeture est complétée)</span>
+            </span>
+          </label>
+
           {/* Notes */}
           <div className="bg-sur rounded-xl p-6 border border-line ">
             <h2 className="text-sm font-bold font-display text-ink mb-3">Notes</h2>
             <textarea
+              key={notesKey}
               defaultValue={contact.notes ?? ""}
               onBlur={(e) => save({ notes: e.target.value || null })}
               rows={4}

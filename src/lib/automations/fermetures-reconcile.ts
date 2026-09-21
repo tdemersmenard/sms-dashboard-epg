@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "@/lib/supabase";
 import { getAppUrl } from "@/config/brand";
+import { isPoolClosed, addPoolClosedMarker } from "@/lib/pool-closed";
 
 /**
  * Réconciliation des fermetures Flow B (fermeture à facturer, non incluse dans un forfait).
@@ -178,6 +179,54 @@ export async function reconcileFermetures(franchiseId: string): Promise<string[]
     } catch (e) {
       console.error("[fermetures-reconcile] error on job", job.id, e);
     }
+  }
+
+  return out;
+}
+
+/**
+ * Coche automatique « piscine fermée » : dès qu'un job de fermeture est
+ * complété (ou que sa date est passée sans annulation), on pose le marqueur
+ * PISCINE_FERMÉE:date sur la fiche → les rappels de passage d'entretien
+ * s'arrêtent pour ce client. Idempotent (le marqueur est le garde).
+ */
+export async function markClosedPools(franchiseId: string): Promise<string[]> {
+  const out: string[] = [];
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Montreal" });
+
+  const { data: jobs } = await supabaseAdmin
+    .from("jobs")
+    .select("id, contact_id, scheduled_date, status")
+    .eq("franchise_id", franchiseId)
+    .eq("job_type", "fermeture")
+    .neq("status", "annulé");
+
+  for (const job of jobs || []) {
+    const done = job.status === "complété" || job.scheduled_date < today;
+    if (!done) continue;
+
+    const { data: c } = await supabaseAdmin
+      .from("contacts")
+      .select("id, first_name, last_name, notes")
+      .eq("id", job.contact_id)
+      .maybeSingle();
+    if (!c || isPoolClosed(c.notes)) continue;
+
+    await supabaseAdmin
+      .from("contacts")
+      .update({ notes: addPoolClosedMarker(c.notes, job.scheduled_date) })
+      .eq("id", c.id);
+
+    await supabaseAdmin.from("automation_logs").insert({
+      action: "piscine_fermee_auto",
+      contact_id: c.id,
+      status: "success",
+      details: { jobId: job.id, jobDate: job.scheduled_date, jobStatus: job.status },
+      franchise_id: franchiseId,
+    });
+
+    const name = [c.first_name, c.last_name].filter(Boolean).join(" ") || c.id;
+    out.push(`piscine marquée fermée: ${name} (fermeture du ${job.scheduled_date})`);
   }
 
   return out;

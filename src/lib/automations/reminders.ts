@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "@/lib/supabase";
 import { getAppUrl } from "@/config/brand";
 import { getFranchiseOwner } from "@/lib/automations/helpers";
+import { isPoolClosed } from "@/lib/pool-closed";
 
 const BASE_URL = getAppUrl();
 
@@ -68,11 +69,17 @@ export async function sendJobReminders(franchiseId: string) {
 
     const { data: contact } = await supabaseAdmin
       .from("contacts")
-      .select("first_name, phone")
+      .select("first_name, phone, notes")
       .eq("id", job.contact_id)
       .single();
 
     if (!contact || !contact.phone?.startsWith("+")) continue;
+
+    // Piscine fermée pour la saison → plus aucun rappel de passage d'entretien
+    if (job.job_type === "entretien" && isPoolClosed(contact.notes)) {
+      results.push(`Rappel 1 jour sauté (piscine fermée): ${contact.first_name || job.contact_id}`);
+      continue;
+    }
 
     const name = contact.first_name || "Bonjour";
     const heure = job.scheduled_time_start ? ` à ${job.scheduled_time_start.slice(0, 5)}` : "";
@@ -111,11 +118,16 @@ export async function sendJobReminders(franchiseId: string) {
 
     const { data: contact } = await supabaseAdmin
       .from("contacts")
-      .select("first_name, phone")
+      .select("first_name, phone, notes")
       .eq("id", job.contact_id)
       .single();
 
     if (!contact || !contact.phone?.startsWith("+")) continue;
+
+    if (job.job_type === "entretien" && isPoolClosed(contact.notes)) {
+      results.push(`Rappel 1h sauté (piscine fermée): ${contact.first_name || job.contact_id}`);
+      continue;
+    }
 
     const name = contact.first_name || "Bonjour";
 

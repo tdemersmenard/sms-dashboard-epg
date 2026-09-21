@@ -80,11 +80,13 @@ export async function GET(req: NextRequest) {
 
   // 4b. Réconciliation fermetures — aucune fermeture Flow B bookée sans paiement
   try {
-    const { reconcileFermetures } = await import("@/lib/automations/fermetures-reconcile");
+    const { reconcileFermetures, markClosedPools } = await import("@/lib/automations/fermetures-reconcile");
     const allResults: string[] = [];
     for (const f of activeFranchises || []) {
       const r = await reconcileFermetures(f.id);
       allResults.push(...r);
+      const closed = await markClosedPools(f.id);
+      allResults.push(...closed);
     }
     results.fermetures_reconcile = allResults;
   } catch (e) {
