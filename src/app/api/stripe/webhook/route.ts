@@ -21,6 +21,21 @@ export async function POST(req: NextRequest) {
     }
 
     if (event.type === "checkout.session.completed") {
+      // Meta CAPI: Purchase (dédup par session.id — jamais refiré côté client)
+      try {
+        const { sendCapiEvent } = await import("@/lib/meta-capi");
+        const s0 = event.data.object as { id: string; amount_total?: number | null; metadata?: Record<string, string> };
+        await sendCapiEvent({
+          eventName: "Purchase",
+          eventId: `purchase_${s0.id}`,
+          customData: {
+            currency: "CAD",
+            value: (s0.amount_total ?? 0) / 100,
+            content_name: s0.metadata?.spa_plan ? "abonnement_spa" : "depot_saison_2027",
+          },
+        });
+      } catch (e) { console.error("[stripe-webhook] capi purchase:", e); }
+
       const session = event.data.object as Stripe.Checkout.Session;
       const paymentId = session.metadata?.payment_id;
       const contactId = session.metadata?.contact_id;

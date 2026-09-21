@@ -1,0 +1,147 @@
+/* ═══ SITE PUBLIC ALTAMAR — design system (dark unique, assumé) ═══ */
+
+.alta {
+  --bg: #06182b;
+  --panel: #0c2540;
+  --panel-2: #102e4e;
+  --line: #1b3a5c;
+  --navy: #0e2a47;
+  --cyan: #19b6d9;
+  --aqua: #7fe3f2;
+  --pos: #3ddc97;
+  --ink: #f4fafc;
+  --mut: #8fa9bc;
+
+  font-family: var(--font-body-site), system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  min-height: 100vh;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.6;
+}
+
+.alta h1, .alta h2, .alta h3, .alta .display {
+  font-family: var(--font-display-site), system-ui, sans-serif;
+  font-weight: 800;
+  line-height: 1.12;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+
+.alta .container { max-width: 1080px; margin: 0 auto; padding: 0 20px; }
+.alta section { padding: 72px 0; }
+@media (min-width: 768px) { .alta section { padding: 104px 0; } }
+
+/* ── Nav ── */
+.alta-nav {
+  position: sticky; top: 0; z-index: 50;
+  background: rgba(6, 24, 43, 0.86);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--line);
+}
+.alta-nav .inner { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+.alta-logo { display: flex; align-items: center; gap: 10px; font-family: var(--font-display-site); font-weight: 900; font-size: 20px; letter-spacing: 0.02em; color: var(--ink); text-decoration: none; }
+.alta-logo img { height: 30px; width: auto; }
+
+/* ── Boutons ── */
+.alta-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  font-family: var(--font-display-site); font-weight: 800; font-size: 15px;
+  padding: 14px 26px; border-radius: 12px; text-decoration: none;
+  cursor: pointer; border: none; transition: transform 0.15s, box-shadow 0.15s;
+}
+.alta-btn-primary {
+  background: linear-gradient(135deg, var(--cyan), #0e93b3);
+  color: #04121f;
+  box-shadow: 0 4px 24px rgba(25, 182, 217, 0.35);
+}
+.alta-btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 32px rgba(25, 182, 217, 0.5); }
+.alta-btn-ghost { background: transparent; color: var(--aqua); border: 1px solid var(--line); }
+.alta-btn-ghost:hover { border-color: var(--cyan); }
+.alta-btn:focus-visible { outline: 2px solid var(--aqua); outline-offset: 2px; }
+
+/* ── Pills / labels ── */
+.alta-pill {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: 999px; padding: 8px 16px; font-size: 13.5px; font-weight: 600; color: var(--mut);
+}
+.alta-pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--pos); animation: alta-pulse 2s infinite; }
+.alta-pill strong { color: var(--pos); font-variant-numeric: tabular-nums; }
+@keyframes alta-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+.alta-eyebrow {
+  font-size: 12.5px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--cyan); margin-bottom: 14px;
+}
+
+/* ── Panneaux ── */
+.alta-panel { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 26px; }
+.alta-panel-2 { background: var(--panel-2); }
+
+/* ── Hero ── */
+.alta-hero { position: relative; overflow: hidden; padding: 88px 0 110px; }
+@media (min-width: 768px) { .alta-hero { padding: 120px 0 150px; } }
+.alta-hero canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.alta-hero .content { position: relative; z-index: 1; }
+.alta-hero h1 { font-size: clamp(34px, 7.2vw, 62px); font-weight: 900; margin: 20px 0 16px; }
+.alta-hero h1 .aqua { color: var(--aqua); }
+.alta-hero p.lead { font-size: clamp(16px, 2.4vw, 19px); color: var(--mut); max-width: 560px; }
+.alta-hero .ctas { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
+
+/* ── Prix ── */
+.alta-toggle { display: inline-flex; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 4px; gap: 4px; }
+.alta-toggle button {
+  font-family: var(--font-display-site); font-weight: 800; font-size: 14px;
+  padding: 10px 20px; border-radius: 9px; border: none; cursor: pointer;
+  background: transparent; color: var(--mut); transition: all 0.15s;
+}
+.alta-toggle button.on { background: var(--cyan); color: #04121f; }
+.alta-price-num { font-family: var(--font-display-site); font-weight: 900; font-size: clamp(48px, 9vw, 72px); color: var(--ink); line-height: 1; }
+.alta-price-strike { color: var(--mut); text-decoration: line-through; font-size: clamp(20px, 3.5vw, 26px); font-weight: 700; }
+.alta-save-chip { display: inline-block; background: rgba(61, 220, 151, 0.12); border: 1px solid rgba(61, 220, 151, 0.4); color: var(--pos); font-weight: 700; font-size: 14px; border-radius: 999px; padding: 5px 14px; }
+
+/* ── Chrono ── */
+.alta-chrono-ring {
+  font-family: var(--font-display-site); font-weight: 900; font-size: clamp(56px, 12vw, 88px);
+  color: var(--aqua); line-height: 1; font-variant-numeric: tabular-nums;
+}
+.alta-input {
+  width: 100%; background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px;
+  padding: 15px 18px; font-size: 16px; color: var(--ink); outline: none; font-family: inherit;
+}
+.alta-input:focus { border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(25, 182, 217, 0.18); }
+.alta-input::placeholder { color: var(--mut); }
+.alta-success { color: var(--pos); font-weight: 700; }
+
+/* ── Dashboard live ── */
+.alta-stat-num { font-family: var(--font-display-site); font-weight: 900; font-size: clamp(38px, 7vw, 56px); color: var(--aqua); line-height: 1; }
+.alta-bar { height: 10px; border-radius: 999px; background: var(--panel-2); overflow: hidden; }
+.alta-bar > div { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--cyan), var(--aqua)); transition: width 1.2s cubic-bezier(0.22, 1, 0.36, 1); }
+
+/* ── Mockup téléphone ── */
+.alta-phone {
+  width: min(320px, 86vw); margin: 0 auto; background: #04121f;
+  border: 1px solid var(--line); border-radius: 36px; padding: 14px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
+}
+.alta-phone .screen { background: var(--panel); border-radius: 24px; overflow: hidden; }
+
+/* ── Footer ── */
+.alta-footer { border-top: 1px solid var(--line); padding: 44px 0 56px; color: var(--mut); font-size: 14px; }
+.alta-footer a { color: var(--aqua); text-decoration: none; }
+
+/* ── Divers ── */
+.alta a.anchor-offset { scroll-margin-top: 80px; }
+.alta section[id] { scroll-margin-top: 72px; }
+.alta .grid-2 { display: grid; gap: 20px; }
+.alta .grid-3 { display: grid; gap: 16px; }
+@media (min-width: 768px) {
+  .alta .grid-2 { grid-template-columns: 1fr 1fr; }
+  .alta .grid-3 { grid-template-columns: repeat(3, 1fr); }
+}
+.alta html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) {
+  .alta * { animation: none !important; transition: none !important; }
+}

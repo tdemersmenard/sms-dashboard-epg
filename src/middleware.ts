@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 const PUBLIC_PATHS = [
+  "/site",
+  "/brand",
   "/login",
   "/portail",
   "/employe",
@@ -42,6 +44,17 @@ const MASTER_ONLY_SUFFIXES = [
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+
+  // Domaine public ALTAMAR: la racine sert le site vitrine (le CRM reste
+  // accessible par son domaine Vercel). SITE_DOMAINS = "altamar.ca,www.altamar.ca"
+  const siteDomains = (process.env.SITE_DOMAINS || "")
+    .split(",").map((d) => d.trim().toLowerCase()).filter(Boolean);
+  const host = (req.headers.get("host") || "").toLowerCase().split(":")[0];
+  if (pathname === "/" && siteDomains.includes(host)) {
+    const url = req.nextUrl.clone();
+    url.pathname = "/site";
+    return NextResponse.rewrite(url);
+  }
 
   // Public paths — let them through
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {

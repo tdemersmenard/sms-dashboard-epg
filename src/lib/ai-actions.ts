@@ -1065,11 +1065,11 @@ export async function executeActions(actions: AIAction[], contactId: string): Pr
         case "SWITCH_ESSENTIEL": {
           // Downsell accepté: le dépôt en attente passe du montant Signature au
           // montant Essentiel (sinon le lien /api/pay chargerait le mauvais dépôt).
-          const ESSENTIEL_DEPOSITS: Record<string, { deposit: number; finalPrice: number }> = {
-            "hors-terre": { deposit: 130, finalPrice: 1170 },
-            "creusée": { deposit: 150, finalPrice: 1350 },
-          };
-          const cfg = ESSENTIEL_DEPOSITS[action.poolType];
+          const { loadSaisonPricing } = await import("@/lib/meta-saison-2027");
+          const essentiel = await loadSaisonPricing("essentiel");
+          const key = action.poolType === "hors-terre" ? "hors-terre" : "creusée";
+          const live = essentiel[key];
+          const cfg = live ? { deposit: live.deposit, finalPrice: live.finalPrice } : undefined;
           if (!cfg) break;
 
           const { data: dep } = await supabaseAdmin

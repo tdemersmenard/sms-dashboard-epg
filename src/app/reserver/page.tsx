@@ -1,19 +1,21 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Check, ChevronLeft, Waves } from "lucide-react";
+import MetaPixel, { trackEvent } from "@/components/site/MetaPixel";
 
 /**
  * /reserver — réservation self-serve saison 2027 (page publique, mobile-first).
  * 3 étapes: piscine → forfait (Signature recommandé / Essentiel) → récap + Stripe.
  */
 
+/** Prix par défaut — remplacés au chargement par /api/site/pricing (source unique). */
 const TIERS = {
   signature: {
     name: "Signature",
     tagline: "Tout inclus, zéro souci",
-    prices: { "hors-terre": { full: 1800, final: 1620, deposit: 180 }, "creusée": { full: 2200, final: 1980, deposit: 220 } },
+    prices: { "hors-terre": { full: 1800, final: 1620, deposit: 162 }, "creusée": { full: 2200, final: 1980, deposit: 198 } },
     inclus: [
       "Visite chaque semaine, mai à octobre",
       "Produits de balancement inclus",
@@ -26,17 +28,48 @@ const TIERS = {
   essentiel: {
     name: "Essentiel",
     tagline: "La visite hebdo, sans les extras",
-    prices: { "hors-terre": { full: 1300, final: 1170, deposit: 130 }, "creusée": { full: 1500, final: 1350, deposit: 150 } },
+    prices: { "hors-terre": { full: 1300, final: 1170, deposit: 117 }, "creusée": { full: 1500, final: 1350, deposit: 135 } },
     inclus: ["Visite chaque semaine, mai à octobre", "Tests et balancement de l'eau", "Rapport photo après chaque passage"],
     exclus: ["Produits en sus", "Ouverture en sus (180-200$)", "Fermeture en sus (150-175$)"],
   },
-} as const;
+};
 
 type Pool = "hors-terre" | "creusée";
 type Tier = keyof typeof TIERS;
 
+type LivePricing = {
+  promo: { active: boolean };
+  tiers: Record<Tier, Record<Pool, { full: number; price: number; deposit: number }>>;
+};
+
+function useLiveTiers() {
+  const [tiers, setTiers] = useState(TIERS);
+  const [promoActive, setPromoActive] = useState<boolean | null>(null);
+  useEffect(() => {
+    fetch("/api/site/pricing")
+      .then((r) => r.json())
+      .then((d: LivePricing) => {
+        const next = structuredClone(TIERS);
+        for (const t of ["signature", "essentiel"] as Tier[]) {
+          for (const pool of ["hors-terre", "creusée"] as Pool[]) {
+            const e = d.tiers[t][pool];
+            next[t].prices[pool] = { full: e.full, final: e.price, deposit: e.deposit };
+          }
+        }
+        setTiers(next);
+        setPromoActive(d.promo.active);
+      })
+      .catch(() => {});
+  }, []);
+  return { tiers, promoActive };
+}
+
 function ReserverInner() {
   const done = useSearchParams().get("done") === "1";
+  const { tiers: LIVE, promoActive } = useLiveTiers();
+  useEffect(() => {
+    if (!done) trackEvent("InitiateCheckout", { content_name: "reserver_2027" });
+  }, [done]);
   const [step, setStep] = useState(1);
   const [pool, setPool] = useState<Pool | null>(null);
   const [spa, setSpa] = useState(false);
@@ -47,7 +80,7 @@ function ReserverInner() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const beforeDeadline = new Date() < new Date("2026-11-01T00:00:00-04:00");
+  const beforeDeadline = promoActive ?? new Date() < new Date("2026-11-01T00:00:00-04:00");
 
   if (done) {
     return (
@@ -79,7 +112,7 @@ function ReserverInner() {
     }
   };
 
-  const p = pool ? TIERS[tier].prices[pool] : null;
+  const p = pool ? LIVE[tier].prices[pool] : null;
 
   return (
     <Shell>
@@ -127,7 +160,7 @@ function ReserverInner() {
           <p className="text-sm text-mut mb-5">Saison complète, mai à octobre — piscine {pool}.</p>
           <div className="space-y-3">
             {(Object.keys(TIERS) as Tier[]).map((k) => {
-              const t = TIERS[k];
+              const t = LIVE[k];
               const pr = t.prices[pool];
               const selected = tier === k;
               return (
@@ -166,7 +199,7 @@ function ReserverInner() {
             })}
           </div>
           <button onClick={() => setStep(3)} className="w-full mt-6 py-4 rounded-xl btn-glow font-display font-semibold text-base">
-            Continuer avec {TIERS[tier].name}
+            Continuer avec {LIVE[tier].name}
           </button>
         </div>
       )}
@@ -177,7 +210,7 @@ function ReserverInner() {
           <h2 className="font-display text-xl font-semibold text-ink mb-5">Ta réservation</h2>
 
           <div className="rounded-2xl border border-line bg-sur p-5 mb-4">
-            <Row label={`Forfait ${TIERS[tier].name} — ${pool}${spa ? " + spa" : ""}`} value={`${p.full}$`} strike={beforeDeadline} />
+            <Row label={`Forfait ${LIVE[tier].name} — ${pool}${spa ? " + spa" : ""}`} value={`${p.full}$`} strike={beforeDeadline} />
             {beforeDeadline && <Row label="Rabais avant le 1er novembre (-10%)" value={`-${p.full - p.final}$`} accent />}
             <div className="border-t border-line my-3" />
             <Row label="Prix de ta saison 2027" value={`${beforeDeadline ? p.final : p.full}$`} bold />
@@ -272,6 +305,7 @@ function PlanBtn({ active, onClick, title, sub }: { active: boolean; onClick: ()
 export default function ReserverPage() {
   return (
     <Suspense fallback={null}>
+      <MetaPixel />
       <ReserverInner />
     </Suspense>
   );

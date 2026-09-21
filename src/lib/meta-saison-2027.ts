@@ -32,6 +32,8 @@ interface PoolPricing {
   deposit: number;
 }
 
+// ⚠️ Valeurs par défaut seulement — la vérité vit dans settings.pricing_config
+// (src/lib/pricing.ts). Utiliser loadSaisonPricing() partout où c'est possible.
 export const SAISON_2027_PRICING: Record<string, PoolPricing> = {
   "creusée": { label: "creusée", fullPrice: 2200, rebate: 220, finalPrice: 1980, deposit: 220 },
   "hors-terre": { label: "hors-terre", fullPrice: 1800, rebate: 180, finalPrice: 1620, deposit: 180 },
@@ -43,6 +45,22 @@ export const ESSENTIEL_2027_PRICING: Record<string, PoolPricing> = {
   "creusée": { label: "creusée", fullPrice: 1500, rebate: 150, finalPrice: 1350, deposit: 150 },
   "hors-terre": { label: "hors-terre", fullPrice: 1300, rebate: 130, finalPrice: 1170, deposit: 130 },
 };
+
+/** Prix courants depuis la source unique pricing_config (fallback: constantes ci-dessus). */
+export async function loadSaisonPricing(tier: "signature" | "essentiel" = "signature"): Promise<Record<string, PoolPricing>> {
+  try {
+    const { getPricingConfig, effectivePricing } = await import("@/lib/pricing");
+    const cfg = await getPricingConfig();
+    const out: Record<string, PoolPricing> = {};
+    for (const pool of ["creusée", "hors-terre"] as const) {
+      const e = effectivePricing(cfg, tier, pool);
+      out[pool] = { label: pool, fullPrice: e.full, rebate: e.saving, finalPrice: e.price, deposit: e.deposit };
+    }
+    return out;
+  } catch {
+    return tier === "essentiel" ? ESSENTIEL_2027_PRICING : SAISON_2027_PRICING;
+  }
+}
 
 /** Services à l'unité saison 2027 (CAS B — besoin ponctuel) */
 export const UNIT_2027_PRICING = {
@@ -197,7 +215,8 @@ export async function processSaison2027Lead(
 
   const pool = normalizePoolType(fields.poolTypeRaw);
   const readiness = normalizeReadiness(fields.readinessRaw);
-  const pricing = pool.key ? SAISON_2027_PRICING[pool.key] : null;
+  const livePricing = await loadSaisonPricing("signature");
+  const pricing = pool.key ? livePricing[pool.key] : null;
   log.push(`parse: ${fields.firstName ?? "(sans prénom)"} | ${phone} | ${fields.city ?? "?"} | piscine=${pool.label}${pool.isSpa ? " (SPA)" : ""} | readiness=${readiness}`);
 
   // ── Notes: offre + attribution + relances programmées selon readiness ──

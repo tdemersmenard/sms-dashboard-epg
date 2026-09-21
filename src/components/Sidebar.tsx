@@ -99,7 +99,7 @@ export default function Sidebar() {
   }, [franchiseId]);
 
   // Don't render on login/portail pages
-  if (pathname === "/login" || pathname?.startsWith("/portail") || pathname?.startsWith("/reserver")) return null;
+  if (pathname === "/login" || pathname?.startsWith("/portail") || pathname?.startsWith("/reserver") || pathname?.startsWith("/site")) return null;
 
   const isItemActive = (itemHref: string) => {
     const fullHref = `${base}${itemHref}`;

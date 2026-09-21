@@ -7,10 +7,11 @@ import { FranchiseProvider } from "./FranchiseProvider";
 export default function LayoutWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isPortail = pathname?.startsWith("/portail") ?? false;
+  const isSite = pathname?.startsWith("/site") ?? false;
   const isEmploye = pathname === "/employe" || (pathname?.startsWith("/employe/") ?? false);
   const isMaster = pathname === "/master" || (pathname?.startsWith("/master/") ?? false);
 
-  if (isPortail || isEmploye) {
+  if (isPortail || isEmploye || isSite) {
     return <div style={{ minHeight: "100vh" }}>{children}</div>;
   }
 

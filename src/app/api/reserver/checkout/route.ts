@@ -5,22 +5,11 @@ import { supabaseAdmin } from "@/lib/supabase";
 import { BRAND, getAppUrl } from "@/config/brand";
 import { normalizePhone } from "@/lib/utils";
 import { GRANBY_FRANCHISE_ID } from "@/lib/franchise";
+import { getPricingConfig, effectivePricing } from "@/lib/pricing";
 import Stripe from "stripe";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2024-12-18.acacia" });
 
-/** Grille /reserver — mêmes chiffres que le funnel SMS (source: meta-saison-2027) */
-const TIERS: Record<string, Record<string, { fullPrice: number; finalPrice: number; deposit: number }>> = {
-  signature: {
-    "hors-terre": { fullPrice: 1800, finalPrice: 1620, deposit: 180 },
-    "creusée": { fullPrice: 2200, finalPrice: 1980, deposit: 220 },
-  },
-  essentiel: {
-    "hors-terre": { fullPrice: 1300, finalPrice: 1170, deposit: 130 },
-    "creusée": { fullPrice: 1500, finalPrice: 1350, deposit: 150 },
-  },
-};
-const OFFER_DEADLINE = "2026-11-01";
 
 /**
  * Checkout self-serve public: crée/tagge le contact, crée le dépôt et
@@ -37,11 +26,12 @@ export async function POST(req: NextRequest) {
     const pool = poolType === "creusée" ? "creusée" : "hors-terre";
     const tierKey = tier === "essentiel" ? "essentiel" : "signature";
     const planKey = plan === "4x" ? "4x" : "comptant";
-    const pricing = TIERS[tierKey][pool];
-
-    const beforeDeadline = new Date().toLocaleDateString("en-CA", { timeZone: "America/Montreal" }) < OFFER_DEADLINE;
-    const price = beforeDeadline ? pricing.finalPrice : pricing.fullPrice;
-    const deposit = pricing.deposit;
+    // Source unique des prix: settings.pricing_config (src/lib/pricing.ts)
+    const cfg = await getPricingConfig();
+    const eff = effectivePricing(cfg, tierKey, pool);
+    const beforeDeadline = eff.promoActive;
+    const price = eff.price;
+    const deposit = eff.deposit;
 
     // ── Contact: find-or-create + tag self-serve ──
     let { data: contact } = await supabaseAdmin
@@ -100,7 +90,7 @@ export async function POST(req: NextRequest) {
           amount: deposit,
           method: "stripe",
           status: "en_attente",
-          due_date: OFFER_DEADLINE,
+          due_date: cfg.promo.ends_at,
           notes: depNotes,
           franchise_id: GRANBY_FRANCHISE_ID,
         })

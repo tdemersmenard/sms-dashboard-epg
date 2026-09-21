@@ -75,7 +75,7 @@ export async function buildCallQueue(franchiseId: string): Promise<string[]> {
     .from("contacts")
     .select("id, first_name, city, pool_type, stage, notes, created_at, phone")
     .eq("franchise_id", franchiseId)
-    .in("lead_source", ["meta_saison_2027", "meta_spa"])
+    .in("lead_source", ["meta_saison_2027", "meta_spa", "site_chrono"])
     .not("stage", "in", '("closé","perdu","complété")');
 
   if (!leads || leads.length === 0) return ["aucun lead 2027 ouvert"];
