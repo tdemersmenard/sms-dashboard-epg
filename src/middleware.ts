@@ -50,10 +50,18 @@ export function middleware(req: NextRequest) {
   const siteDomains = (process.env.SITE_DOMAINS || "")
     .split(",").map((d) => d.trim().toLowerCase()).filter(Boolean);
   const host = (req.headers.get("host") || "").toLowerCase().split(":")[0];
-  if (pathname === "/" && siteDomains.includes(host)) {
-    const url = req.nextUrl.clone();
-    url.pathname = "/site";
-    return NextResponse.rewrite(url);
+  if (siteDomains.includes(host)) {
+    if (pathname === "/") {
+      const url = req.nextUrl.clone();
+      url.pathname = "/site";
+      return NextResponse.rewrite(url);
+    }
+    // Une seule URL canonique pour le site: altamar.ca/ (pas /site)
+    if (pathname === "/site" || pathname.startsWith("/site/")) {
+      const url = req.nextUrl.clone();
+      url.pathname = "/";
+      return NextResponse.redirect(url, 308);
+    }
   }
 
   // Public paths — let them through

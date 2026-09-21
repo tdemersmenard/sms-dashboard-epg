@@ -17,6 +17,8 @@ const archivo = Archivo({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://altamar.ca"),
+  alternates: { canonical: "/" },
   title: "ALTAMAR — Entretien de piscine à Granby | Prix affichés",
   description:
     "Les prix sont affichés, la réponse prend 30 secondes. Entretien de piscine et spa à Granby: visite chaque semaine, produits inclus, rapport photo après chaque passage.",
