@@ -10,7 +10,7 @@ import { trackEvent } from "@/components/site/MetaPixel";
 
 export type SitePricing = {
   promo: { active: boolean; rabais_pct: number; ends_at: string; raison: string };
-  tiers: Record<string, Record<string, { full: number; price: number; deposit: number; saving: number; quarterly: number; weekly: number }>>;
+  tiers: Record<string, Record<string, { full: number; price: number; deposit: number; saving: number; quarterly: number; weekly: number; monthly: number }>>;
 };
 
 export type PoolChoice = "hors-terre" | "creusée";
@@ -76,15 +76,13 @@ export default function PriceSection({
 
         <div className="price-card">
           <span className="eyebrow">Forfait Signature · Saison 2027</span>
-          {promoOn && (
-            <div style={{ marginTop: 14 }}>
-              <span className="price-old num">{fmt(p.full)}&nbsp;$</span>
-            </div>
-          )}
-          <div className="price-big num">
-            {fmt(p.price)}
-            <small>&nbsp;$ +tx</small>
+          <div className="price-big num" style={{ marginTop: 14 }}>
+            {fmt(p.monthly)}
+            <small>&nbsp;$ /mois</small>
           </div>
+          <p className="num" style={{ color: "var(--muted)", fontSize: ".95rem", margin: "6px 0 2px" }}>
+            Ou {fmt(p.price)}&nbsp;$ +tx d&apos;un coup{promoOn && <> (au lieu de <span className="price-old">{fmt(p.full)}&nbsp;$</span>)</>}
+          </p>
           {promoOn && (
             <span className="save-tag num">
               Tu économises {fmt(p.saving)}&nbsp;$ — offre pré-saison jusqu&apos;au 1er novembre
@@ -97,7 +95,7 @@ export default function PriceSection({
             <li>Rapport photo texté après chaque visite</li>
           </ul>
           <div className="split num">
-            <span>4 versements de <b>{fmt(p.quarterly)}&nbsp;$</b></span>
+            <span>12 prélèvements égaux, le 1er réserve ta place</span>
             <span>≈ <b>{fmt(p.weekly)}&nbsp;$ / semaine</b> de saison</span>
           </div>
           <div className="split num" style={{ border: "none", paddingTop: 10 }}>

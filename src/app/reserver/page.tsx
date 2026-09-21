@@ -15,7 +15,7 @@ const TIERS = {
   signature: {
     name: "Signature",
     tagline: "Tout inclus, zéro souci",
-    prices: { "hors-terre": { full: 1800, final: 1620, deposit: 162 }, "creusée": { full: 2200, final: 1980, deposit: 198 } },
+    prices: { "hors-terre": { full: 1800, final: 1620, deposit: 162, monthly: 135 }, "creusée": { full: 2200, final: 1980, deposit: 198, monthly: 165 } },
     inclus: [
       "Visite chaque semaine, mai à octobre",
       "Produits de balancement inclus",
@@ -28,7 +28,7 @@ const TIERS = {
   essentiel: {
     name: "Essentiel",
     tagline: "La visite hebdo, sans les extras",
-    prices: { "hors-terre": { full: 1300, final: 1170, deposit: 117 }, "creusée": { full: 1500, final: 1350, deposit: 135 } },
+    prices: { "hors-terre": { full: 1300, final: 1170, deposit: 117, monthly: 97.5 }, "creusée": { full: 1500, final: 1350, deposit: 135, monthly: 112.5 } },
     inclus: ["Visite chaque semaine, mai à octobre", "Tests et balancement de l'eau", "Rapport photo après chaque passage"],
     exclus: ["Produits en sus", "Ouverture en sus (180-200$)", "Fermeture en sus (150-175$)"],
   },
@@ -39,7 +39,7 @@ type Tier = keyof typeof TIERS;
 
 type LivePricing = {
   promo: { active: boolean };
-  tiers: Record<Tier, Record<Pool, { full: number; price: number; deposit: number }>>;
+  tiers: Record<Tier, Record<Pool, { full: number; price: number; deposit: number; monthly: number }>>;
 };
 
 function useLiveTiers() {
@@ -53,7 +53,7 @@ function useLiveTiers() {
         for (const t of ["signature", "essentiel"] as Tier[]) {
           for (const pool of ["hors-terre", "creusée"] as Pool[]) {
             const e = d.tiers[t][pool];
-            next[t].prices[pool] = { full: e.full, final: e.price, deposit: e.deposit };
+            next[t].prices[pool] = { full: e.full, final: e.price, deposit: e.deposit, monthly: e.monthly };
           }
         }
         setTiers(next);
@@ -65,7 +65,9 @@ function useLiveTiers() {
 }
 
 function ReserverInner() {
-  const done = useSearchParams().get("done") === "1";
+  const params = useSearchParams();
+  const done = params.get("done") === "1";
+  const preselect = params.get("plan"); // mensuel | saison
   const { tiers: LIVE, promoActive } = useLiveTiers();
   useEffect(() => {
     if (!done) trackEvent("InitiateCheckout", { content_name: "reserver_2027" });
@@ -74,7 +76,7 @@ function ReserverInner() {
   const [pool, setPool] = useState<Pool | null>(null);
   const [spa, setSpa] = useState(false);
   const [tier, setTier] = useState<Tier>("signature");
-  const [plan, setPlan] = useState<"comptant" | "4x">("comptant");
+  const [plan, setPlan] = useState<"mensuel" | "comptant" | "4x">(preselect === "saison" ? "comptant" : "mensuel");
   const [firstName, setFirstName] = useState("");
   const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
@@ -214,13 +216,32 @@ function ReserverInner() {
             {beforeDeadline && <Row label="Rabais avant le 1er novembre (-10%)" value={`-${p.full - p.final}$`} accent />}
             <div className="border-t border-line my-3" />
             <Row label="Prix de ta saison 2027" value={`${beforeDeadline ? p.final : p.full}$`} bold />
-            <Row label="Dépôt aujourd'hui (déduit de ta facture de mai)" value={`${p.deposit}$`} accent bold />
+            {plan === "mensuel" ? (
+              <Row label="Aujourd'hui: 1er prélèvement (fait partie du total)" value={`${p.monthly}$`} accent bold />
+            ) : (
+              <Row label="Dépôt aujourd'hui (déduit de ta facture de mai)" value={`${p.deposit}$`} accent bold />
+            )}
           </div>
 
-          <p className="lbl mb-2">Le reste, comment tu préfères?</p>
-          <div className="grid grid-cols-2 gap-3 mb-5">
-            <PlanBtn active={plan === "comptant"} onClick={() => setPlan("comptant")} title="Comptant" sub="Facturé en mai" />
-            <PlanBtn active={plan === "4x"} onClick={() => setPlan("4x")} title="4 versements" sub={`${Math.round(((beforeDeadline ? p.final : p.full) - p.deposit) / 4)}$/mois, mai à août`} />
+          <p className="lbl mb-2">Comment tu préfères payer?</p>
+          <div className="space-y-3 mb-5">
+            <button
+              onClick={() => setPlan("mensuel")}
+              className={`w-full text-left rounded-2xl border-2 p-4 transition relative ${plan === "mensuel" ? "border-acc bg-chip" : "border-line bg-sur"}`}
+            >
+              <span className="absolute -top-2.5 left-4 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-acc-grad text-accink">
+                Le plus populaire
+              </span>
+              <div className="flex items-baseline justify-between">
+                <span className="font-display font-semibold text-ink">Au mois</span>
+                <span className="font-display font-bold text-2xl text-acc num">{p.monthly}$<span className="text-sm text-mut font-semibold">/mois</span></span>
+              </div>
+              <p className="text-xs text-mut mt-1">12 prélèvements — le 1er réserve ta place aujourd&apos;hui. Total: {beforeDeadline ? p.final : p.full}$, pareil.</p>
+            </button>
+            <div className="grid grid-cols-2 gap-3">
+              <PlanBtn active={plan === "comptant"} onClick={() => setPlan("comptant")} title="Par saison" sub={`Dépôt ${p.deposit}$, facturé en mai`} />
+              <PlanBtn active={plan === "4x"} onClick={() => setPlan("4x")} title="4 versements" sub={`${Math.round(((beforeDeadline ? p.final : p.full) - p.deposit) / 4)}$/mois, mai à août`} />
+            </div>
           </div>
 
           <div className="space-y-3 mb-5">
@@ -245,10 +266,12 @@ function ReserverInner() {
             onClick={submit}
             className="w-full py-4 rounded-xl btn-glow font-display font-semibold text-base disabled:opacity-40"
           >
-            {busy ? "Un instant…" : `Payer le dépôt de ${p.deposit}$ →`}
+            {busy ? "Un instant…" : plan === "mensuel" ? `Commencer à ${p.monthly}$/mois →` : `Payer le dépôt de ${p.deposit}$ →`}
           </button>
           <p className="text-[11px] text-mut text-center mt-3">
-            Paiement sécurisé par Stripe. Ton dépôt est déduit de ta facture — il ne dort pas dans nos poches.
+            {plan === "mensuel"
+              ? "Paiement sécurisé par Stripe. 12 prélèvements égaux — contrat de saison, on s'occupe de tout."
+              : "Paiement sécurisé par Stripe. Ton dépôt est déduit de ta facture — il ne dort pas dans nos poches."}
           </p>
         </div>
       )}

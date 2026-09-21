@@ -93,6 +93,19 @@ export async function GET(req: NextRequest) {
     results.fermetures_reconcile_error = String(e);
   }
 
+  // 4c. Blitz deadline fin octobre — INACTIF par défaut (settings blitz_deadline_enabled)
+  try {
+    const { runBlitzDeadline } = await import("@/lib/automations/blitz-deadline");
+    const allResults: string[] = [];
+    for (const f of activeFranchises || []) {
+      const r = await runBlitzDeadline(f.id);
+      allResults.push(...r);
+    }
+    results.blitz_deadline = allResults;
+  } catch (e) {
+    results.blitz_deadline_error = String(e);
+  }
+
   // 5. Portails manquants
   try {
     const { createMissingPortals } = await import("@/lib/automations/portal-check");

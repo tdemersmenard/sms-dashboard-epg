@@ -150,7 +150,9 @@ export async function POST(req: NextRequest) {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 contactId,
-                body: `C'est officiel${contact?.first_name ? " " + contact.first_name : ""} — ta saison 2027 est RÉSERVÉE 🌊 Ton dépôt de ${payment?.amount ?? "?"}$ est confirmé (déduit de ta facture) et ton rabais de 10% est garanti. On se reparle au printemps pour l'ouverture. Merci! — l'équipe ALTAMAR`,
+                body: session.metadata?.plan === "mensuel"
+                  ? `C'est officiel${contact?.first_name ? " " + contact.first_name : ""} — ta saison 2027 est RÉSERVÉE 🌊 Ton premier prélèvement de ${payment?.amount ?? "?"}$ est passé (11 autres suivront, même montant, même date chaque mois). Ton rabais de 10% est garanti. On se reparle au printemps pour l'ouverture. Merci! — l'équipe ALTAMAR`
+                  : `C'est officiel${contact?.first_name ? " " + contact.first_name : ""} — ta saison 2027 est RÉSERVÉE 🌊 Ton dépôt de ${payment?.amount ?? "?"}$ est confirmé (déduit de ta facture) et ton rabais de 10% est garanti. On se reparle au printemps pour l'ouverture. Merci! — l'équipe ALTAMAR`,
               }),
             });
 
@@ -164,6 +166,24 @@ export async function POST(req: NextRequest) {
 
             // Plan 4 versements: créer les 4 paiements du solde (mai-août 2027).
             // La carte est sauvegardée (setup_future_usage) — customer/pm dans les notes du 1er versement.
+            if (session.metadata?.plan === "mensuel" && typeof session.subscription === "string") {
+              // Contrat de saison: 12 prélèvements pile, puis l'abonnement se
+              // termine tout seul (cancel_at ~11,5 mois: la 12e facture passe,
+              // pas de 13e). Aucune annulation self-serve.
+              try {
+                const cancelAt = new Date();
+                cancelAt.setMonth(cancelAt.getMonth() + 11);
+                cancelAt.setDate(cancelAt.getDate() + 15);
+                await stripe.subscriptions.update(session.subscription, {
+                  cancel_at: Math.floor(cancelAt.getTime() / 1000),
+                });
+                const { data: cMens } = await supabaseAdmin.from("contacts").select("notes").eq("id", contactId).single();
+                await supabaseAdmin.from("contacts").update({
+                  notes: `${(cMens?.notes ?? "").trim()}\nABONNEMENT MENSUEL SAISON 2027 ACTIF: ${payment?.amount ?? "?"}$/mois ×12 (Stripe sub: ${session.subscription}) — se termine seul après le 12e prélèvement. Annulation via nous seulement.`.trim(),
+                }).eq("id", contactId);
+              } catch (e) { console.error("[stripe-webhook] cancel_at mensuel:", e); }
+            }
+
             if (session.metadata?.plan === "4x") {
               const isEssentiel = (existingPayment?.notes ?? "").includes("ESSENTIEL");
               const isCreusee = (existingPayment?.notes ?? "").includes("creusée");

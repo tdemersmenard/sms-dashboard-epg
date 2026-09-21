@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
     }
     const pool = poolType === "creusée" ? "creusée" : "hors-terre";
     const tierKey = tier === "essentiel" ? "essentiel" : "signature";
-    const planKey = plan === "4x" ? "4x" : "comptant";
+    const planKey = plan === "mensuel" ? "mensuel" : plan === "4x" ? "4x" : "comptant";
     // Source unique des prix: settings.pricing_config (src/lib/pricing.ts)
     const cfg = await getPricingConfig();
     const eff = effectivePricing(cfg, tierKey, pool);
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
 
     const selfServeNote = [
       `TAG:self-serve`,
-      `RÉSERVATION SELF-SERVE (${new Date().toLocaleDateString("en-CA", { timeZone: "America/Montreal" })}): forfait ${tierKey.toUpperCase()}, ${pool}${spa ? " + spa" : ""}, ${planKey === "4x" ? "4 versements" : "comptant"} — ${price}$${beforeDeadline ? " (-10% appliqué)" : ""}, dépôt ${deposit}$.`,
+      `RÉSERVATION SELF-SERVE (${new Date().toLocaleDateString("en-CA", { timeZone: "America/Montreal" })}): forfait ${tierKey.toUpperCase()}, ${pool}${spa ? " + spa" : ""}, ${planKey === "mensuel" ? `mensuel ${eff.monthly}$/mois ×12` : planKey === "4x" ? "4 versements" : "comptant"} — ${price}$${beforeDeadline ? " (-10% appliqué)" : ""}${planKey === "mensuel" ? " (prélèvement 1 = dépôt, déduit du total)" : `, dépôt ${deposit}$`}.`,
     ].join("\n");
 
     if (contact) {
@@ -75,10 +75,13 @@ export async function POST(req: NextRequest) {
       .from("payments").select("id, status")
       .eq("contact_id", contact.id).ilike("notes", "%Dépôt saison 2027%").maybeSingle();
 
-    const depNotes = `Dépôt saison 2027 — déduit de la facture (${pool}${tierKey === "essentiel" ? ", ESSENTIEL" : ""}, self-serve)`;
+    const depNotes = planKey === "mensuel"
+      ? `Dépôt saison 2027 — mensuel, prélèvement 1 de 12 (${eff.monthly}$/mois, ${pool}${tierKey === "essentiel" ? ", ESSENTIEL" : ""}, self-serve)`
+      : `Dépôt saison 2027 — déduit de la facture (${pool}${tierKey === "essentiel" ? ", ESSENTIEL" : ""}, self-serve)`;
+    const firstCharge = planKey === "mensuel" ? Math.round(eff.monthly * 100) / 100 : deposit;
     let paymentId: string;
     if (existingDep && existingDep.status === "en_attente") {
-      await supabaseAdmin.from("payments").update({ amount: deposit, notes: depNotes }).eq("id", existingDep.id);
+      await supabaseAdmin.from("payments").update({ amount: firstCharge, notes: depNotes }).eq("id", existingDep.id);
       paymentId = existingDep.id;
     } else if (existingDep) {
       return NextResponse.json({ error: "Un dépôt a déjà été payé pour ce numéro — contacte-nous par texto!" }, { status: 409 });
@@ -87,7 +90,7 @@ export async function POST(req: NextRequest) {
         .from("payments")
         .insert({
           contact_id: contact.id,
-          amount: deposit,
+          amount: firstCharge,
           method: "stripe",
           status: "en_attente",
           due_date: cfg.promo.ends_at,
@@ -101,26 +104,51 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Session Stripe ──
-    const session = await stripe.checkout.sessions.create({
-      mode: "payment",
-      line_items: [
-        {
-          price_data: {
-            currency: "cad",
-            unit_amount: deposit * 100,
-            product_data: {
-              name: `${BRAND.name} — Dépôt saison 2027 (forfait ${tierKey === "essentiel" ? "Essentiel" : "Signature"}, ${pool})`,
-              description: `Saison à ${price}$${planKey === "4x" ? " en 4 versements" : ""} — dépôt déduit de la facture de mai`,
+    const tierLabel = tierKey === "essentiel" ? "Essentiel" : "Signature";
+    const session = planKey === "mensuel"
+      ? await stripe.checkout.sessions.create({
+          // Abonnement 12 mois: contrat de saison — le webhook fixe cancel_at
+          // après 12 prélèvements; aucune annulation self-serve.
+          mode: "subscription",
+          line_items: [
+            {
+              price_data: {
+                currency: "cad",
+                unit_amount: Math.round(eff.monthly * 100),
+                recurring: { interval: "month" },
+                product_data: {
+                  name: `${BRAND.name} — Saison 2027 au mois (forfait ${tierLabel}, ${pool})`,
+                  description: `12 prélèvements de ${eff.monthly}$ (total ${price}$${beforeDeadline ? ", -10% appliqué" : ""}). Contrat de saison — le premier prélèvement réserve ta place.`,
+                },
+              },
+              quantity: 1,
             },
-          },
-          quantity: 1,
-        },
-      ],
-      ...(planKey === "4x" ? { payment_intent_data: { setup_future_usage: "off_session" as const } } : {}),
-      metadata: { payment_id: paymentId, contact_id: contact.id, plan: planKey, source: "self_serve" },
-      success_url: `${getAppUrl()}/reserver?done=1`,
-      cancel_url: `${getAppUrl()}/reserver`,
-    });
+          ],
+          metadata: { payment_id: paymentId, contact_id: contact.id, plan: "mensuel", tier: tierKey, pool, source: "self_serve" },
+          subscription_data: { metadata: { payment_id: paymentId, contact_id: contact.id, plan: "mensuel", saison: "2027" } },
+          success_url: `${getAppUrl()}/reserver?done=1`,
+          cancel_url: `${getAppUrl()}/reserver`,
+        })
+      : await stripe.checkout.sessions.create({
+          mode: "payment",
+          line_items: [
+            {
+              price_data: {
+                currency: "cad",
+                unit_amount: deposit * 100,
+                product_data: {
+                  name: `${BRAND.name} — Dépôt saison 2027 (forfait ${tierLabel}, ${pool})`,
+                  description: `Saison à ${price}$${planKey === "4x" ? " en 4 versements" : ""} — dépôt déduit de la facture de mai`,
+                },
+              },
+              quantity: 1,
+            },
+          ],
+          ...(planKey === "4x" ? { payment_intent_data: { setup_future_usage: "off_session" as const } } : {}),
+          metadata: { payment_id: paymentId, contact_id: contact.id, plan: planKey, source: "self_serve" },
+          success_url: `${getAppUrl()}/reserver?done=1`,
+          cancel_url: `${getAppUrl()}/reserver`,
+        });
 
     return NextResponse.json({ url: session.url });
   } catch (err: unknown) {

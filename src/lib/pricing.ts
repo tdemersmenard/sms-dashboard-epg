@@ -80,6 +80,9 @@ export interface EffectivePricing {
   quarterly: number;
   /** Équivalent par semaine de saison (~19 semaines mai-oct) */
   weekly: number;
+  /** Paiement mensuel 12 mois (prix effectif / 12, au cent près) — le
+   *  prélèvement 1 fait office de dépôt et est déduit du total. */
+  monthly: number;
 }
 
 export function effectivePricing(
@@ -101,5 +104,6 @@ export function effectivePricing(
     promoActive,
     quarterly: Math.round((price - deposit) / 4),
     weekly: Math.round(price / 19),
+    monthly: Math.round((price / 12) * 100) / 100,
   };
 }

@@ -17,6 +17,7 @@ export default async function SitePage() {
       tiers[tier][pool] = {
         full: e.full, price: e.price, deposit: e.deposit,
         saving: e.saving, quarterly: e.quarterly, weekly: e.weekly,
+        monthly: e.monthly,
       };
     }
   }

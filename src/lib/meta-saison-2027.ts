@@ -30,6 +30,8 @@ interface PoolPricing {
   rebate: number;
   finalPrice: number;
   deposit: number;
+  /** Mensuel 12 mois (prix effectif / 12) — absent des vieilles constantes */
+  monthly?: number;
 }
 
 // ⚠️ Valeurs par défaut seulement — la vérité vit dans settings.pricing_config
@@ -54,7 +56,7 @@ export async function loadSaisonPricing(tier: "signature" | "essentiel" = "signa
     const out: Record<string, PoolPricing> = {};
     for (const pool of ["creusée", "hors-terre"] as const) {
       const e = effectivePricing(cfg, tier, pool);
-      out[pool] = { label: pool, fullPrice: e.full, rebate: e.saving, finalPrice: e.price, deposit: e.deposit };
+      out[pool] = { label: pool, fullPrice: e.full, rebate: e.saving, finalPrice: e.price, deposit: e.deposit, monthly: e.monthly };
     }
     return out;
   } catch {
@@ -223,15 +225,16 @@ export async function processSaison2027Lead(
   const noteLines = [
     `OFFRE SAISON 2027 [${OFFER_TAG}]: entretien saisonnier 2027 — 10% de rabais si dépôt de 10% avant le ${OFFER_DEADLINE}. Dépôt déduit de la facture.`,
     pricing
-      ? `PRIX POUR CE CLIENT (${pool.label}): régulier ${pricing.fullPrice}$ → avec rabais ${pricing.finalPrice}$ (économie ${pricing.rebate}$). Dépôt requis: ${pricing.deposit}$.`
+      ? `PRIX POUR CE CLIENT (${pool.label}): MENSUEL ${pricing.monthly ?? Math.round((pricing.finalPrice / 12) * 100) / 100}$/mois ×12 (option à mettre en avant) OU saison ${pricing.finalPrice}$ +tx d'un coup (régulier ${pricing.fullPrice}$, économie ${pricing.rebate}$). Dépôt saison: ${pricing.deposit}$ (au mensuel, le prélèvement 1 fait office de dépôt).`
       : `PRIX À CONFIRMER PAR THOMAS (type: ${pool.label} — hors grille standard). NE PAS improviser de prix.`,
     `Attribution Meta: campagne "${attribution.campaign_name ?? attribution.campaign_id ?? "?"}", ad "${attribution.ad_name ?? attribution.ad_id ?? "?"}" (ad_id ${attribution.ad_id ?? "?"}, adset ${attribution.adset_id ?? "?"}, form ${attribution.form_id ?? "?"}, leadgen ${attribution.leadgen_id})`,
   ];
-  if (readiness === "veut_prix") {
-    noteLines.push(`RELANCE_PREVUE:${daysFromNow(2)}:As-tu eu le temps d'y réfléchir pour ta saison 2027? ${pricing ? `Le ${pricing.finalPrice}$ (-10%) est encore valide jusqu'au 1er novembre.` : "Je te prépare ton prix dès que tu veux."} Une question, peut-être?`);
-  } else if (readiness === "magasine") {
-    noteLines.push(`RELANCE_PREVUE:${daysFromNow(5)}:Toujours en train de comparer pour 2027? Prends ton temps — si tu as des questions sur ce qui est inclus, je suis là.`);
-    noteLines.push(`RELANCE_PREVUE:${RELANCE_J3_DEADLINE}:Petit rappel: le rabais de 10% pour la saison 2027 se termine dans 3 jours (1er novembre). Après, c'est le prix régulier. Veux-tu que je te réserve ta place?`);
+  const monthlyStr = pricing ? `${pricing.monthly ?? Math.round((pricing.finalPrice / 12) * 100) / 100}$` : null;
+  if (monthlyStr) {
+    noteLines.push(`RELANCE_PREVUE:${daysFromNow(1)}:Juste pour être sûr que t'as vu: la saison complète revient à ${monthlyStr}/mois, tout inclus 🌊 Une question peut-être?`);
+    noteLines.push(`RELANCE_PREVUE:${daysFromNow(3)}:Dernier petit suivi pour ta saison 2027 à ${monthlyStr}/mois — si c'est non c'est correct, dis-le moi et je te laisse tranquille. Si t'hésites encore, je suis là.`);
+  } else if (readiness === "veut_prix") {
+    noteLines.push(`RELANCE_PREVUE:${daysFromNow(2)}:As-tu eu le temps d'y réfléchir pour ta saison 2027? Je te prépare ton prix dès que tu veux. Une question, peut-être?`);
   }
 
   // ── Contact: find-or-create (même logique que le reste du système) ──
@@ -299,7 +302,7 @@ export async function processSaison2027Lead(
       // Le lien va aussi dans les notes pour que le bot puisse le repartager
       const { data: c2 } = await supabaseAdmin.from("contacts").select("notes").eq("id", contact.id).single();
       if (c2 && !(c2.notes || "").includes(depositUrl)) {
-        await supabaseAdmin.from("contacts").update({ notes: `${c2.notes}\nLIEN DÉPÔT STRIPE: ${depositUrl}\nLIEN RÉSERVATION SELF-SERVE: ${getAppUrl()}/reserver` }).eq("id", contact.id);
+        await supabaseAdmin.from("contacts").update({ notes: `${c2.notes}\nLIEN DÉPÔT STRIPE: ${depositUrl}\nLIEN RÉSERVATION MENSUEL (au mois): ${getAppUrl()}/reserver?plan=mensuel\nLIEN RÉSERVATION SAISON (comptant ou 4 versements): ${getAppUrl()}/reserver?plan=saison` }).eq("id", contact.id);
       }
     }
   }
@@ -312,42 +315,24 @@ export async function processSaison2027Lead(
   );
   log.push(thomasOk ? "✅ SMS Thomas envoyé" : "⚠️ SMS Thomas non envoyé (owner_phone/contact manquant)");
 
-  // ── SMS d'ouverture au lead, routé selon Q2 ──
+  // ── SMS d'ouverture: le mensuel en vedette + question d'engagement ──
   const rawFirst = (fields.firstName || "").trim().split(/\s+/)[0];
   const prenom = rawFirst ? ` ${rawFirst.charAt(0).toUpperCase()}${rawFirst.slice(1).toLowerCase()}` : "";
-  const quarterly = pricing ? Math.round(pricing.fullPrice / 4) : 0;
-  const weekly = pricing ? Math.round(pricing.fullPrice / 19) : 0;
-  const stackLine = pricing
-    ? `Pour ta ${pool.label}: la saison 2027 complète est à ${pricing.fullPrice}$ — ou 4 versements de ${quarterly}$ — visite chaque semaine de mai à octobre, produits inclus, ouverture, fermeture, rapport photo après chaque passage. Ça revient à environ ${weekly}$ par semaine, tout inclus.`
-    : `Pour ta ${pool.label}, on te prépare un prix sur mesure — l'équipe te revient très vite (le -10% s'applique aussi).`;
-  const offerLine = pricing
-    ? `Et tu arrives au bon moment: avant le 1er novembre c'est ${pricing.finalPrice}$ (-10%) avec un dépôt de ${pricing.deposit}$ — qui ne dort pas dans nos poches: il est déduit directement de ta facture de mai.`
-    : `Et le rabais de 10% avant le 1er novembre s'applique aussi à ta soumission.`;
 
-  const openers: Record<string, string[]> = {
-    cette_semaine: [
-      `Salut${prenom}! C'est l'équipe ${BRAND.name} 🌊 ${stackLine}`,
-      ...(pricing
-        ? [`${offerLine} Comme tu es prêt à réserver, tu peux tout faire ici en 2 minutes (comptant ou 4 versements): ${getAppUrl()}/reserver`]
-        : [`${offerLine} Dis-moi quand tu es prêt et je te réserve ta place!`]),
-    ],
-    veut_prix: [
-      `Salut${prenom}! C'est l'équipe ${BRAND.name} 🌊 ${stackLine}`,
-      `${offerLine} Petite question pour préparer ton dossier: en ce moment, tu l'entretiens toi-même ou t'avais quelqu'un?`,
-    ],
-    magasine: [
-      `Salut${prenom}! C'est l'équipe ${BRAND.name} 🌊 ${stackLine}`,
-      `${offerLine} Prends le temps de comparer — pas de pression. Petite question en passant: en ce moment, tu l'entretiens toi-même ou t'avais quelqu'un?`,
-    ],
-  };
+  const openerMsgs: string[] = pricing
+    ? [
+        `Salut${prenom}! C'est l'équipe ${BRAND.name} 🌊 Ta saison 2027 complète — visites chaque semaine, produits, ouverture, fermeture, rapport photo — c'est ${pricing.monthly ?? Math.round((pricing.finalPrice / 12) * 100) / 100}$/mois. Ou ${pricing.finalPrice}$ +tx d'un coup (au lieu de ${pricing.fullPrice}$) si tu réserves avant le 1er novembre. Tu préfères au mois ou par saison?`,
+      ]
+    : [
+        `Salut${prenom}! C'est l'équipe ${BRAND.name} 🌊 Pour ta ${pool.label}, on te prépare un prix sur mesure — l'équipe te revient très vite (le -10% avant le 1er novembre s'applique aussi).`,
+      ];
 
-  for (const msg of openers[readiness]) {
+  for (const msg of openerMsgs) {
     const ok = await sendSMS(contact.id, msg);
     log.push(`${ok ? "✅ SMS lead envoyé" : "⚠️ SMS lead non parti (Twilio)"} (${readiness}) — contenu: « ${msg} »`);
-    await new Promise((r) => setTimeout(r, 4000));
   }
-  if (readiness === "veut_prix") log.push(`✅ relance programmée J+2 (${daysFromNow(2)})`);
-  if (readiness === "magasine") log.push(`✅ relances programmées J+5 (${daysFromNow(5)}) et ${RELANCE_J3_DEADLINE} (J-3 deadline)`);
+  if (monthlyStr) log.push(`✅ relances programmées J+1 (${daysFromNow(1)}) et J+3 (${daysFromNow(3)}) — mensuel en avant`);
+
 
   await supabaseAdmin.from("automation_logs").insert({
     action: "meta_saison_2027_lead",
