@@ -65,7 +65,7 @@ export const BRAND: Brand = {
   phoneE164: "+14509942215",
   botPhoneE164: "+14509159650",
   email: "service@entretienpiscinegranby.com",
-  appUrl: "https://sms-dashboard-epg.vercel.app",
+  appUrl: "https://altamar.ca",
   address: "86 rue de Windsor, Granby QC J2H 1V4",
   city: "Granby",
   neq: "",
