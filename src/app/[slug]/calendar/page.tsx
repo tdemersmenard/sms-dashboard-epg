@@ -34,6 +34,7 @@ interface JobWithContact {
   confirmed_at: string | null;
   contactName: string;
   contactPhone: string;
+  contactAddress: string;
 }
 
 interface Contact {
@@ -113,7 +114,7 @@ export default function CalendarPage() {
       const contactIds = Array.from(new Set(jobsData.map((j) => j.contact_id)));
       const { data: contactsData } = await supabaseBrowser
         .from("contacts")
-        .select("id, first_name, last_name, phone")
+        .select("id, first_name, last_name, phone, address, city")
         .eq("franchise_id", franchiseId)
         .in("id", contactIds);
 
@@ -124,6 +125,7 @@ export default function CalendarPage() {
           ...j,
           contactName: c ? `${c.first_name || ""} ${c.last_name || ""}`.trim() : "Inconnu",
           contactPhone: (c as any)?.phone || "",
+          contactAddress: [(c as any)?.address, (c as any)?.city].filter(Boolean).join(", "),
         };
       });
       setJobs(enriched as JobWithContact[]);
@@ -510,12 +512,32 @@ export default function CalendarPage() {
                       className="w-full text-sm border border-line rounded-lg px-2 py-1.5 bg-sur text-ink"
                     />
                   </div>
+                  {selectedJob.contactAddress && (
+                    <a
+                      href={`https://maps.apple.com/?q=${encodeURIComponent(selectedJob.contactAddress)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block text-xs text-acc mt-2 underline underline-offset-2"
+                    >
+                      📍 {selectedJob.contactAddress}
+                    </a>
+                  )}
                   {selectedJob.notes && <p className="text-xs text-mut mt-2">📝 {selectedJob.notes}</p>}
                 </div>
               ) : (
                 <div className="text-sm text-mut space-y-1">
                   <p>📅 {format(parseISO(selectedJob.scheduled_date), "EEEE d MMMM yyyy", { locale: fr })}</p>
                   <p>⏰ {selectedJob.scheduled_time_start?.slice(0, 5)} – {selectedJob.scheduled_time_end?.slice(0, 5)}</p>
+                  {selectedJob.contactAddress && (
+                    <a
+                      href={`https://maps.apple.com/?q=${encodeURIComponent(selectedJob.contactAddress)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block text-acc underline underline-offset-2"
+                    >
+                      📍 {selectedJob.contactAddress}
+                    </a>
+                  )}
                   {selectedJob.notes && <p className="mt-2">📝 {selectedJob.notes}</p>}
                 </div>
               )}
