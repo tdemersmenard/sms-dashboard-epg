@@ -42,18 +42,23 @@ export default function VendeurDashboard() {
   const [leads, setLeads] = useState<Any[]>([]);
   const [stats, setStats] = useState({ appels: 0, depots: 0, valeur: 0 });
   const [sectors, setSectors] = useState<Any[]>([]);
+  const [comm, setComm] = useState({ a_payer: 0, paye: 0 });
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
     const sb = vendeurBrowser();
     (async () => {
       const { data: { user } } = await sb.auth.getUser();
-      const [{ data: ls }, { data: calls }, { data: pays }, { data: secs }] = await Promise.all([
+      const [{ data: ls }, { data: calls }, { data: pays }, { data: secs }, { data: comms }] = await Promise.all([
         sb.from("contacts").select("id, first_name, last_name, phone, city, pool_type, pipeline_status, assigned_at, next_callback_at, notes"),
         sb.from("call_logs").select("id").gte("called_at", todayStr() + "T00:00:00"),
         sb.from("payments").select("amount, status, kind, created_at").eq("created_by", user?.id ?? "").eq("status", "reçu"),
         sb.from("sector_capacity").select("secteur, capacite, places_prises"),
+        sb.from("commissions").select("amount_cents, status"),
       ]);
+      const cSum = { a_payer: 0, paye: 0 };
+      for (const c of comms || []) { if (c.status === "a_payer") cSum.a_payer += c.amount_cents; else if (c.status === "paye") cSum.paye += c.amount_cents; }
+      setComm({ a_payer: Math.round(cSum.a_payer) / 100, paye: Math.round(cSum.paye) / 100 });
       setLeads(ls || []);
       const today = todayStr();
       const depotsToday = (pays || []).filter((p) => (p.created_at || "").slice(0, 10) === today);
@@ -82,6 +87,19 @@ export default function VendeurDashboard() {
         <div className="vnd-stat"><div className="v">{stats.depots}</div><div className="k">dépôts encaissés</div></div>
         <div className="vnd-stat"><div className="v">{stats.valeur.toLocaleString("fr-CA")}$</div><div className="k">valeur signée</div></div>
       </div>
+
+      {(comm.a_payer > 0 || comm.paye > 0) && (
+        <div className="vnd-card" style={{ marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <span className="lbl">Tes commissions</span>
+            <p style={{ fontSize: ".8rem", color: "var(--mut)", marginTop: 3 }}>{comm.paye.toLocaleString("fr-CA")}$ payées à date</p>
+          </div>
+          <div style={{ textAlign: "right" }}>
+            <div style={{ fontFamily: "var(--disp)", fontWeight: 900, fontSize: "1.4rem", color: "var(--green)" }}>{comm.a_payer.toLocaleString("fr-CA")}$</div>
+            <div style={{ fontSize: ".7rem", color: "var(--faint)" }}>en attente</div>
+          </div>
+        </div>
+      )}
 
       <p className="lbl" style={{ marginBottom: 10 }}>Ta file d&apos;appels ({queue.length})</p>
       {queue.length === 0 ? (

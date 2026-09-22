@@ -20,6 +20,26 @@ export async function POST(req: NextRequest) {
       event = JSON.parse(body) as Stripe.Event;
     }
 
+    // ── Remboursement ou échec → annuler la commission (jamais de commission
+    //    sur de l'argent non encaissé / repris) ──
+    if (event.type === "charge.refunded" || event.type === "payment_intent.payment_failed") {
+      const obj = event.data.object as { payment_intent?: string | null; id?: string };
+      const pi = event.type === "charge.refunded" ? (typeof obj.payment_intent === "string" ? obj.payment_intent : null) : obj.id ?? null;
+      if (pi) {
+        const { data: pay } = await supabaseAdmin
+          .from("payments").select("id, contact_id").eq("stripe_payment_intent_id", pi).maybeSingle();
+        if (pay) {
+          const reason = event.type === "charge.refunded" ? "remboursé" : "paiement échoué";
+          await supabaseAdmin.from("payments").update({ status: event.type === "charge.refunded" ? "rembourse" : "echoue" }).eq("id", pay.id);
+          await supabaseAdmin.from("commissions")
+            .update({ status: "annulee", cancelled_reason: reason })
+            .eq("lead_id", pay.contact_id).eq("status", "a_payer");
+          await supabaseAdmin.from("automation_logs").insert({ action: "commission_annulee", contact_id: pay.contact_id, status: "success", details: { reason, payment_intent: pi } });
+        }
+      }
+      return NextResponse.json({ received: true });
+    }
+
     if (event.type === "checkout.session.completed") {
       // Meta CAPI: Purchase (dédup par session.id — jamais refiré côté client)
       try {
@@ -94,11 +114,16 @@ export async function POST(req: NextRequest) {
           .eq("id", paymentId)
           .single();
 
+        // Références Stripe (pour matcher un remboursement plus tard → annuler la commission)
+        const piId = typeof session.payment_intent === "string" ? session.payment_intent : null;
+        const subId = typeof session.subscription === "string" ? session.subscription : null;
         await supabaseAdmin.from("payments").update({
           status: "reçu",
           method: "stripe",
           received_date: new Date().toISOString().split("T")[0],
           notes: (existingPayment?.notes ?? "") + " — Payé par Stripe",
+          ...(piId ? { stripe_payment_intent_id: piId } : {}),
+          ...(subId ? { stripe_subscription_id: subId } : {}),
         }).eq("id", paymentId);
 
         if (contactId) {
@@ -160,6 +185,29 @@ export async function POST(req: NextRequest) {
             });
             if (owner) await fetch(`${baseUrl}/api/sms/send`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contactId: owner.id, body: `💰 VENDU — ${clientName} a payé ${payment!.amount}$ (${modeLabel}). RÉSERVÉ ✅` }) });
             await supabaseAdmin.from("automation_logs").insert({ action: "closer_sale_paid", contact_id: contactId, status: "success", details: { amount: payment!.amount, kind: payment!.kind, closer_id: payment!.created_by, payment_id: paymentId }, franchise_id: franchiseId });
+
+            // ── COMMISSIONS (montant FIXE, jamais un %) ──
+            // Créées UNIQUEMENT ici, au 1er paiement réellement encaissé.
+            // Base: une seule fois par lead (index unique lead_id+kind='base').
+            // Bonus comptant: seulement si saison_comptant.
+            const { data: prof } = await supabaseAdmin
+              .from("profiles").select("commission_flat_cents, bonus_comptant_cents")
+              .eq("id", payment!.created_by).maybeSingle();
+            if (prof) {
+              const { error: baseErr } = await supabaseAdmin.from("commissions").insert({
+                payment_id: paymentId, closer_id: payment!.created_by, lead_id: contactId,
+                amount_cents: prof.commission_flat_cents, kind: "base", status: "a_payer", franchise_id: franchiseId,
+              });
+              // 23505 = déjà une commission de base pour ce lead → normal, on ignore
+              if (baseErr && baseErr.code !== "23505") console.error("[commission base]", baseErr.message);
+
+              if (payment!.kind === "saison_comptant") {
+                await supabaseAdmin.from("commissions").insert({
+                  payment_id: paymentId, closer_id: payment!.created_by, lead_id: contactId,
+                  amount_cents: prof.bonus_comptant_cents, kind: "bonus_comptant", status: "a_payer", franchise_id: franchiseId,
+                });
+              }
+            }
           }
 
           // Dépôt saison 2027 (self-serve/bot, PAS une vente closer déjà traitée ci-dessus)

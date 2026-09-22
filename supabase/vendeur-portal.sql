@@ -209,3 +209,8 @@ alter table public.assignment_history enable row level security;
 alter table public.messages add column if not exists sent_by_closer uuid references public.profiles(id) on delete set null;
 alter table public.messages add column if not exists sent_via text;   -- 'bot' | 'closer' | 'admin' | null (legacy)
 alter table public.contacts add column if not exists lost_reason text;
+
+-- ─── 9. STATUTS DE PAIEMENT: autoriser remboursé/échoué (Phase 4 commissions) ──
+alter table public.payments drop constraint if exists payments_status_check;
+alter table public.payments add constraint payments_status_check
+  check (status in ('en_attente','reçu','en_retard','rembourse','echoue'));
