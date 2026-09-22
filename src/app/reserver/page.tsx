@@ -15,7 +15,7 @@ const TIERS = {
   signature: {
     name: "Signature",
     tagline: "Tout inclus, zéro souci",
-    prices: { "hors-terre": { full: 1800, final: 1620, deposit: 162, monthly: 135 }, "creusée": { full: 2200, final: 1980, deposit: 198, monthly: 165 } },
+    prices: { "hors-terre": { full: 1800, final: 1620, deposit: 162, monthly: 145 }, "creusée": { full: 2200, final: 1980, deposit: 198, monthly: 175 } },
     inclus: [
       "Visite chaque semaine, mai à octobre",
       "Produits de balancement inclus",
@@ -28,7 +28,7 @@ const TIERS = {
   essentiel: {
     name: "Essentiel",
     tagline: "La visite hebdo, sans les extras",
-    prices: { "hors-terre": { full: 1300, final: 1170, deposit: 117, monthly: 97.5 }, "creusée": { full: 1500, final: 1350, deposit: 135, monthly: 112.5 } },
+    prices: { "hors-terre": { full: 1300, final: 1170, deposit: 117, monthly: 107.5 }, "creusée": { full: 1500, final: 1350, deposit: 135, monthly: 122.5 } },
     inclus: ["Visite chaque semaine, mai à octobre", "Tests et balancement de l'eau", "Rapport photo après chaque passage"],
     exclus: ["Produits en sus", "Ouverture en sus (180-200$)", "Fermeture en sus (150-175$)"],
   },
@@ -215,7 +215,7 @@ function ReserverInner() {
             <Row label={`Forfait ${LIVE[tier].name} — ${pool}${spa ? " + spa" : ""}`} value={`${p.full}$`} strike={beforeDeadline} />
             {beforeDeadline && <Row label="Rabais avant le 1er novembre (-10%)" value={`-${p.full - p.final}$`} accent />}
             <div className="border-t border-line my-3" />
-            <Row label="Prix de ta saison 2027" value={`${beforeDeadline ? p.final : p.full}$`} bold />
+            <Row label={plan === "mensuel" ? "Prix de ta saison 2027 (au mois)" : "Prix de ta saison 2027"} value={`${plan === "mensuel" ? Math.round(p.monthly * 12) : beforeDeadline ? p.final : p.full}$`} bold />
             {plan === "mensuel" ? (
               <Row label="Aujourd'hui: 1er prélèvement (fait partie du total)" value={`${p.monthly}$`} accent bold />
             ) : (
@@ -236,10 +236,10 @@ function ReserverInner() {
                 <span className="font-display font-semibold text-ink">Au mois</span>
                 <span className="font-display font-bold text-2xl text-acc num">{p.monthly}$<span className="text-sm text-mut font-semibold">/mois</span></span>
               </div>
-              <p className="text-xs text-mut mt-1">12 prélèvements — le 1er réserve ta place aujourd&apos;hui. Total: {beforeDeadline ? p.final : p.full}$, pareil.</p>
+              <p className="text-xs text-mut mt-1">12 prélèvements — le 1er réserve ta place aujourd&apos;hui. Total: {Math.round(p.monthly * 12)}$.</p>
             </button>
             <div className="grid grid-cols-2 gap-3">
-              <PlanBtn active={plan === "comptant"} onClick={() => setPlan("comptant")} title="Par saison" sub={`Dépôt ${p.deposit}$, facturé en mai`} />
+              <PlanBtn active={plan === "comptant"} onClick={() => setPlan("comptant")} title="Par saison" sub={`Économise ${Math.round(p.monthly * 12 - (beforeDeadline ? p.final : p.full))}$ vs le mensuel`} />
               <PlanBtn active={plan === "4x"} onClick={() => setPlan("4x")} title="4 versements" sub={`${Math.round(((beforeDeadline ? p.final : p.full) - p.deposit) / 4)}$/mois, mai à août`} />
             </div>
           </div>

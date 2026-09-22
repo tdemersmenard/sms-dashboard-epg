@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "@/lib/supabase";
 import { BRAND, getAppUrl } from "@/config/brand";
 import { normalizePhone } from "@/lib/utils";
+import { firstNameFrom } from "@/lib/name";
 import { SPA_PRICING } from "@/lib/meta-saison-2027";
 import type { MetaAttribution } from "@/lib/meta-saison-2027";
 
@@ -104,7 +105,7 @@ export async function processSpaLead(
   ];
 
   const contactPayload = {
-    ...(fields.firstName ? { first_name: String(fields.firstName).trim().split(/\s+/)[0] } : {}),
+    ...(firstNameFrom(fields.firstName) ? { first_name: firstNameFrom(fields.firstName) } : {}),
     ...(fields.city ? { city: fields.city } : {}),
     has_spa: true,
     lead_source: "meta_spa",
@@ -143,8 +144,8 @@ export async function processSpaLead(
   log.push(ok ? "✅ SMS Thomas envoyé" : "⚠️ SMS Thomas non envoyé");
 
   // ── MSG 1: merci + reprise de sa réponse + question de situation. AUCUN prix. ──
-  const rawFirst = (fields.firstName || "").trim().split(/\s+/)[0];
-  const prenom = rawFirst ? ` ${rawFirst.charAt(0).toUpperCase()}${rawFirst.slice(1).toLowerCase()}` : "";
+  const first = firstNameFrom(fields.firstName);
+  const prenom = first ? ` ${first}` : "";
   const angle = usage === "hiver"
     ? "Tu fermes ton spa l'hiver — justement, la majorité des bris arrivent aux spas mal fermés ou mal rouverts."
     : usage === "annee"

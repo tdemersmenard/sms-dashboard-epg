@@ -4,6 +4,7 @@ const { createClient } = require("@supabase/supabase-js");
 const s = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
 const pricing = {
+  mensuel_premium: 120,
   promo: {
     rabais_pct: 10,
     ends_at: "2026-11-01",
@@ -30,11 +31,18 @@ const sectors = [
 ];
 
 (async () => {
-  for (const [key, value] of [["pricing_config", pricing], ["sector_capacity", sectors]]) {
-    const { error } = await s.from("settings").upsert(
-      { key, value: JSON.stringify(value) },
-      { onConflict: "key" },
-    );
-    console.log(key, error ? "❌ " + error.message : "✅");
+  const { error } = await s.from("settings").upsert(
+    { key: "pricing_config", value: JSON.stringify(pricing) },
+    { onConflict: "key" },
+  );
+  console.log("pricing_config", error ? "❌ " + error.message : "✅");
+
+  // sector_capacity: seed initial seulement — jamais écrasé s'il existe
+  const { data: existing } = await s.from("settings").select("key").eq("key", "sector_capacity").maybeSingle();
+  if (!existing) {
+    await s.from("settings").insert({ key: "sector_capacity", value: JSON.stringify(sectors) });
+    console.log("sector_capacity ✅ (seed initial)");
+  } else {
+    console.log("sector_capacity — déjà configuré, non touché");
   }
 })();

@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { BRAND, getAppUrl } from "@/config/brand";
 import { normalizePhone } from "@/lib/utils";
+import { firstNameFrom } from "@/lib/name";
 import { GRANBY_FRANCHISE_ID } from "@/lib/franchise";
 import { getPricingConfig, effectivePricing } from "@/lib/pricing";
 import Stripe from "stripe";
@@ -49,14 +50,14 @@ export async function POST(req: NextRequest) {
         pool_type: pool,
         ...(spa ? { has_spa: true } : {}),
       };
-      if (firstName && !contact.first_name) updates.first_name = String(firstName).trim().split(/\s+/)[0];
+      if (firstName && !contact.first_name) updates.first_name = firstNameFrom(String(firstName));
       await supabaseAdmin.from("contacts").update(updates).eq("id", contact.id);
     } else {
       const { data: created, error } = await supabaseAdmin
         .from("contacts")
         .insert({
           phone,
-          first_name: firstName ? String(firstName).trim().split(/\s+/)[0] : null,
+          first_name: firstName ? firstNameFrom(String(firstName)) : null,
           franchise_id: GRANBY_FRANCHISE_ID,
           lead_source: "self_serve",
           stage: "nouveau",

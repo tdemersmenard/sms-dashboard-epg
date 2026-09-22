@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "@/lib/supabase";
 import { BRAND, getAppUrl } from "@/config/brand";
 import { normalizePhone } from "@/lib/utils";
+import { firstNameFrom } from "@/lib/name";
 
 /**
  * Campagne Meta Leads « ALTAMAR — Saison 2027 Granby » — Instant Form custom.
@@ -225,7 +226,7 @@ export async function processSaison2027Lead(
   const noteLines = [
     `OFFRE SAISON 2027 [${OFFER_TAG}]: entretien saisonnier 2027 — 10% de rabais si dépôt de 10% avant le ${OFFER_DEADLINE}. Dépôt déduit de la facture.`,
     pricing
-      ? `PRIX POUR CE CLIENT (${pool.label}): MENSUEL ${pricing.monthly ?? Math.round((pricing.finalPrice / 12) * 100) / 100}$/mois ×12 (option à mettre en avant) OU saison ${pricing.finalPrice}$ +tx d'un coup (régulier ${pricing.fullPrice}$, économie ${pricing.rebate}$). Dépôt saison: ${pricing.deposit}$ (au mensuel, le prélèvement 1 fait office de dépôt).`
+      ? `PRIX POUR CE CLIENT (${pool.label}): MENSUEL ${pricing.monthly}$/mois ×12 (option à mettre en avant) OU comptant ${pricing.finalPrice}$ +tx d'un coup = OPTION ÉCONOMIQUE, ~120$ de moins que le mensuel (régulier ${pricing.fullPrice}$, rabais pré-saison ${pricing.rebate}$). Dépôt saison: ${pricing.deposit}$ (au mensuel, le prélèvement 1 fait office de dépôt). CES PRIX SONT FERMES — aucun autre chiffre.`
       : `PRIX À CONFIRMER PAR THOMAS (type: ${pool.label} — hors grille standard). NE PAS improviser de prix.`,
     `Attribution Meta: campagne "${attribution.campaign_name ?? attribution.campaign_id ?? "?"}", ad "${attribution.ad_name ?? attribution.ad_id ?? "?"}" (ad_id ${attribution.ad_id ?? "?"}, adset ${attribution.adset_id ?? "?"}, form ${attribution.form_id ?? "?"}, leadgen ${attribution.leadgen_id})`,
   ];
@@ -242,7 +243,7 @@ export async function processSaison2027Lead(
     .from("contacts").select("id, first_name, notes").eq("phone", phone).eq("franchise_id", franchiseId).maybeSingle();
 
   const contactPayload = {
-    ...(fields.firstName ? { first_name: fields.firstName } : {}),
+    ...(firstNameFrom(fields.firstName) ? { first_name: firstNameFrom(fields.firstName) } : {}),
     ...(fields.city ? { city: fields.city } : {}),
     ...(pool.key ? { pool_type: pool.key } : {}),
     ...(pool.isSpa ? { has_spa: true } : {}),
@@ -316,12 +317,12 @@ export async function processSaison2027Lead(
   log.push(thomasOk ? "✅ SMS Thomas envoyé" : "⚠️ SMS Thomas non envoyé (owner_phone/contact manquant)");
 
   // ── SMS d'ouverture: le mensuel en vedette + question d'engagement ──
-  const rawFirst = (fields.firstName || "").trim().split(/\s+/)[0];
-  const prenom = rawFirst ? ` ${rawFirst.charAt(0).toUpperCase()}${rawFirst.slice(1).toLowerCase()}` : "";
+  const first = firstNameFrom(fields.firstName);
+  const prenom = first ? ` ${first}` : "";
 
   const openerMsgs: string[] = pricing
     ? [
-        `Salut${prenom}! C'est l'équipe ${BRAND.name} 🌊 Ta saison 2027 complète — visites chaque semaine, produits, ouverture, fermeture, rapport photo — c'est ${pricing.monthly ?? Math.round((pricing.finalPrice / 12) * 100) / 100}$/mois. Ou ${pricing.finalPrice}$ +tx d'un coup (au lieu de ${pricing.fullPrice}$) si tu réserves avant le 1er novembre. Tu préfères au mois ou par saison?`,
+        `Salut${prenom}! C'est l'équipe ${BRAND.name} 🌊 Ta saison 2027 complète — visites chaque semaine, produits, ouverture, fermeture, rapport photo — c'est ${pricing.monthly}$/mois. Ou ${pricing.finalPrice}$ +tx d'un coup, l'option la plus économique (au lieu de ${pricing.fullPrice}$) si tu réserves avant le 1er novembre. Tu préfères au mois ou par saison?`,
       ]
     : [
         `Salut${prenom}! C'est l'équipe ${BRAND.name} 🌊 Pour ta ${pool.label}, on te prépare un prix sur mesure — l'équipe te revient très vite (le -10% avant le 1er novembre s'applique aussi).`,

@@ -8,10 +8,26 @@ const MAX_FOLLOW_UPS = 2;
 // Stages qui sont "en cours" (pas closés, pas perdus)
 const ACTIVE_STAGES = ["contacté", "soumission_envoyée", "nouveau"];
 
-export async function sendFollowUps(franchiseId: string): Promise<string[]> {
+export async function sendFollowUps(franchiseId: string, nowOverride?: Date): Promise<string[]> {
   const logs: string[] = [];
-  const now = new Date();
+  const now = nowOverride ?? new Date();
   const baseUrl = getAppUrl();
+
+  // Heure et date MONTRÉAL (le bug du J+1 parti en 7 minutes venait de la
+  // date UTC: à 22h23 Mtl, l'UTC est déjà demain → la relance "J+1" partait
+  // au tick suivant). Toute la logique de dates se fait en heure locale.
+  const mtl = new Date(now.toLocaleString("en-US", { timeZone: "America/Montreal" }));
+  const mtlToday = now.toLocaleDateString("en-CA", { timeZone: "America/Montreal" });
+  const mtlMinutes = mtl.getHours() * 60 + mtl.getMinutes();
+
+  // Couvre-feu: AUCUN message automatique entre 21h et 8h
+  if (mtlMinutes >= 21 * 60 || mtlMinutes < 8 * 60) {
+    return ["couvre-feu 21h-8h — aucune relance envoyée"];
+  }
+  // Fenêtres d'envoi des relances programmées: 17h30-17h45 (ou 9h00-9h15
+  // pour les relances "matin" promises par le bot)
+  const inEveningWindow = mtlMinutes >= 17 * 60 + 30 && mtlMinutes < 17 * 60 + 45;
+  const inMorningWindow = mtlMinutes >= 9 * 60 && mtlMinutes < 9 * 60 + 15;
 
   // Look up franchise name for messages
   const franchise = await getFranchiseOwner(franchiseId);
@@ -54,10 +70,30 @@ export async function sendFollowUps(franchiseId: string): Promise<string[]> {
 
     const relanceDate = relanceMatch[1];
     const relanceContext = relanceMatch[2].trim();
-    const today = now.toISOString().split("T")[0];
 
-    // Si la date de relance est aujourd'hui ou passée
-    if (relanceDate > today) continue;
+    // Si la date de relance est aujourd'hui ou passée (date MONTRÉAL)
+    if (relanceDate > mtlToday) continue;
+
+    // Fenêtre d'envoi: 9h si le bot a promis "matin", sinon 17h30
+    const wantsMorning = /matin/i.test(relanceContext);
+    if (wantsMorning ? !inMorningWindow : !inEveningWindow) continue;
+
+    // Les pokes automatiques J+1/J+3 sont pour les leads SILENCIEUX:
+    // si le lead a répondu entre-temps, on annule (la conversation a pris
+    // le relais — pas de relance robotique par-dessus).
+    const isAutoPoke = /Juste pour être sûr|Dernier petit suivi/.test(relanceContext);
+    if (isAutoPoke) {
+      const { data: inbound } = await supabaseAdmin
+        .from("messages").select("id")
+        .eq("contact_id", contact.id).eq("direction", "inbound")
+        .limit(1);
+      if (inbound && inbound.length > 0) {
+        const cleaned = contact.notes.replace(relanceMatch[0], "").trim();
+        await supabaseAdmin.from("contacts").update({ notes: cleaned || null }).eq("id", contact.id);
+        logs.push(`Relance auto annulée (${contact.first_name || contact.id} a répondu entre-temps)`);
+        continue;
+      }
+    }
 
     // Anti-doublon: vérifier qu'on n'a pas déjà envoyé cette relance
     const { data: existingRelance } = await supabaseAdmin
@@ -151,7 +187,7 @@ export async function sendFollowUps(franchiseId: string): Promise<string[]> {
     if (daysSinceLastMsg < requiredDelay) continue;
 
     // Anti-doublon: vérifier qu'on n'a pas déjà envoyé aujourd'hui
-    const today = now.toISOString().split("T")[0];
+    const today = mtlToday;
     const { data: todayLog } = await supabaseAdmin
       .from("automation_logs")
       .select("id")

@@ -108,6 +108,10 @@ export async function buildCallQueue(franchiseId: string): Promise<string[]> {
     if (appelPrevu && appelPrevu[1] <= today) {
       reason = `rappel prévu ${appelPrevu[1] === today ? "aujourd'hui" : "le " + appelPrevu[1]}`;
     }
+    // (négo) le lead a demandé un rabais hors grille → un humain doit trancher (prioritaire)
+    else if (notesL.includes("tag:negociation")) {
+      reason = "💬 demande un rabais — à toi de décider";
+    }
     // (a) dépôt non payé 24h+ après un oui (piscine) / abonnement non complété (spa)
     else if (
       deposit && deposit.status === "en_attente" && linkSent && inbound.length > 0 &&

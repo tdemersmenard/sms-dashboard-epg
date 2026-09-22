@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { normalizePhone } from "@/lib/utils";
 import { GRANBY_FRANCHISE_ID } from "@/lib/franchise";
+import { firstNameFrom } from "@/lib/name";
 
 // GET — Facebook verification handshake
 export async function GET(req: NextRequest) {
@@ -94,7 +95,7 @@ export async function POST(req: NextRequest) {
         const franchiseIdSpa = await resolveFranchiseId(body);
         const logs = await processSpaLead(
           {
-            firstName: body.first_name || (body.name ? String(body.name).trim().split(" ")[0] : null),
+            firstName: body.first_name || body.full_name || body.name || null,
             phone: String(body.phone),
             city: body.city || body.ville || null,
             usageRaw: String(spaUsageRaw || ""),
@@ -119,7 +120,7 @@ export async function POST(req: NextRequest) {
         const franchiseId2027 = await resolveFranchiseId(body);
         const logs = await processSaison2027Lead(
           {
-            firstName: body.first_name || (body.name ? String(body.name).trim().split(" ")[0] : null),
+            firstName: body.first_name || body.full_name || body.name || null,
             phone: String(body.phone),
             city: body.city || body.ville || null,
             poolTypeRaw: String(poolTypeRaw || ""),
@@ -140,14 +141,15 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: true, pipeline: "saison_2027", logs });
       }
 
-      let firstName = body.first_name || null;
+      const rawName = body.first_name || body.full_name || body.name || null;
+      const firstName = firstNameFrom(rawName);
       let lastName = body.last_name || null;
       const rawPhone = body.phone || null;
       const email = body.email || null;
 
-      if (!firstName && body.name) {
-        const parts = body.name.trim().split(" ");
-        firstName = parts[0] || null;
+      // Nom de famille = reste du nom complet, si non fourni séparément
+      if (!lastName && rawName) {
+        const parts = String(rawName).trim().split(/\s+/);
         lastName = parts.slice(1).join(" ") || null;
       }
 

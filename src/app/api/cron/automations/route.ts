@@ -106,6 +106,19 @@ export async function GET(req: NextRequest) {
     results.blitz_deadline_error = String(e);
   }
 
+  // 4d. Offre de fermeture à l'unité — leads piscine perdus (sept–15 nov), 24h après le refus
+  try {
+    const { sendOffreFermeture } = await import("@/lib/automations/offre-fermeture");
+    const allResults: string[] = [];
+    for (const f of activeFranchises || []) {
+      const r = await sendOffreFermeture(f.id);
+      allResults.push(...r);
+    }
+    results.offre_fermeture = allResults;
+  } catch (e) {
+    results.offre_fermeture_error = String(e);
+  }
+
   // 5. Portails manquants
   try {
     const { createMissingPortals } = await import("@/lib/automations/portal-check");

@@ -81,7 +81,8 @@ export default function PriceSection({
             <small>&nbsp;$ /mois</small>
           </div>
           <p className="num" style={{ color: "var(--muted)", fontSize: ".95rem", margin: "6px 0 2px" }}>
-            Ou {fmt(p.price)}&nbsp;$ +tx d&apos;un coup{promoOn && <> (au lieu de <span className="price-old">{fmt(p.full)}&nbsp;$</span>)</>}
+            Ou {fmt(p.price)}&nbsp;$ +tx d&apos;un coup — <strong style={{ color: "var(--ink)" }}>l&apos;option économique</strong>
+            {promoOn && <> (au lieu de <span className="price-old">{fmt(p.full)}&nbsp;$</span>)</>}
           </p>
           {promoOn && (
             <span className="save-tag num">

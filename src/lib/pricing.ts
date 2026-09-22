@@ -15,6 +15,9 @@ export interface TierPrices {
 }
 
 export interface PricingConfig {
+  /** Le mensuel coûte ce montant DE PLUS que le comptant sur 12 mois —
+   *  le comptant devient l'option économique. */
+  mensuel_premium?: number;
   promo: {
     /** Pourcentage de rabais avant la deadline */
     rabais_pct: number;
@@ -30,6 +33,7 @@ export interface PricingConfig {
 }
 
 export const DEFAULT_PRICING: PricingConfig = {
+  mensuel_premium: 120,
   promo: {
     rabais_pct: 10,
     ends_at: "2026-11-01",
@@ -80,9 +84,14 @@ export interface EffectivePricing {
   quarterly: number;
   /** Équivalent par semaine de saison (~19 semaines mai-oct) */
   weekly: number;
-  /** Paiement mensuel 12 mois (prix effectif / 12, au cent près) — le
-   *  prélèvement 1 fait office de dépôt et est déduit du total. */
+  /** Paiement mensuel 12 mois: (prix effectif + mensuel_premium) / 12.
+   *  Le comptant économise mensuel_premium (~120$). Le prélèvement 1
+   *  fait office de dépôt. */
   monthly: number;
+  /** Total du plan mensuel (monthly × 12) */
+  monthlyTotal: number;
+  /** Économie du comptant vs le mensuel */
+  cashSaving: number;
 }
 
 export function effectivePricing(
@@ -92,6 +101,7 @@ export function effectivePricing(
   now = new Date(),
 ): EffectivePricing {
   const p = cfg.saison2027[tier][pool];
+  const premium = cfg.mensuel_premium ?? 120;
   const promoActive = isPromoActive(cfg, now);
   const price = promoActive ? p.promo : p.full;
   // Dépôt = 10% du prix effectif (162$/198$ en promo, 180$/220$ au régulier)
@@ -104,6 +114,8 @@ export function effectivePricing(
     promoActive,
     quarterly: Math.round((price - deposit) / 4),
     weekly: Math.round(price / 19),
-    monthly: Math.round((price / 12) * 100) / 100,
+    monthly: Math.round(((price + premium) / 12) * 100) / 100,
+    monthlyTotal: Math.round((Math.round(((price + premium) / 12) * 100) / 100) * 12 * 100) / 100,
+    cashSaving: premium,
   };
 }
