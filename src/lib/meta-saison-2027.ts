@@ -269,42 +269,15 @@ export async function processSaison2027Lead(
     log.push(`✅ contact créé: ${created.id} (source meta_saison_2027, stage nouveau)`);
   }
 
-  // ── Dépôt: paiement en_attente + lien de paiement permanent ──
-  let depositUrl: string | null = null;
+  // ── Liens de réservation self-serve dans les notes (AUCUN dépôt créé) ──
+  // Le paiement se crée SEULEMENT quand le client accepte et réserve lui-même
+  // (via /reserver) ou quand un closer l'encaisse. On ne crée jamais de dépôt
+  // en attente à la simple réception d'un lead.
   if (pricing) {
-    const { data: existingDeposit } = await supabaseAdmin
-      .from("payments").select("id").eq("contact_id", contact.id).ilike("notes", "%Dépôt saison 2027%").limit(1);
-    let paymentId = existingDeposit?.[0]?.id;
-    if (!paymentId) {
-      const { data: pay, error: payErr } = await supabaseAdmin
-        .from("payments")
-        .insert({
-          contact_id: contact.id,
-          amount: pricing.deposit,
-          method: "stripe",
-          status: "en_attente",
-          due_date: OFFER_DEADLINE,
-          notes: `Dépôt saison 2027 — déduit de la facture (${pool.label}, ${OFFER_TAG})`,
-          franchise_id: franchiseId,
-        })
-        .select("id")
-        .single();
-      if (payErr || !pay) {
-        log.push(`❌ création paiement dépôt échouée: ${payErr?.message}`);
-      } else {
-        paymentId = pay.id;
-        log.push(`✅ dépôt ${pricing.deposit}$ créé (payment ${pay.id}, dû ${OFFER_DEADLINE})`);
-      }
-    } else {
-      log.push(`dépôt déjà existant: ${paymentId}`);
-    }
-    if (paymentId) {
-      depositUrl = `${getAppUrl()}/api/pay/${paymentId}`;
-      // Le lien va aussi dans les notes pour que le bot puisse le repartager
-      const { data: c2 } = await supabaseAdmin.from("contacts").select("notes").eq("id", contact.id).single();
-      if (c2 && !(c2.notes || "").includes(depositUrl)) {
-        await supabaseAdmin.from("contacts").update({ notes: `${c2.notes}\nLIEN DÉPÔT STRIPE: ${depositUrl}\nLIEN RÉSERVATION MENSUEL (au mois): ${getAppUrl()}/reserver?plan=mensuel\nLIEN RÉSERVATION SAISON (comptant ou 4 versements): ${getAppUrl()}/reserver?plan=saison` }).eq("id", contact.id);
-      }
+    const { data: c2 } = await supabaseAdmin.from("contacts").select("notes").eq("id", contact.id).single();
+    const reserveLinks = `LIEN RÉSERVATION MENSUEL (au mois): ${getAppUrl()}/reserver?plan=mensuel\nLIEN RÉSERVATION SAISON (comptant ou 4 versements): ${getAppUrl()}/reserver?plan=saison`;
+    if (c2 && !(c2.notes || "").includes("LIEN RÉSERVATION MENSUEL")) {
+      await supabaseAdmin.from("contacts").update({ notes: `${c2.notes}\n${reserveLinks}` }).eq("id", contact.id);
     }
   }
 
