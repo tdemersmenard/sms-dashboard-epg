@@ -203,3 +203,9 @@ alter table public.assignment_history enable row level security;
 -- · Un closer ne peut jamais: supprimer un lead (pas de policy DELETE),
 --   changer un prix (aucune écriture sur payments/pricing_config),
 --   voir un autre closer (policies auth.uid()).
+
+-- ─── 8. AUTEUR DES SMS (identifier bot vs closer vs admin dans le même fil) ──
+--     Ajouté en Phase 2. Ré-exécuter ce fichier (idempotent) applique juste ça.
+alter table public.messages add column if not exists sent_by_closer uuid references public.profiles(id) on delete set null;
+alter table public.messages add column if not exists sent_via text;   -- 'bot' | 'closer' | 'admin' | null (legacy)
+alter table public.contacts add column if not exists lost_reason text;

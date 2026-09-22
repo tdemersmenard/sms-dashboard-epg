@@ -13,7 +13,11 @@ import { getTwilioForFranchise, GRANBY_FRANCHISE_ID } from "@/lib/franchise";
  */
 export async function POST(req: NextRequest) {
   try {
-    const { contactId, body, to, franchiseId: explicitFranchiseId } = await req.json();
+    const { contactId, body, to, franchiseId: explicitFranchiseId, sentVia, sentByCloser } = await req.json();
+    const authorFields = {
+      ...(sentVia ? { sent_via: String(sentVia) } : {}),
+      ...(sentByCloser ? { sent_by_closer: String(sentByCloser) } : {}),
+    };
 
     if (!body?.trim()) {
       return NextResponse.json({ error: "body is required" }, { status: 400 });
@@ -64,6 +68,7 @@ export async function POST(req: NextRequest) {
           status:       twilioMsg.status,
           is_read:      true,
           franchise_id: franchiseId,
+          ...authorFields,
         })
         .select()
         .single();
@@ -89,6 +94,7 @@ export async function POST(req: NextRequest) {
         status:       twilioMsg.status,
         is_read:      true,
         franchise_id: franchiseId,
+        ...authorFields,
       })
       .select()
       .single();

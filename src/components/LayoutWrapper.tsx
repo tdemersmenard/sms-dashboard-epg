@@ -8,10 +8,11 @@ export default function LayoutWrapper({ children }: { children: React.ReactNode 
   const pathname = usePathname();
   const isPortail = pathname?.startsWith("/portail") ?? false;
   const isSite = pathname?.startsWith("/site") ?? false;
+  const isVendeur = pathname?.startsWith("/vendeur") ?? false;
   const isEmploye = pathname === "/employe" || (pathname?.startsWith("/employe/") ?? false);
   const isMaster = pathname === "/master" || (pathname?.startsWith("/master/") ?? false);
 
-  if (isPortail || isEmploye || isSite) {
+  if (isPortail || isEmploye || isSite || isVendeur) {
     return <div style={{ minHeight: "100vh" }}>{children}</div>;
   }
 

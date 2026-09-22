@@ -8,6 +8,7 @@ const PUBLIC_PATHS = [
   "/portail",
   "/employe",
   "/reserver",
+  "/vendeur",
   "/api",
   "/_next",
   "/favicon.ico",
