@@ -103,8 +103,8 @@ export async function POST(req: NextRequest) {
 
         if (contactId) {
           const [{ data: contact }, { data: payment }] = await Promise.all([
-            supabaseAdmin.from("contacts").select("first_name, last_name, notes, franchise_id").eq("id", contactId).single(),
-            supabaseAdmin.from("payments").select("amount").eq("id", paymentId).single(),
+            supabaseAdmin.from("contacts").select("first_name, last_name, notes, franchise_id, city, pipeline_status").eq("id", contactId).single(),
+            supabaseAdmin.from("payments").select("amount, created_by, kind, pool_type, plan").eq("id", paymentId).single(),
           ]);
 
           const clientName = contact
@@ -112,6 +112,7 @@ export async function POST(req: NextRequest) {
             : "Client";
 
           const isDeposit2027 = (existingPayment?.notes ?? "").includes("Dépôt saison 2027");
+          const isCloserSale = !!payment?.created_by;
           const baseUrl = getAppUrl();
 
           // Notification au propriétaire de la franchise du contact
@@ -121,7 +122,7 @@ export async function POST(req: NextRequest) {
             ? await supabaseAdmin.from("contacts").select("id").eq("phone", fr.owner_phone).eq("franchise_id", franchiseId).maybeSingle()
             : { data: null };
 
-          if (owner) {
+          if (owner && !isCloserSale) {
             await fetch(`${baseUrl}/api/sms/send`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -134,8 +135,35 @@ export async function POST(req: NextRequest) {
             });
           }
 
-          // Dépôt saison 2027: marquer RÉSERVÉ + confirmer au client + désamorcer les relances
-          if (isDeposit2027) {
+          // ── VENTE PAR UN CLOSER: closing + place secteur + pipeline ──
+          //    (les commissions se créent en Phase 4, dans ce même handler.)
+          if (isCloserSale && contact) {
+            const newPipeline = payment!.kind === "depot" ? "depot_paye" : "client";
+            const cleaned = (contact.notes ?? "").split("\n").filter((l: string) => !l.startsWith("RELANCE_PREVUE:")).join("\n");
+            const modeLabel = payment!.kind === "mensuel" ? `mensuel (${payment!.amount}$/mois ×12)` : payment!.kind === "saison_comptant" ? `comptant (${payment!.amount}$)` : `dépôt (${payment!.amount}$)`;
+            await supabaseAdmin.from("contacts").update({
+              stage: "closé",
+              pipeline_status: newPipeline,
+              notes: `${cleaned}\n✅ VENDU par closer — ${modeLabel}, forfait ${payment!.plan ?? "signature"}, le ${new Date().toLocaleDateString("en-CA", { timeZone: "America/Montreal" })}.`.trim(),
+            }).eq("id", contactId);
+
+            if (contact.city) {
+              const { data: sec } = await supabaseAdmin.from("sector_capacity").select("id, places_prises").ilike("secteur", contact.city).maybeSingle();
+              if (sec) await supabaseAdmin.from("sector_capacity").update({ places_prises: (sec.places_prises || 0) + 1, updated_at: new Date().toISOString() }).eq("id", sec.id);
+            }
+
+            await fetch(`${baseUrl}/api/sms/send`, {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ contactId, body: payment!.kind === "mensuel"
+                ? `C'est officiel${contact.first_name ? " " + contact.first_name : ""} — ta saison 2027 est RÉSERVÉE 🌊 Premier prélèvement de ${payment!.amount}$ passé (11 autres suivront). On se reparle au printemps. Merci! — l'équipe ALTAMAR`
+                : `C'est officiel${contact.first_name ? " " + contact.first_name : ""} — ta saison 2027 est RÉSERVÉE 🌊 Ton paiement de ${payment!.amount}$ est confirmé. On se reparle au printemps pour l'ouverture. Merci! — l'équipe ALTAMAR` }),
+            });
+            if (owner) await fetch(`${baseUrl}/api/sms/send`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contactId: owner.id, body: `💰 VENDU — ${clientName} a payé ${payment!.amount}$ (${modeLabel}). RÉSERVÉ ✅` }) });
+            await supabaseAdmin.from("automation_logs").insert({ action: "closer_sale_paid", contact_id: contactId, status: "success", details: { amount: payment!.amount, kind: payment!.kind, closer_id: payment!.created_by, payment_id: paymentId }, franchise_id: franchiseId });
+          }
+
+          // Dépôt saison 2027 (self-serve/bot, PAS une vente closer déjà traitée ci-dessus)
+          if (isDeposit2027 && !isCloserSale) {
             const cleanedNotes = (contact?.notes ?? "")
               .split("\n")
               .filter((l: string) => !l.startsWith("RELANCE_PREVUE:"))

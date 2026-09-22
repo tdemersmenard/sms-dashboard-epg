@@ -18,7 +18,7 @@ export async function GET(req: NextRequest, { params }: { params: { paymentId: s
 
   const { data: payment } = await supabaseAdmin
     .from("payments")
-    .select("id, amount, status, notes, contact_id")
+    .select("id, amount, status, notes, contact_id, kind, plan, pool_type")
     .eq("id", paymentId)
     .maybeSingle();
 
@@ -48,6 +48,27 @@ export async function GET(req: NextRequest, { params }: { params: { paymentId: s
   const description = (payment.notes || "").includes("Dépôt saison 2027")
     ? "Dépôt saison 2027 — déduit de la facture"
     : payment.notes || "Paiement de service";
+
+  // ── Mensuel (vente closer) → abonnement 12 versements ──
+  if (payment.kind === "mensuel") {
+    const subSession = await stripe.checkout.sessions.create({
+      mode: "subscription",
+      line_items: [{
+        price_data: {
+          currency: "cad",
+          unit_amount: Math.round(Number(payment.amount) * 100),
+          recurring: { interval: "month" },
+          product_data: { name: `${BRAND.name} — Saison 2027 au mois (${payment.plan === "essentiel" ? "Essentiel" : "Signature"}, ${payment.pool_type ?? ""})` },
+        },
+        quantity: 1,
+      }],
+      metadata: { payment_id: payment.id, contact_id: payment.contact_id ?? "", plan: "mensuel" },
+      subscription_data: { metadata: { payment_id: payment.id, contact_id: payment.contact_id ?? "", plan: "mensuel", saison: "2027" } },
+      success_url: `${getAppUrl()}/api/pay/${payment.id}?done=1`,
+      cancel_url: `${getAppUrl()}/api/pay/${payment.id}`,
+    });
+    return NextResponse.redirect(subSession.url!, 303);
+  }
 
   // ?plan=4x → la carte est sauvegardée pour les 4 versements du solde (mai-août 2027)
   const plan = new URL(req.url).searchParams.get("plan") === "4x" ? "4x" : "comptant";

@@ -41,18 +41,26 @@ export default function LeadDetail({ params }: { params: { id: string } }) {
   const [lostReason, setLostReason] = useState("");
   const [showLost, setShowLost] = useState(false);
   const [err, setErr] = useState("");
+  // paiement
+  const [payPlan, setPayPlan] = useState<"signature" | "essentiel">("signature");
+  const [payKind, setPayKind] = useState<"depot" | "saison_comptant" | "mensuel">("depot");
+  const [payments, setPayments] = useState<Any[]>([]);
+  const [paying, setPaying] = useState(false);
+  const [payMsg, setPayMsg] = useState("");
 
   const load = async () => {
     const { data: { user } } = await sb.auth.getUser();
     setMe(user?.id ?? "");
-    const [{ data: l }, { data: m }, { data: c }] = await Promise.all([
+    const [{ data: l }, { data: m }, { data: c }, { data: pays }] = await Promise.all([
       sb.from("contacts").select("*").eq("id", id).maybeSingle(),
       sb.from("messages").select("id, direction, body, sent_via, created_at").eq("contact_id", id).order("created_at"),
       sb.from("call_logs").select("*").eq("lead_id", id).order("called_at", { ascending: false }),
+      sb.from("payments").select("id, amount, status, kind, plan, created_at").eq("contact_id", id).order("created_at", { ascending: false }),
     ]);
     setLead(l);
     setMsgs(m || []);
     setCalls(c || []);
+    setPayments(pays || []);
     if (l?.pool_type) {
       const pr = await fetch("/api/site/pricing").then((r) => r.json()).catch(() => null);
       if (pr) setPricing(pr.tiers.signature[l.pool_type === "creusée" ? "creusée" : "hors-terre"]);
@@ -60,6 +68,31 @@ export default function LeadDetail({ params }: { params: { id: string } }) {
     setReady(true);
   };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [id]);
+
+  // Statut de paiement en direct: tant qu'un paiement est en attente, on
+  // rafraîchit (le closer voit "payé" dès que le client paie).
+  useEffect(() => {
+    if (!payments.some((p) => p.status === "en_attente")) return;
+    const t = setInterval(async () => {
+      const { data } = await sb.from("payments").select("id, amount, status, kind, plan, created_at").eq("contact_id", id).order("created_at", { ascending: false });
+      setPayments(data || []);
+    }, 5000);
+    return () => clearInterval(t);
+    /* eslint-disable-next-line */
+  }, [payments.map((p) => p.status).join(","), id]);
+
+  const createPayment = async () => {
+    if (paying || !lead?.pool_type) return;
+    setPaying(true); setPayMsg(""); setErr("");
+    const res = await fetch("/api/vendeur/payment", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contactId: id, plan: payPlan, poolType: lead.pool_type, kind: payKind }),
+    });
+    const data = await res.json();
+    if (res.ok) { setPayMsg(`Lien envoyé par texto (${data.amount}$) ✅`); await load(); }
+    else setErr(data.error || "Création échouée");
+    setPaying(false);
+  };
 
   if (!ready) return null;
   if (!lead) return <div className="vnd-card"><p className="vnd-empty">Lead introuvable ou non assigné.</p></div>;
@@ -143,11 +176,39 @@ export default function LeadDetail({ params }: { params: { id: string } }) {
         )}
       </div>
 
-      {/* Paiement — Phase 3 */}
+      {/* Encaisser — le montant est calculé serveur, aucun champ montant */}
       <div className="vnd-card">
-        <p className="lbl" style={{ marginBottom: 8 }}>Encaisser</p>
-        <button className="vnd-btn" disabled title="Disponible à la prochaine mise à jour">💳 Créer un paiement (bientôt)</button>
-        <p style={{ fontSize: ".72rem", color: "var(--faint)", marginTop: 8 }}>Dépôt, saison comptant ou mensuel — lien envoyé par texto en un clic.</p>
+        <p className="lbl" style={{ marginBottom: 10 }}>Encaisser</p>
+        {!lead.pool_type ? (
+          <p className="vnd-empty" style={{ padding: "6px 0" }}>Confirme le type de piscine du client d&apos;abord (dans la conversation).</p>
+        ) : (
+          <div style={{ display: "grid", gap: 9 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              <select className="vnd-select" value={payPlan} onChange={(e) => setPayPlan(e.target.value as Any)}>
+                <option value="signature">Signature</option>
+                <option value="essentiel">Essentiel</option>
+              </select>
+              <select className="vnd-select" value={payKind} onChange={(e) => setPayKind(e.target.value as Any)}>
+                <option value="depot">Dépôt (10%)</option>
+                <option value="saison_comptant">Comptant</option>
+                <option value="mensuel">Au mois (12×)</option>
+              </select>
+            </div>
+            <button className="vnd-btn" disabled={paying} onClick={createPayment}>{paying ? "Envoi du lien…" : "💳 Créer + texter le lien"}</button>
+            {payMsg && <p className="vnd-ok" style={{ fontSize: ".84rem" }}>{payMsg}</p>}
+            <p style={{ fontSize: ".72rem", color: "var(--faint)" }}>Le montant est calculé automatiquement selon le forfait — tu ne peux pas le modifier. Le lien part par texto au client.</p>
+          </div>
+        )}
+        {payments.length > 0 && (
+          <div style={{ marginTop: 12, borderTop: "1px solid rgba(27,58,92,.5)", paddingTop: 10 }}>
+            {payments.map((p) => (
+              <div className="vnd-row" key={p.id}>
+                <span style={{ fontSize: ".84rem" }}>{p.kind === "mensuel" ? `${p.amount}$/mois` : `${p.amount}$`} · {p.kind === "depot" ? "dépôt" : p.kind === "mensuel" ? "mensuel" : "comptant"}</span>
+                <span className={`vnd-chip ${p.status === "reçu" ? "client" : "rappel_prevu"}`}>{p.status === "reçu" ? "payé ✓" : "en attente…"}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Fil SMS */}
