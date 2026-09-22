@@ -61,6 +61,7 @@ export async function POST(req: NextRequest) {
   }
 
   const now = new Date().toISOString();
+  const countByCloser: Record<string, number> = {};
   let i = 0;
   for (const leadId of leadIds) {
     const to = targets[i % targets.length];
@@ -75,6 +76,23 @@ export async function POST(req: NextRequest) {
     await supabaseAdmin.from("assignment_history").insert({
       lead_id: leadId, from_closer: prev?.assigned_to ?? null, to_closer: to, assigned_by: adminId,
     });
+    countByCloser[to] = (countByCloser[to] || 0) + 1;
+  }
+
+  // ── SMS au closer sur son cellulaire (s'il en a un) ──
+  const { getAppUrl } = await import("@/config/brand");
+  const { data: profs } = await supabaseAdmin.from("profiles").select("id, full_name, phone").in("id", Object.keys(countByCloser));
+  for (const prof of profs || []) {
+    const n = countByCloser[prof.id];
+    if (!prof.phone || !n) continue;
+    const prenom = prof.full_name ? ` ${String(prof.full_name).trim().split(/\s+/)[0]}` : "";
+    await fetch(`${getAppUrl()}/api/sms/send`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        to: prof.phone,
+        body: `Salut${prenom}! ${n} nouveau${n > 1 ? "x" : ""} lead${n > 1 ? "s" : ""} à appeler t'${n > 1 ? "ont" : "a"} été assigné${n > 1 ? "s" : ""} 🌊 Ils sont dans ton portail: ${getAppUrl()}/vendeur`,
+      }),
+    }).catch(() => null);
   }
 
   return NextResponse.json({ ok: true, assigned: leadIds.length, rotated: !!rotate, closers: targets.length });

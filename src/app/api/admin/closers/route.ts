@@ -116,17 +116,32 @@ export async function PATCH(req: NextRequest) {
   if (!(await requireAdmin())) return NextResponse.json({ error: "Non autorisé" }, { status: 403 });
 
   try {
-    const { id, active, commissionFlatCents, bonusComptantCents } = await req.json();
+    const { id, active, commissionFlatCents, bonusComptantCents, fullName, phone, email, password } = await req.json();
     if (!id) return NextResponse.json({ error: "id requis" }, { status: 400 });
 
+    // ── Profil (nom, téléphone, commissions, actif) ──
     const patch: Record<string, unknown> = {};
     if (typeof active === "boolean") patch.active = active;
+    if (typeof fullName === "string") patch.full_name = fullName.trim() || null;
+    if (typeof phone === "string") patch.phone = phone.trim() || null;
     if (Number.isInteger(commissionFlatCents)) patch.commission_flat_cents = commissionFlatCents;
     if (Number.isInteger(bonusComptantCents)) patch.bonus_comptant_cents = bonusComptantCents;
-    if (Object.keys(patch).length === 0) return NextResponse.json({ error: "Rien à modifier" }, { status: 400 });
+    if (Object.keys(patch).length > 0) {
+      const { error } = await supabaseAdmin.from("profiles").update(patch).eq("id", id).eq("role", "closer");
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    }
 
-    const { error } = await supabaseAdmin.from("profiles").update(patch).eq("id", id).eq("role", "closer");
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    // ── Compte Supabase Auth (courriel, mot de passe) ──
+    const authPatch: { email?: string; password?: string } = {};
+    if (typeof email === "string" && email.trim()) authPatch.email = email.trim().toLowerCase();
+    if (typeof password === "string" && password) {
+      if (password.length < 8) return NextResponse.json({ error: "Mot de passe: min 8 caractères" }, { status: 400 });
+      authPatch.password = password;
+    }
+    if (Object.keys(authPatch).length > 0) {
+      const { error: authErr } = await supabaseAdmin.auth.admin.updateUserById(id, authPatch);
+      if (authErr) return NextResponse.json({ error: `Compte: ${authErr.message}` }, { status: 400 });
+    }
 
     // Désactiver = bannir la connexion Supabase Auth aussi
     if (active === false) {
