@@ -214,3 +214,11 @@ alter table public.contacts add column if not exists lost_reason text;
 alter table public.payments drop constraint if exists payments_status_check;
 alter table public.payments add constraint payments_status_check
   check (status in ('en_attente','reçu','en_retard','rembourse','echoue'));
+
+-- ─── 10. REALTIME sur payments (dashboard admin se met à jour au dépôt) ──────
+do $$
+begin
+  if not exists (select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='payments') then
+    alter publication supabase_realtime add table public.payments;
+  end if;
+end $$;

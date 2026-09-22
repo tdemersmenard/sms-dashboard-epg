@@ -33,11 +33,33 @@ export async function GET() {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // Emails depuis auth.users (via l'API admin)
+  // Perf: leads assignés, appels, contact, ventes, valeur, conversion
+  const ids = (closers || []).map((c) => c.id);
+  const [{ data: leads }, { data: calls }, { data: pays }] = await Promise.all([
+    supabaseAdmin.from("contacts").select("assigned_to, pipeline_status").in("assigned_to", ids.length ? ids : ["00000000-0000-0000-0000-000000000000"]),
+    supabaseAdmin.from("call_logs").select("closer_id, outcome").in("closer_id", ids.length ? ids : ["00000000-0000-0000-0000-000000000000"]),
+    supabaseAdmin.from("payments").select("created_by, amount, status, kind").eq("status", "reçu").in("created_by", ids.length ? ids : ["00000000-0000-0000-0000-000000000000"]),
+  ]);
+
   const withEmail = await Promise.all(
     (closers || []).map(async (c) => {
       const { data: u } = await supabaseAdmin.auth.admin.getUserById(c.id);
-      return { ...c, email: u?.user?.email ?? null };
+      const myLeads = (leads || []).filter((l) => l.assigned_to === c.id);
+      const myCalls = (calls || []).filter((x) => x.closer_id === c.id);
+      const myPays = (pays || []).filter((p) => p.created_by === c.id);
+      const contacted = myLeads.filter((l) => l.pipeline_status && l.pipeline_status !== "nouveau").length;
+      const clients = myLeads.filter((l) => l.pipeline_status === "client" || l.pipeline_status === "depot_paye").length;
+      return {
+        ...c, email: u?.user?.email ?? null,
+        perf: {
+          assignes: myLeads.length,
+          appels: myCalls.length,
+          taux_contact: myLeads.length ? Math.round((contacted / myLeads.length) * 100) : 0,
+          depots: myPays.length,
+          valeur: Math.round(myPays.reduce((s, p) => s + Number(p.amount || 0), 0)),
+          conversion: myLeads.length ? Math.round((clients / myLeads.length) * 100) : 0,
+        },
+      };
     }),
   );
 

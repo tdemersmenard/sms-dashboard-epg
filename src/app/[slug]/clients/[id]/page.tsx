@@ -7,6 +7,7 @@ import { supabaseBrowser } from "@/lib/supabase-browser";
 import { useFranchise } from "@/components/FranchiseProvider";
 import type { Contact, Job, Document, Payment, Message } from "@/lib/types";
 import { isPoolClosed, addPoolClosedMarker, removePoolClosedMarker } from "@/lib/pool-closed";
+import VendeurInfo from "@/components/VendeurInfo";
 
 const STAGES = [
   "nouveau", "contacté", "soumission envoyée", "closé",
@@ -905,6 +906,9 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
               <span className="text-mut">(stoppe les rappels de passage — se coche seule quand la fermeture est complétée)</span>
             </span>
           </label>
+
+          {/* Vendeur (closer, paiements, appels) */}
+          <VendeurInfo leadId={id} />
 
           {/* Notes */}
           <div className="bg-sur rounded-xl p-6 border border-line ">

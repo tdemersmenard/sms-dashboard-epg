@@ -53,6 +53,20 @@ export async function sendFollowUps(franchiseId: string, nowOverride?: Date): Pr
     // Colonne pas encore créée — ignorer, aucun lead exclu
   }
 
+  // Leads ASSIGNÉS à un closer — le vendeur prend le relais, le bot suspend
+  // ses relances automatiques (le MSG1 à la réception du lead part toujours,
+  // il ne passe pas par ici). Désassigner reprend les relances au tick suivant.
+  try {
+    const { data: assigned } = await supabaseAdmin
+      .from("contacts")
+      .select("id")
+      .not("assigned_to", "is", null)
+      .eq("franchise_id", franchiseId);
+    for (const c of assigned ?? []) callbackIds.add(c.id);
+  } catch {
+    // Colonne assigned_to pas encore créée — ignorer
+  }
+
   // Relances intelligentes (dates prévues par le bot)
   const { data: allContacts } = await supabaseAdmin
     .from("contacts")

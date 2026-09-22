@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Calendar, Sparkles, Phone, MessageSquare, Mail } from "lucide-react";
 import DashboardStats from "@/components/DashboardStats";
 import FermeturesTracker from "@/components/FermeturesTracker";
+import RealtimeDeposits from "@/components/RealtimeDeposits";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { supabaseBrowser } from "@/lib/supabase-browser";
@@ -232,6 +233,7 @@ export default function DashboardPage() {
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
+      <RealtimeDeposits />
       {/* OAuth search-params handler (needs Suspense) */}
       <Suspense fallback={null}>
         <OAuthToastHandler
