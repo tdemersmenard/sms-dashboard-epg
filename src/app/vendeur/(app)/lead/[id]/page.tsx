@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, use as usePromise } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { vendeurBrowser } from "@/lib/vendeur/client";
 
@@ -18,8 +18,8 @@ const OUTCOMES = [
   { v: "mauvais_numero", l: "Mauvais numéro" },
 ];
 
-export default function LeadDetail({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = usePromise(params);
+export default function LeadDetail({ params }: { params: { id: string } }) {
+  const { id } = params;
   const router = useRouter();
   const sb = vendeurBrowser();
 
