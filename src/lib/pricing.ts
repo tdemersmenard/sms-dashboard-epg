@@ -99,10 +99,12 @@ export function effectivePricing(
   tier: "signature" | "essentiel",
   pool: "hors-terre" | "creusée",
   now = new Date(),
+  forcePromo = false,
 ): EffectivePricing {
   const p = cfg.saison2027[tier][pool];
   const premium = cfg.mensuel_premium ?? 120;
-  const promoActive = isPromoActive(cfg, now);
+  // forcePromo: programme voisin → le référé garde le -10% même après la deadline
+  const promoActive = forcePromo || isPromoActive(cfg, now);
   const price = promoActive ? p.promo : p.full;
   // Dépôt = 10% du prix effectif (162$/198$ en promo, 180$/220$ au régulier)
   const deposit = promoActive ? p.deposit : Math.round(p.full * 0.10);

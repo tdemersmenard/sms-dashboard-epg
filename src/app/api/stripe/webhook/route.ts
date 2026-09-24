@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAppUrl } from "@/config/brand";
 import { supabaseAdmin } from "@/lib/supabase";
 import Stripe from "stripe";
+import { ensureReferralCode } from "@/lib/referral";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2024-12-18.acacia" });
 
@@ -186,6 +187,9 @@ export async function POST(req: NextRequest) {
             if (owner) await fetch(`${baseUrl}/api/sms/send`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contactId: owner.id, body: `💰 VENDU — ${clientName} a payé ${payment!.amount}$ (${modeLabel}). RÉSERVÉ ✅` }) });
             await supabaseAdmin.from("automation_logs").insert({ action: "closer_sale_paid", contact_id: contactId, status: "success", details: { amount: payment!.amount, kind: payment!.kind, closer_id: payment!.created_by, payment_id: paymentId }, franchise_id: franchiseId });
 
+            // Programme voisin: le client signé obtient son code de référencement
+            await ensureReferralCode(contactId).catch((e) => console.error("[referral code]", e));
+
             // ── COMMISSIONS (montant FIXE, jamais un %) ──
             // Créées UNIQUEMENT ici, au 1er paiement réellement encaissé.
             // Base: une seule fois par lead (index unique lead_id+kind='base').
@@ -239,6 +243,9 @@ export async function POST(req: NextRequest) {
               details: { amount: payment?.amount, payment_id: paymentId, plan: session.metadata?.plan ?? "comptant" },
               franchise_id: franchiseId,
             });
+
+            // Programme voisin: le client signé obtient son code de référencement
+            await ensureReferralCode(contactId).catch((e) => console.error("[referral code]", e));
 
             // Plan 4 versements: créer les 4 paiements du solde (mai-août 2027).
             // La carte est sauvegardée (setup_future_usage) — customer/pm dans les notes du 1er versement.
